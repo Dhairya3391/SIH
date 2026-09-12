@@ -177,3 +177,35 @@ in the Supabase dashboard, under Database then Replication.
 - **`ai_disclaimer`** comes back on the challenge detail. Show it verbatim.
 - **Every seeded row carries `is_simulated`.** Nothing should display a made-up
   number without saying that is what it is.
+
+---
+
+## End-to-end flow endpoints (added 2026-09-13)
+
+All return `{ ok, data }` / `{ ok: false, error }`. Auth: Supabase cookie or `Authorization: Bearer`.
+
+| Step | Method & path | Who |
+|---|---|---|
+| AI check (auto after intake; manual rerun) | `POST /api/challenges/:id/corroborate` | verifier, coordinator, admin |
+| Verifier queue (+ `recently_verified_by_ai`) | `GET /api/verify/queue` | verifier, volunteer, coordinator, admin |
+| Confirm with sources / photos | `POST /api/verify/:id/confirm` `{source_urls[], photo_paths[], note}` | same |
+| Reject | `POST /api/verify/:id/reject` | same |
+| Private photo upload | `POST /api/uploads` multipart `file, purpose (verification\|progress), challenge_id` | by purpose |
+| Open a stored file (signed redirect) | `GET /api/files/<path>` | access-checked |
+| College problem list | `GET /api/college/problems` | university, admin |
+| Submit proposal | `POST /api/college/proposals` multipart `challenge_id, document (PDF)` or JSON `extracted_text` | university |
+| Proposal PDF | `GET /api/college/proposals/:id/document` | college, admin |
+| College projects | `GET /api/college/projects`, `GET /api/college/projects/:ref` | university; companies/NGOs/admin read-only |
+| Publish requirements | `POST /api/college/projects/:ref/requirements` `{funding_amount, materials[{item,qty,unit}], note}` | winning college |
+| Remove a line | `DELETE /api/college/projects/:ref/requirements/:needId` | winning college (no pledges on it) |
+| Stage status | `POST /api/college/projects/:ref/stages/:stageId` `{status, note, photo_paths}` | winning college |
+| Progress update | `POST /api/college/projects/:ref/updates` `{note, stage_id?, photo_paths}` | winning college |
+| Needs board | `GET /api/needs?group=materials\|funding\|all&district=` | all signed in |
+| Pledge (partial allowed, capped at what is open) | `POST /api/challenges/:id/pledges` `{need_id, qty, note?, expected_delivery_date?, org_id? (admin)}` | industry, ngo, admin |
+| Mark sent / received / withdraw | `POST /api/pledges/:id/dispatch` · `/receive` · `/withdraw` | pledger · college · pledger |
+| My contributions + tracked projects | `GET /api/contributions/mine` | industry, ngo |
+| Ask the college | `POST /api/threads` `{challenge_id}`, `GET/POST /api/threads/:id/messages` | contributor, college |
+| Admin metrics | `GET /api/admin/metrics` | admin |
+| Full record with gaps | `GET /api/admin/challenges/:ref/history` | admin |
+| Open windows / award now | `GET /api/admin/windows`, `POST /api/admin/windows/:id/award` | admin, coordinator |
+| Assistant | `POST /api/admin/assistant` `{question, challenge_ref?}` | admin |

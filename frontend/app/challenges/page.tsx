@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
 import { Panel, Stat } from "@/components/ui/Surface";
@@ -44,18 +44,13 @@ function AllChallenges() {
   const [sort, setSort] = useState<Sort>("priority");
   const [scope, setScope] = useState<Scope>("active");
 
-  const [localChallenges, setLocalChallenges] = useState<Challenge[] | null>(null);
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (res.data?.challenges && !localChallenges) {
-      setLocalChallenges(res.data.challenges);
-    }
-  }, [res.data?.challenges, localChallenges]);
 
-  const all = useMemo(() => localChallenges ?? res.data?.challenges ?? [], [localChallenges, res.data]);
+  const all = useMemo<Challenge[]>(() => (res.data?.challenges ?? []).filter((c) => !removed.has(c.id)), [removed, res.data]);
 
   // Deleting is an administrator's act, checked again on the server.
   async function handleDelete(id: string, ref: string) {
@@ -63,7 +58,7 @@ function AllChallenges() {
     setActionMsg(null);
     try {
       await apiClient.deleteChallenge(id);
-      setLocalChallenges((prev) => (prev ?? all).filter((c) => c.id !== id));
+      setRemoved((prev) => new Set(prev).add(id));
       setDeleteTarget(null);
       setActionMsg(`Problem ${ref} was permanently removed.`);
     } catch (err) {

@@ -635,20 +635,37 @@ export async function postProgressUpdate(
   body: { note: string; stage_id?: string | null; photo_paths: string[] },
 ) {
   await requireCollege(supabase, actor, challengeId);
-  if (body.stage_id) {
+  let stageId = body.stage_id ?? null;
+  if (stageId) {
     const { data: stage } = await supabase
       .from("progress_stages")
       .select("id")
-      .eq("id", body.stage_id)
+      .eq("id", stageId)
       .eq("challenge_id", challengeId)
       .maybeSingle();
     if (!stage) throw new HttpError(404, "That stage is not part of this project.");
+  } else {
+    // Every update belongs to a stage in the schema. A general update is filed
+    // against the stage the work is on: the one in progress, else the next
+    // one not done, else the last.
+    const { data: stages } = await supabase
+      .from("progress_stages")
+      .select("id, seq, status")
+      .eq("challenge_id", challengeId)
+      .order("seq", { ascending: true });
+    const list = stages ?? [];
+    if (!list.length) {
+      throw new HttpError(409, "This project has no delivery stages yet, so there is nothing to post progress against.");
+    }
+    const current =
+      list.find((s) => s.status === "in_progress") ?? list.find((s) => s.status !== "done") ?? list[list.length - 1];
+    stageId = current.id as string;
   }
 
   const { data: created, error } = await supabase
     .from("progress_updates")
     .insert({
-      stage_id: body.stage_id ?? null,
+      stage_id: stageId,
       challenge_id: challengeId,
       author_id: actor.id,
       note: body.note.trim(),

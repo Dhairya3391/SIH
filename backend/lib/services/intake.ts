@@ -166,8 +166,11 @@ export async function intakeReport(
     supabase,
     (rawCandidates ?? []) as DedupCandidate[],
     input.district ?? compiled.brief.district ?? null,
+    compiled.brief.category ?? null,
   );
-  const dedup = decideDedup(candidates);
+  const dedup = decideDedup(candidates, DEDUP_THRESHOLDS, {
+    lexicalEmbedding: compiled.embeddingSource === "local",
+  });
 
   let challengeId: string;
   let challengeRef: string | null = null;
@@ -367,19 +370,24 @@ async function withDistricts(
   supabase: SupabaseClient,
   candidates: DedupCandidate[],
   district: string | null,
+  category: string | null = null,
 ): Promise<DedupCandidate[]> {
   if (!candidates.length) return candidates;
   const { data } = await supabase
     .from("challenges")
-    .select("id, district")
+    .select("id, district, category")
     .in("id", candidates.map((c) => c.challenge_id));
-  const theirs = new Map(
-    (data ?? []).map((r) => [r.id as string, ((r.district as string | null) ?? "").trim().toLowerCase() || null]),
-  );
-  const mine = (district ?? "").trim().toLowerCase() || null;
+  const clean = (v: unknown) => ((v as string | null) ?? "").trim().toLowerCase() || null;
+  const theirs = new Map((data ?? []).map((r) => [r.id as string, { district: clean(r.district), category: clean(r.category) }]));
+  const mine = clean(district);
+  const myCategory = clean(category);
   return candidates.map((c) => {
-    const other = theirs.get(c.challenge_id) ?? null;
-    return { ...c, same_district: mine && other ? mine === other : null };
+    const other = theirs.get(c.challenge_id);
+    return {
+      ...c,
+      same_district: mine && other?.district ? mine === other.district : null,
+      same_category: myCategory && other?.category ? myCategory === other.category : null,
+    };
   });
 }
 

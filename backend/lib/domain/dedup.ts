@@ -33,7 +33,29 @@ export interface DedupCandidate {
    * district are a different problem. Null when either district is unknown.
    */
   same_district?: boolean | null;
+  /**
+   * Same category as the report's compiled brief. Consulted only when the
+   * embedding is the local hashing vectoriser, whose scores measure shared
+   * words rather than meaning. Null when either category is unknown.
+   */
+  same_category?: boolean | null;
 }
+
+export interface DedupOptions {
+  /**
+   * The embedding came from the local hashing vectoriser. Two reports of the
+   * same flood in different words score around 0.4 there, so similarity alone
+   * never reaches the merge bar; the compiled category and the distance decide.
+   */
+  lexicalEmbedding?: boolean;
+}
+
+/** Local-vectoriser fallback: same category this close and this recent is the same problem. */
+export const LEXICAL_FALLBACK = {
+  mergeDistanceKm: 1,
+  mergeMaxAgeDays: 7,
+  reviewSimilarityFloor: 0.25,
+} as const;
 
 export interface DedupResult {
   decision: DedupDecision;
@@ -67,6 +89,7 @@ function differentPlace(c: DedupCandidate, t: Thresholds): boolean {
 export function decideDedup(
   candidates: DedupCandidate[],
   thresholds: Thresholds = DEDUP_THRESHOLDS,
+  options: DedupOptions = {},
 ): DedupResult {
   const usable = candidates
     .filter((c) => c.age_days <= thresholds.maxAgeDays)
@@ -96,6 +119,36 @@ export function decideDedup(
           ? `Text similarity ${merge.similarity.toFixed(2)} against ${label(merge)} in the same district. There was no GPS to measure distance, so the bar was raised to ${NO_LOCATION_MERGE_SIMILARITY}.`
           : `Similarity ${merge.similarity.toFixed(2)} and ${merge.distance_km.toFixed(1)} km from ${label(merge)}.`,
     };
+  }
+
+  if (options.lexicalEmbedding) {
+    // Without semantic embeddings, the same kind of problem at the same spot is
+    // the same problem. Requires GPS on both sides: a district is too large.
+    const near = usable
+      .filter((c) => c.same_category === true && c.distance_km != null)
+      .sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0));
+    const lexMerge = near.find(
+      (c) => c.distance_km! <= LEXICAL_FALLBACK.mergeDistanceKm && c.age_days <= LEXICAL_FALLBACK.mergeMaxAgeDays,
+    );
+    if (lexMerge) {
+      return {
+        decision: "merge",
+        match: lexMerge,
+        candidates: top,
+        reason: `Same kind of problem ${lexMerge.distance_km!.toFixed(2)} km from ${label(lexMerge)}, reported within ${LEXICAL_FALLBACK.mergeMaxAgeDays} days. Semantic embeddings are not configured, so category and distance decided rather than wording (similarity ${lexMerge.similarity.toFixed(2)}).`,
+      };
+    }
+    const lexReview = near.find(
+      (c) => c.distance_km! <= thresholds.maxDistanceKm && c.similarity >= LEXICAL_FALLBACK.reviewSimilarityFloor,
+    );
+    if (lexReview) {
+      return {
+        decision: "review",
+        match: lexReview,
+        candidates: top,
+        reason: `Same kind of problem ${lexReview.distance_km!.toFixed(2)} km from ${label(lexReview)}. Too far or too old to merge automatically without semantic embeddings, so a person decides.`,
+      };
+    }
   }
 
   // A likely match whose place cannot be compared goes to a person, not into a cluster.

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
@@ -39,20 +39,17 @@ function Command() {
   const health = useResource(() => apiClient.fetchHealth(), []);
   const challengesRes = useResource(() => apiClient.fetchChallenges({ limit: 500 }), []);
 
-  const [localChallenges, setLocalChallenges] = useState<Challenge[] | null>(null);
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [awarding, setAwarding] = useState<string | null>(null);
 
-  const challenges = localChallenges ?? challengesRes.data?.challenges ?? [];
-
-  useEffect(() => {
-    if (challengesRes.data?.challenges && localChallenges === null) {
-      setLocalChallenges(challengesRes.data.challenges);
-    }
-  }, [challengesRes.data?.challenges, localChallenges]);
+  const challenges = useMemo<Challenge[]>(
+    () => (challengesRes.data?.challenges ?? []).filter((c) => !removed.has(c.id)),
+    [challengesRes.data, removed],
+  );
 
   const filteredChallenges = useMemo(() => {
     if (!searchQuery.trim()) return challenges;
@@ -71,7 +68,7 @@ function Command() {
     setActionMsg(null);
     try {
       await apiClient.deleteChallenge(id);
-      setLocalChallenges((prev) => (prev ?? challenges).filter((c) => c.id !== id));
+      setRemoved((prev) => new Set(prev).add(id));
       setDeleteTarget(null);
       setActionMsg(`Problem ${ref} was permanently removed.`);
       metrics.reload();

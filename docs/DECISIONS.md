@@ -140,3 +140,42 @@ endpoint populates it. This is intentional: matches are recomputed against the
 live database state, not the state at seed time.
 
 If the database is reset, the table is truncated alongside every other table.
+
+---
+
+## 8. NGO is its own role (2026-09-13)
+
+Companies give materials, NGOs give money, and they see different boards by
+default. **Decision**: a separate `ngo` role (migration `0013_ngo_role.sql`)
+rather than an `industry` account flagged as an NGO. Until the migration is run
+the NGO demo login fails and an admin can pledge on an NGO's behalf (`org_id`).
+
+## 9. Proposal competition window kept, with "award now" (2026-09-13)
+
+The first proposal on a verified problem opens a 2-14 day window (by severity);
+the highest-scoring **viable** proposal wins when it closes. If none is viable
+the window reopens and the colleges revise using the reviewer's reasons. Admins
+and coordinators can close a window early: `POST /api/admin/windows/:id/award`.
+A proposal the reviewer marks `not_viable` is rejected to the college with its
+required changes. With no AI key, the published rubric rules score instead.
+
+## 10. Dedup without semantic embeddings (2026-09-13)
+
+With no embedding key the local hashing vectoriser scores two differently
+worded reports of the same flood around 0.4, so the 0.85/0.75 bars never fired
+and nothing was ever combined. **Decision**: when the embedding is local, the
+compiled category and GPS distance decide - same category within 1 km in 7 days
+merges, within 2 km goes to review. Semantic embeddings keep the original bars.
+
+## 11. Every progress update belongs to a stage (2026-09-13)
+
+`progress_updates.stage_id` is NOT NULL. A general update with no stage is
+filed against the stage in progress, else the next one not done, else the last.
+
+## 12. Live end-to-end test (2026-09-13)
+
+`backend/scripts/e2e-flow.ts` walks report -> AI check -> verifier -> PDF
+proposal -> award -> requirements -> 5 kg + 5 kg and money pledges -> sent /
+received -> messages -> stage + update -> admin record, metrics, assistant ->
+public tracking, with role-wall checks. Rows are titled `[E2E TEST]`;
+`--cleanup` deletes them and their files. Ledger rows stay (append-only).

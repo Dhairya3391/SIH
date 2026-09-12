@@ -20,7 +20,7 @@ import { ROLE_LABEL } from "@/lib/format";
  * to put in front of someone is the action they came for.
  */
 export default function HomePage() {
-  const { loading, isAuthenticated, role, user } = useAuth();
+  const { loading, isAuthenticated, role } = useAuth();
 
   const CHAIN: { icon: IconName; title: string; body: string }[] = [
     {

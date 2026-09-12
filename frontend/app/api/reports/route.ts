@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { compileReport } from '@/lib/compile';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
 import { SEED_CHALLENGES, SEED_REPORTS } from '@/data/seedData';
 import { Challenge, Report } from '@/types/database';
 
@@ -29,9 +29,11 @@ export async function POST(request: Request) {
     const compiled = compileReport(text, people_est);
 
     // 1. Live Supabase path if configured
-    if (isSupabaseConfigured && supabase) {
+    const db = supabaseAdmin ?? supabase;
+
+    if (isSupabaseConfigured && db) {
       // Check for existing challenge in district & category within 30 days
-      const { data: existingChallenges } = await supabase
+      const { data: existingChallenges } = await db
         .from('challenges')
         .select('*')
         .eq('district', district)
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
         // Increment report count
         const existing = existingChallenges[0];
         const updatedCount = (existing.report_count || 1) + 1;
-        const { data: updated } = await supabase
+        const { data: updated } = await db
           .from('challenges')
           .update({ report_count: updatedCount, updated_at: new Date().toISOString() })
           .eq('id', existing.id)
@@ -88,11 +90,12 @@ export async function POST(request: Request) {
           mode: 'peace'
         };
 
-        const { data: createdChallenge } = await supabase
+        const { data: createdChallenge, error: challengeError } = await db
           .from('challenges')
           .insert(newChallenge)
           .select()
           .single();
+        if (challengeError) console.error('Challenge insert failed:', challengeError.message);
         targetChallenge = (createdChallenge || newChallenge) as Challenge;
       }
 
@@ -119,11 +122,12 @@ export async function POST(request: Request) {
         consent: true
       };
 
-      const { data: createdReport } = await supabase
+      const { data: createdReport, error: reportError } = await db
         .from('reports')
         .insert(newReportRecord)
         .select()
         .single();
+      if (reportError) console.error('Report insert failed:', reportError.message);
 
       return NextResponse.json({
         success: true,

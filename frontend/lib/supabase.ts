@@ -21,6 +21,18 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!)
   : null;
 
+/**
+ * Server-only client. Writes from the intake route use this: the anon key is
+ * subject to row-level security, so inserts were being refused and silently
+ * dropped. Never import this into a client component.
+ */
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+export const supabaseAdmin =
+  isSupabaseConfigured && serviceRoleKey
+    ? createClient(supabaseUrl!, serviceRoleKey, { auth: { persistSession: false } })
+    : null;
+
 // Fallback / Resilient Data Layer
 export async function getRegions(): Promise<Region[]> {
   if (isSupabaseConfigured && supabase) {

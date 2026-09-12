@@ -65,7 +65,7 @@ const RULES: Rule[] = [
   {
     category: "water",
     dmPhase: "response",
-    terms: ["water", "pani", "paani", "drinking water", "handpump", "hand pump", "chapakal", "well", "kuan", "tubewell", "contaminat"],
+    terms: ["water", "pani", "paani", "drinking water", "handpump", "hand pump", "chapakal", "well", "kuan", "tubewell", "contaminat", "arsenic", "dak", "da'", "tanni"],
     capabilities: ["water_testing", "water_quality", "logistics", "civil"],
     needs: ["Water-quality testing", "Filtration units", "Distribution plan"],
     severityFloor: 3,
@@ -73,7 +73,7 @@ const RULES: Rule[] = [
   {
     category: "health",
     dmPhase: "response",
-    terms: ["health", "medicine", "dawa", "hospital", "clinic", "doctor", "bimar", "ill", "disease", "snakebite", "saanp", "ambulance", "phc"],
+    terms: ["health", "medicine", "dawa", "hospital", "clinic", "doctor", "bimar", "ill", "disease", "snakebite", "saanp", "saap", "asthma", "ambulance", "phc"],
     capabilities: ["health", "logistics", "training"],
     needs: ["Last-mile medicine route", "Health-worker support"],
     severityFloor: 3,
@@ -88,7 +88,7 @@ const RULES: Rule[] = [
   {
     category: "agriculture",
     dmPhase: "mitigation",
-    terms: ["crop", "fasal", "farm", "kheti", "khet", "irrigation", "sinchai", "seed", "beej", "harvest", "drought", "sookha", "elephant", "hathi"],
+    terms: ["crop", "fasal", "farm", "kheti", "khet", "kisan", "irrigation", "sinchai", "seed", "beej", "harvest", "drought", "sookh", "sookha", "elephant", "hathi"],
     capabilities: ["agriculture", "extension", "sensors"],
     needs: ["Extension advisory", "Field survey"],
   },
@@ -110,15 +110,15 @@ const RULES: Rule[] = [
   {
     category: "environment",
     dmPhase: "mitigation",
-    terms: ["forest", "jangal", "pollution", "waste", "kachra", "tree", "ped", "air quality", "mining dust"],
+    terms: ["forest", "jangal", "pollution", "waste", "kachra", "tree", "ped", "air quality", "mining dust", "coal", "dust", "particulate", "smoke"],
     capabilities: ["environment", "water_testing", "mapping"],
     needs: ["Environmental assessment"],
   },
 ];
 
 /** Phrases that push severity up, in English and transliterated Hindi. */
-const SEVERITY_5 = ["death", "died", "killed", "mar gaya", "mar gaye", "maut", "marne", "jaan chali gayi", "jaan chali", "drown", "dub gaya", "collapse", "trapped", "fanse"];
-const SEVERITY_4 = ["injur", "ghayal", "serious", "danger", "khatra", "emergency", "cut off", "no access", "बीमार"];
+const SEVERITY_5 = ["death", "died", "killed", "mar gaya", "mar gaye", "maral", "maut", "marne", "jaan chali gayi", "jaan chali", "jhulas", "drown", "dub gaya", "doob", "collapse", "trapped", "fanse"];
+const SEVERITY_4 = ["injur", "ghayal", "serious", "severe", "danger", "khatra", "khatam", "emergency", "cut off", "stranded", "no access", "बीमार"];
 
 const VULNERABILITY_TERMS: Array<[VulnerabilityTag, string[]]> = [
   ["children", ["child", "children", "bachche", "bachcha", "baby", "infant", "school kids"]],
@@ -199,6 +199,11 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
       peopleInferred = true;
     }
   }
+
+  // Floor rules (never lower a score): vulnerable people involved, or two
+  // hundred plus affected, means a report is never "minor".
+  if (detected.size > 0) severity = Math.max(severity, 3);
+  if (peopleEst >= 200) severity = Math.max(severity, 3);
 
   // --- place --------------------------------------------------------------
   const district =

@@ -196,7 +196,7 @@ export default function QueuePage() {
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         {getPriorityChip(challenge.priority)}
                         <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded capitalize">
-                          {challenge.category}
+                          {String(challenge.category).replace(/_/g, " ")}
                         </span>
                         <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
                           <MapPin className="w-3 h-3" /> {challenge.district}
@@ -252,8 +252,36 @@ const FACTORS: { key: keyof Omit<ScoreBreakdown, 'why_critical'>; label: string;
   { key: 'community_signal', label: 'Community signal (capped)', max: 5 },
 ];
 
+type Factor = { key: string; label: string; max: number; points: number; reason?: string };
+
+/**
+ * The backend stores score_breakdown as { total, factors:[{key,label,max,points,reason}] };
+ * the older intake route wrote flat { severity: 25, urgency: 12, ... }. Read both, so the
+ * panel keeps working whichever service answered.
+ */
+function readFactors(sb: any): Factor[] {
+  if (!sb) return [];
+  if (Array.isArray(sb.factors)) {
+    return sb.factors.map((f: any) => ({
+      key: String(f.key),
+      label: String(f.label ?? f.key),
+      max: Number(f.max ?? 0),
+      points: Number(f.points ?? 0),
+      reason: f.reason ? String(f.reason) : undefined,
+    }));
+  }
+  return FACTORS.map((f) => ({
+    key: f.key as string,
+    label: f.label,
+    max: f.max,
+    points: Number(sb[f.key] ?? 0),
+  }));
+}
+
 function ScoreBrief({ challenge }: { challenge: Challenge }) {
-  const sb = challenge.score_breakdown;
+  const sb = challenge.score_breakdown as any;
+  const factors = readFactors(sb);
+  const c = challenge as any;
   return (
     <div className="px-4 pb-4 pt-1 bg-[#F4F6F5] border-t border-dashed border-[#CCD1C7]">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -267,23 +295,29 @@ function ScoreBrief({ challenge }: { challenge: Challenge }) {
               {challenge.priority}<span className="text-gray-400 text-xs">/100</span>
             </span>
           </div>
-          {sb ? (
-            <div className="space-y-1.5">
-              {FACTORS.map((f) => {
-                const val = Number(sb[f.key] ?? 0);
-                const pct = Math.max(0, Math.min(100, (val / f.max) * 100));
+          {factors.length > 0 ? (
+            <div className="space-y-2">
+              {factors.map((f) => {
+                const pct = f.max > 0 ? Math.max(0, Math.min(100, (f.points / f.max) * 100)) : 0;
                 return (
-                  <div key={f.key} className="flex items-center gap-2">
-                    <span className="text-[11px] text-gray-600 w-40 shrink-0">{f.label}</span>
-                    <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#2E7180]"
-                        style={{ width: `${pct}%` }}
-                      />
+                  <div key={f.key}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-600 w-36 shrink-0">{f.label}</span>
+                      <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[#2E7180]"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[11px] text-gray-500 w-12 text-right tabular-nums">
+                        {Math.round(f.points * 10) / 10}/{f.max}
+                      </span>
                     </div>
-                    <span className="font-mono text-[11px] text-gray-500 w-10 text-right">
-                      {val}/{f.max}
-                    </span>
+                    {f.reason && (
+                      <p className="text-[10.5px] leading-snug text-gray-400 ml-[9.5rem] mt-0.5">
+                        {f.reason}
+                      </p>
+                    )}
                   </div>
                 );
               })}
@@ -304,7 +338,7 @@ function ScoreBrief({ challenge }: { challenge: Challenge }) {
         <div className="space-y-3">
           <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
             <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
-              Compiled brief · {challenge.id}
+              Compiled brief · {c.ref ?? challenge.id}
             </h5>
             <p className="text-[11px] leading-relaxed text-gray-700">{challenge.problem}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -314,8 +348,33 @@ function ScoreBrief({ challenge }: { challenge: Challenge }) {
               <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
                 {challenge.report_count} reports merged
               </span>
+              {c.compiler_source && (
+                <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
+                  compiled by: {c.compiler_source === 'fallback' ? 'rule engine' : c.compiler_source}
+                </span>
+              )}
             </div>
           </div>
+
+          {(c.outcome || c.needs?.length > 0) && (
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
+              <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+                What good looks like
+              </h5>
+              {c.outcome && (
+                <p className="text-[11px] leading-relaxed text-gray-700 mb-1.5">{c.outcome}</p>
+              )}
+              {c.needs?.length > 0 && (
+                <ul className="space-y-0.5">
+                  {c.needs.map((n: string) => (
+                    <li key={n} className="text-[11px] text-gray-600 flex gap-1.5">
+                      <span className="text-[#2E7180]">·</span>{n}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {challenge.capabilities_needed?.length > 0 && (
             <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">

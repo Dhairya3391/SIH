@@ -32,7 +32,16 @@ function normaliseChallenge(raw: any): Challenge {
   if (!raw) return raw;
   return {
     ...raw,
-    problem: raw.problem ?? raw.why_critical ?? '',
+    // The backend keeps the compiled brief as a JSON object; its `problem` is the
+    // real problem statement, and why_critical is only the ranking verdict.
+    problem: raw.problem ?? raw.brief?.problem ?? raw.why_critical ?? '',
+    outcome: raw.outcome ?? raw.brief?.outcome ?? '',
+    needs: raw.needs ?? raw.brief?.needs ?? [],
+    compiler_source: raw.brief?.source ?? null,
+    ref: raw.ref ?? raw.id,
+    priority_band:
+      raw.priority_band ??
+      (raw.priority >= 75 ? 'critical' : raw.priority >= 55 ? 'high' : raw.priority >= 35 ? 'moderate' : 'long-term'),
     capabilities_needed: raw.capabilities_needed ?? raw.capabilities ?? [],
     ai_unsure_about:
       raw.ai_unsure_about ??

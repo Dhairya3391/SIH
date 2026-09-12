@@ -7,8 +7,9 @@
  * No AI calls and no network beyond Supabase, so this finishes in seconds and
  * works with no API keys. A demo reset must never depend on a model being up.
  */
-
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 import { createClient } from "@supabase/supabase-js";
 import { seedDatabase } from "../lib/seed/run";
 

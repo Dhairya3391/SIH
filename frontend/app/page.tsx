@@ -473,7 +473,7 @@ export default function HomePage() {
                       {getPriorityBadge(challenge.priority, challenge.priority_band)}
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-gray-100 text-gray-700 uppercase">
                         {getCategoryIcon(challenge.category)}
-                        {challenge.category}
+                        {String(challenge.category).replace(/_/g, " ")}
                       </span>
                     </div>
                     

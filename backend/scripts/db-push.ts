@@ -9,8 +9,9 @@
  * PostgREST cannot express. Applied files are tracked in a small table, so
  * re-running is safe.
  */
-
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -23,24 +23,71 @@ export default function ReportPage() {
   const [village, setVillage] = useState('Sisai Block');
   const [peopleEst, setPeopleEst] = useState('100');
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingSecs, setRecordingSecs] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [micError, setMicError] = useState('');
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [locationStatus, setLocationStatus] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const sampleHindiVoiceNotes = [
-    'खेत में काम करते समय बिजली गिरने से दो लोग घायल हो गए। यहाँ कोई शेल्टर नहीं है।',
-    'गंगा नदी का पानी गांव में घुस गया है। 2 दिन से पीने का पानी नहीं है और पुल टूट गया है।',
-    'हमारे गांव के स्कूल के पास का नाला बह गया है। 200 बच्चे स्कूल नहीं जा पा रहे।'
-  ];
+  const stopTracks = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  };
 
-  const handleSimulateVoice = () => {
-    setIsRecording(true);
-    setTimeout(() => {
-      setIsRecording(false);
-      const randomNote = sampleHindiVoiceNotes[Math.floor(Math.random() * sampleHindiVoiceNotes.length)];
-      setText(randomNote);
-    }, 1500);
+  const handleVoiceButton = async () => {
+    // Tap while recording stops and keeps the note.
+    if (isRecording && recorderRef.current) {
+      recorderRef.current.stop();
+      return;
+    }
+    setMicError('');
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setMicError('This device has no microphone input. Please type instead.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        setAudioBlob(blob.size > 0 ? blob : null);
+        setAudioUrl(blob.size > 0 ? URL.createObjectURL(blob) : null);
+        setIsRecording(false);
+        stopTracks();
+      };
+      recorder.start();
+      setIsRecording(true);
+      setRecordingSecs(0);
+      timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
+    } catch {
+      setMicError('Microphone blocked. Allow access or type instead.');
+      stopTracks();
+    }
+  };
+
+  const clearAudio = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl(null);
   };
 
   const handleGetLocation = () => {
@@ -61,7 +108,7 @@ export default function ReportPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) {
+    if (!text.trim() && !audioBlob) {
       setErrorMessage('Please describe the problem or record a voice note');
       return;
     }
@@ -74,6 +121,7 @@ export default function ReportPage() {
         district,
         village,
         people_est: parseInt(peopleEst, 10) || 100,
+        audio: audioBlob,
       });
 
       setResult(res);
@@ -148,30 +196,52 @@ export default function ReportPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Voice Note Button */}
-              <div className="bg-[#F4F6F5] p-3.5 rounded-xl border border-[#CCD1C7] flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs">
-                  <div className="font-bold text-[#102027]">Voice Note (Hindi / Nagpuri)</div>
-                  <div className="text-gray-500 text-[11px]">Tap to speak without typing</div>
+              <div className="bg-[#F4F6F5] p-3.5 rounded-xl border border-[#CCD1C7] flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-xs">
+                    <div className="font-bold text-[#102027]">Voice Note (Hindi / Nagpuri)</div>
+                    <div className="text-gray-500 text-[11px]">
+                      {isRecording
+                        ? `Recording… ${Math.floor(recordingSecs / 60)}:${String(recordingSecs % 60).padStart(2, '0')} — tap stop when done`
+                        : audioBlob
+                          ? 'Voice note attached. It will be transcribed on submit.'
+                          : 'Tap to speak without typing'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleVoiceButton}
+                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
+                      isRecording
+                        ? 'bg-[#D94F45] text-white animate-pulse'
+                        : 'bg-[#2E7180] hover:bg-[#245A66] text-white shadow-xs'
+                    }`}
+                  >
+                    <Mic className="w-4 h-4" />
+                    {isRecording ? 'Stop' : audioBlob ? 'Re-record' : 'Record Voice Note'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSimulateVoice}
-                  disabled={isRecording}
-                  className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
-                    isRecording 
-                      ? 'bg-[#D94F45] text-white animate-pulse' 
-                      : 'bg-[#2E7180] hover:bg-[#245A66] text-white shadow-xs'
-                  }`}
-                >
-                  <Mic className="w-4 h-4" />
-                  {isRecording ? 'Listening...' : 'Record Voice Note'}
-                </button>
+                {audioUrl && !isRecording && (
+                  <div className="flex items-center gap-2">
+                    <audio controls src={audioUrl} className="flex-1 h-8 min-w-0" />
+                    <button
+                      type="button"
+                      onClick={clearAudio}
+                      className="text-[11px] font-bold text-[#A8332A] hover:underline shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                {micError && (
+                  <p className="text-[11px] text-[#A8332A]">{micError}</p>
+                )}
               </div>
 
               {/* Text Description */}
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Describe what happened <span className="text-[#D94F45]">*</span>
+                  Describe what happened {audioBlob ? '(voice note attached)' : <span className="text-[#D94F45]">*</span>}
                 </label>
                 <textarea
                   rows={4}

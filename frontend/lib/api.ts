@@ -74,16 +74,28 @@ export async function submitReport(payload: {
   vulnerable?: string[];
   photo_urls?: string[];
   client_id?: string;
+  /** Recorded voice note. Sent as multipart; the backend transcribes via Whisper. */
+  audio?: Blob | null;
 }) {
-  const res = await fetch('/api/reports', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      // The offline queue can retry safely: both services key on client_id.
-      client_id: payload.client_id ?? `cli-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      ...payload,
-    }),
+  const { audio, ...fields } = payload;
+  const body = JSON.stringify({
+    // The offline queue can retry safely: both services key on client_id.
+    client_id: payload.client_id ?? `cli-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    ...fields,
   });
+
+  const res = await fetch('/api/reports', audio
+    ? (() => {
+      const form = new FormData();
+      form.append('payload', body);
+      form.append('audio', audio, 'report.webm');
+      return { method: 'POST', body: form } as RequestInit;
+    })()
+    : {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = json?.error?.message || json?.error || 'Failed to submit report';

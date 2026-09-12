@@ -1,253 +1,278 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle2, 
-  MapPin, 
-  TrendingUp, 
-  TrendingDown, 
-  Filter,
-  Layers,
-  Sparkles
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, Gauge, RefreshCw, TrendingDown } from 'lucide-react';
 import { RouteGuard } from '@/components/shell/RouteGuard';
 import { RoleNav } from '@/components/shell/RoleNav';
-import { TimelineGaps } from '@/components/shared/TimelineGaps';
+import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
+import { fetchSla } from '@/lib/api';
 
-interface SlaStageGauge {
-  stageName: string;
-  targetDays: number;
-  actualDays: number;
-  districtAverages: Record<string, number>;
-  status: 'on_track' | 'delayed' | 'critical_lag';
+/**
+ * Actual against target, per stage and per district.
+ *
+ * A stage nobody has completed shows "not measured yet", never 100%.
+ * Attainment of nothing is not perfect attainment, and a government sponsor
+ * reading a green gauge over an empty sample is being misled.
+ */
+
+interface Breach {
+  challenge_id: string;
+  ref: string;
+  district: string;
+  hours: number;
+}
+interface Stage {
+  stage_key: string;
+  label: string;
+  target_hours: number;
+  sample_size: number;
+  median_hours: number | null;
+  worst_hours: number | null;
+  attainment_pct: number | null;
+  breaches: Breach[];
+}
+interface DistrictRow {
+  district: string;
+  sample_size: number;
+  attainment_pct: number;
+  mean_hours: number;
 }
 
-export default function AdminSlaPage() {
-  const [selectedDistrict, setSelectedDistrict] = useState('all');
+function hoursLabel(h: number | null): string {
+  if (h === null) return '—';
+  if (h < 1) return `${Math.round(h * 60)}m`;
+  if (h < 48) return `${Math.round(h * 10) / 10}h`;
+  return `${Math.round(h / 24)}d`;
+}
 
-  const slaStages: SlaStageGauge[] = [
-    {
-      stageName: '1. Ground Intake to Field Verification',
-      targetDays: 1.0,
-      actualDays: 1.8,
-      districtAverages: { Gumla: 1.2, Sahebganj: 3.4, Dhanbad: 1.5, Ranchi: 0.9, Palamu: 2.1 },
-      status: 'delayed',
-    },
-    {
-      stageName: '2. Verification to Competition Window Open',
-      targetDays: 2.0,
-      actualDays: 1.4,
-      districtAverages: { Gumla: 1.0, Sahebganj: 1.8, Dhanbad: 1.2, Ranchi: 1.1, Palamu: 1.9 },
-      status: 'on_track',
-    },
-    {
-      stageName: '3. Competition Window to Proposal Award',
-      targetDays: 14.0,
-      actualDays: 14.2,
-      districtAverages: { Gumla: 14.0, Sahebganj: 16.5, Dhanbad: 13.5, Ranchi: 12.0, Palamu: 15.0 },
-      status: 'on_track',
-    },
-    {
-      stageName: '4. Award to 100% Resource Swarm Pledging',
-      targetDays: 7.0,
-      actualDays: 4.5,
-      districtAverages: { Gumla: 3.0, Sahebganj: 6.2, Dhanbad: 4.1, Ranchi: 2.8, Palamu: 6.5 },
-      status: 'on_track',
-    },
-    {
-      stageName: '5. Material Dispatch to College Receipt',
-      targetDays: 3.0,
-      actualDays: 5.8,
-      districtAverages: { Gumla: 4.2, Sahebganj: 9.1, Dhanbad: 4.8, Ranchi: 2.5, Palamu: 7.6 },
-      status: 'critical_lag',
-    },
-  ];
+function Gauge_({ pct }: { pct: number | null }) {
+  if (pct === null) {
+    return (
+      <span className="font-mono text-[11px] text-gray-400">not measured yet</span>
+    );
+  }
+  const tone =
+    pct >= 90 ? 'bg-emerald-600' : pct >= 70 ? 'bg-amber-500' : 'bg-[#A8332A]';
+  return (
+    <div className="flex items-center gap-2 min-w-[120px]">
+      <div className="h-2 flex-1 rounded-full bg-[#E9EEEB] overflow-hidden">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-[11px] font-semibold tabular-nums w-10 text-right">
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
+export default function SlaPage() {
+  const [data, setData] = useState<{
+    stages: Stage[];
+    by_district: DistrictRow[];
+    overall: { sample_size: number; stages_measured: number; stages_total: number };
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      setData(await fetchSla());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load SLA data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
-    <RouteGuard allowedRoles={['admin']} consoleTitle="SLA Metrics & Bottleneck Analysis">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+    <RouteGuard allowedRoles={['admin']} consoleTitle="SLA and Timings">
+      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
         <RoleNav />
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-          {/* Back Nav */}
-          <div className="flex items-center justify-between">
-            <Link
-              href="/admin"
-              className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-gray-600 hover:text-[#102027] transition"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to Command Center
-            </Link>
-
-            <span className="text-xs font-mono text-gray-500 bg-white px-2.5 py-1 rounded border border-[#CCD1C7]">
-              SLA Policy Target: <strong>Sendai Priority 4 Compliant</strong>
-            </span>
-          </div>
-
-          {/* Top Banner */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-3">
-            <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-              Service Level Agreement (SLA) & Velocity Gauges
-            </span>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-[#102027]">
-              Lifecycle Stage Velocity: Actual vs Target
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-600 leading-relaxed font-sans max-w-3xl">
-              Compare actual operational throughput against statutory targets per lifecycle stage. Filter by district to uncover geographical bottlenecks where logistics or verifiers lag behind the rest of Jharkhand.
-            </p>
-          </div>
-
-          {/* District Bottleneck Highlight Banner */}
-          <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 rounded-lg text-amber-800 shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-700" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="font-bold text-amber-950 font-mono uppercase text-[11px]">
-                  Statewide Bottleneck Finding: Sahebganj & Palamu Rural Lag
-                </h4>
-                <p className="text-amber-850 leading-relaxed font-sans">
-                  Sahebganj district averages <strong>9.1 days</strong> for material delivery (target: 3.0 days) due to monsoon ferry logistics. In contrast, Ranchi averages <strong>2.5 days</strong>.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 font-mono">
-              <span className="text-gray-600">Filter View:</span>
-              <select
-                value={selectedDistrict}
-                onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg border border-amber-300 bg-white font-bold"
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <Link
+                href="/admin"
+                className="font-mono text-[10px] tracking-wider uppercase text-[#2E7180] hover:underline flex items-center gap-1 mb-1"
               >
-                <option value="all">Statewide Average</option>
-                <option value="Gumla">Gumla</option>
-                <option value="Sahebganj">Sahebganj (Lagging)</option>
-                <option value="Dhanbad">Dhanbad</option>
-                <option value="Ranchi">Ranchi (Fastest)</option>
-                <option value="Palamu">Palamu</option>
-              </select>
+                <ArrowLeft className="w-3 h-3" /> Command centre
+              </Link>
+              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
+                How long each stage actually takes
+              </h1>
+              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                Measured from the record, against the target for each stage.
+                Where nothing has completed yet, this says so rather than
+                showing a green gauge over an empty sample.
+              </p>
             </div>
+            <button
+              onClick={() => {
+                setLoading(true);
+                load();
+              }}
+              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </button>
           </div>
 
-          {/* ========================================================================= */}
-          {/* STAGE SLA GAUGES (Actual vs Target) */}
-          {/* ========================================================================= */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {slaStages.map((stage, idx) => {
-              const displayActual =
-                selectedDistrict !== 'all' && stage.districtAverages[selectedDistrict]
-                  ? stage.districtAverages[selectedDistrict]
-                  : stage.actualDays;
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{error}</span>
+            </div>
+          )}
 
-              const isLagging = displayActual > stage.targetDays;
-              const ratio = Math.min(100, Math.round((stage.targetDays / displayActual) * 100));
-
-              return (
-                <div
-                  key={idx}
-                  className="bg-white border border-[#CCD1C7] rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono text-gray-400 font-bold uppercase">
-                        Stage #{idx + 1}
-                      </span>
-                      <span
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                          !isLagging
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : stage.status === 'critical_lag'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {!isLagging ? 'ON TARGET' : 'SLA BREACH'}
-                      </span>
-                    </div>
-
-                    <h4 className="font-bold text-sm text-[#102027]">{stage.stageName}</h4>
-
-                    {/* Gauges representation */}
-                    <div className="pt-2 space-y-2">
-                      <div className="flex items-baseline justify-between font-mono">
-                        <div>
-                          <span className="text-[10px] text-gray-500 uppercase block">Actual:</span>
-                          <span className={`text-2xl font-extrabold ${isLagging ? 'text-[#D94F45]' : 'text-emerald-700'}`}>
-                            {displayActual}d
-                          </span>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-[10px] text-gray-500 uppercase block">Target:</span>
-                          <span className="text-base font-bold text-gray-700">
-                            {stage.targetDays}d
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bar Gauge */}
-                      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            !isLagging ? 'bg-emerald-600' : 'bg-[#D94F45]'
-                          }`}
-                          style={{ width: `${ratio}%` }}
-                        />
-                      </div>
-                    </div>
+          {loading ? (
+            <LoadingSkeleton rows={4} />
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border border-[#CCD1C7] p-4 flex flex-wrap gap-x-8 gap-y-2">
+                <div>
+                  <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
+                    Intervals measured
                   </div>
-
-                  {/* District comparison chips */}
-                  <div className="pt-2 border-t border-gray-100 text-[10px] font-mono text-gray-500">
-                    <div className="flex justify-between items-center">
-                      <span>Ranchi: <strong>{stage.districtAverages['Ranchi']}d</strong></span>
-                      <span>Gumla: <strong>{stage.districtAverages['Gumla']}d</strong></span>
-                      <span className="text-amber-850">Sahebganj: <strong>{stage.districtAverages['Sahebganj']}d</strong></span>
-                    </div>
+                  <div className="text-xl font-extrabold font-mono">
+                    {data?.overall.sample_size ?? 0}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                <div>
+                  <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
+                    Stages with data
+                  </div>
+                  <div className="text-xl font-extrabold font-mono">
+                    {data?.overall.stages_measured ?? 0}
+                    <span className="text-gray-400 text-sm"> / {data?.overall.stages_total ?? 0}</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-500 max-w-md leading-relaxed self-center">
+                  Stages fill in as challenges pass through them. A brand-new
+                  deployment measures almost nothing, and that is the honest
+                  reading rather than a fault.
+                </p>
+              </div>
 
-          {/* ========================================================================= */}
-          {/* HORIZONTAL TIMELINE TRACKING STRIP (With gaps in days) */}
-          {/* ========================================================================= */}
-          <div className="space-y-4">
-            <h3 className="text-base font-extrabold text-[#102027]">
-              Horizontal Project Lifecycle Intervals (Surfacing Slow Milestones)
-            </h3>
+              {/* per stage */}
+              <section>
+                <h2 className="font-bold text-[#102027] mb-2 flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-[#2E7180]" /> By stage
+                </h2>
+                <div className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[760px]">
+                      <thead>
+                        <tr className="bg-[#F4F6F5] border-b border-[#CCD1C7]">
+                          {['Stage', 'Target', 'Median', 'Worst', 'n', 'Attainment'].map((h) => (
+                            <th
+                              key={h}
+                              className="text-left font-mono text-[10px] tracking-wider uppercase text-gray-500 px-4 py-2.5 whitespace-nowrap"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(data?.stages ?? []).map((s) => (
+                          <tr key={s.stage_key} className="border-b border-[#DFE4DC] last:border-0">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[#102027]">{s.label}</div>
+                              <div className="font-mono text-[10px] text-gray-500">
+                                {s.stage_key}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-600 tabular-nums">
+                              {hoursLabel(s.target_hours)}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs font-semibold tabular-nums">
+                              {hoursLabel(s.median_hours)}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-600 tabular-nums">
+                              {hoursLabel(s.worst_hours)}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-500 tabular-nums">
+                              {s.sample_size}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Gauge_ pct={s.attainment_pct} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
 
-            {/* Project 1: Gumla */}
-            <TimelineGaps
-              projectTitle="Gumla Rural Lightning Siren Relay Network (CH-GUM-001)"
-              slaThresholdDays={5}
-              events={[
-                { id: '1', label: 'Ground Intake', date: '01-Sep', daysSincePrevious: 0, status: 'completed' },
-                { id: '2', label: 'Field Verified', date: '02-Sep', daysSincePrevious: 1, status: 'completed' },
-                { id: '3', label: 'Window Opened', date: '03-Sep', daysSincePrevious: 1, status: 'completed' },
-                { id: '4', label: 'Awarded to BIT', date: '08-Sep', daysSincePrevious: 5, status: 'completed' },
-                { id: '5', label: 'Swarm Pledged', date: '09-Sep', daysSincePrevious: 1, status: 'completed' },
-                { id: '6', label: 'Receipt Confirmed', date: '12-Sep', daysSincePrevious: 3, status: 'current' },
-              ]}
-            />
+              {/* breaches */}
+              {(data?.stages ?? []).some((s) => s.breaches.length > 0) && (
+                <section>
+                  <h2 className="font-bold text-[#102027] mb-2">Where the target was missed</h2>
+                  <div className="space-y-2">
+                    {(data?.stages ?? [])
+                      .filter((s) => s.breaches.length > 0)
+                      .map((s) => (
+                        <div
+                          key={s.stage_key}
+                          className="bg-white rounded-xl border border-[#CCD1C7] p-3"
+                        >
+                          <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-2">
+                            {s.label} · target {hoursLabel(s.target_hours)}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {s.breaches.map((b) => (
+                              <Link
+                                key={`${s.stage_key}-${b.challenge_id}`}
+                                href={`/admin/challenges/${b.ref}`}
+                                className="font-mono text-[11px] bg-red-50 border border-red-200 text-red-800 rounded px-2 py-1 hover:border-red-400"
+                              >
+                                {b.ref} · {b.district} · {hoursLabel(b.hours)}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </section>
+              )}
 
-            {/* Project 2: Sahebganj (Surfacing Bottlenecks) */}
-            <TimelineGaps
-              projectTitle="Sahebganj Flood Water Purification Units (CH-SAH-002)"
-              slaThresholdDays={5}
-              events={[
-                { id: '1', label: 'Intake Filed', date: '28-Aug', daysSincePrevious: 0, status: 'completed' },
-                { id: '2', label: 'Field Verified', date: '04-Sep', daysSincePrevious: 7, isBottleneck: true, status: 'completed' },
-                { id: '3', label: 'Window Opened', date: '06-Sep', daysSincePrevious: 2, status: 'completed' },
-                { id: '4', label: 'Proposals Evaluated', date: '11-Sep', daysSincePrevious: 5, status: 'current' },
-              ]}
-            />
-          </div>
+              {/* per district */}
+              <section>
+                <h2 className="font-bold text-[#102027] mb-2 flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 text-[#A8332A]" /> By district, worst first
+                </h2>
+                {(data?.by_district ?? []).length === 0 ? (
+                  <div className="bg-white rounded-xl border border-[#CCD1C7] p-6 text-center text-xs text-gray-500">
+                    No district has enough completed intervals to compare yet.
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#DFE4DC]">
+                    {(data?.by_district ?? []).map((d) => (
+                      <div key={d.district} className="p-3 flex flex-wrap items-center gap-3">
+                        <span className="font-semibold text-sm text-[#102027] w-36">
+                          {d.district}
+                        </span>
+                        <Gauge_ pct={d.attainment_pct} />
+                        <span className="font-mono text-[10px] text-gray-500">
+                          n={d.sample_size} · mean {hoursLabel(d.mean_hours)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
         </main>
       </div>
     </RouteGuard>

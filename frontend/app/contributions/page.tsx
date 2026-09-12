@@ -1,328 +1,366 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { 
-  Building2, 
-  Truck, 
-  CheckCircle2, 
-  Clock, 
-  Calendar, 
-  ArrowRight, 
-  MessageSquare, 
-  Package, 
-  FileCheck,
-  GraduationCap,
-  Sparkles
+import {
+  AlertCircle,
+  Archive,
+  CheckCircle2,
+  Clock,
+  Package,
+  RefreshCw,
+  Truck,
 } from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
+import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
 import { RoleNav } from '@/components/shell/RoleNav';
-import { MessageThread } from '@/components/shared/MessageThread';
+import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
+import { fetchMyContributions } from '@/lib/api';
 import { formatIndianCurrency, formatIndianNumber } from '@/components/shared/ContributionSplitter';
+import { useAuth } from '@/lib/auth';
 
-export type DeliveryState = 'pledged' | 'dispatched' | 'delivered' | 'confirmed_by_college';
+/**
+ * What this organisation gave, and what happened to it.
+ *
+ * Closed projects stay here on purpose. A company that funded something is
+ * entitled to see how it finished; a project leaving the main list must not
+ * take its funders' record of it away.
+ */
 
-interface ContributionRecord {
+interface Contribution {
   id: string;
-  challengeRef: string;
-  challengeTitle: string;
-  collegeName: string;
-  itemName: string;
-  amountPledged: string;
-  pledgeDate: string;
-  deliveryState: DeliveryState;
-  dispatchDate?: string;
-  receiptConfirmedDate?: string;
-  isProjectClosed: boolean;
+  qty: number;
+  kind: string;
+  state: string;
+  note: string | null;
+  dispatched_at: string | null;
+  received_at: string | null;
+  receipt_note: string | null;
+  created_at: string;
+  awaiting: string | null;
+  need: { item: string; unit: string | null; qty_needed: number } | null;
+  challenge: {
+    id: string;
+    ref: string;
+    title: string;
+    district: string;
+    status: string;
+    closed: boolean;
+  } | null;
 }
 
-const SEED_MY_CONTRIBUTIONS: ContributionRecord[] = [
-  {
-    id: 'c-1',
-    challengeRef: 'CH-GUM-001',
-    challengeTitle: 'Last-mile lightning alerts and safe shelter for farm workers, Gumla block',
-    collegeName: 'BIT Mesra ECE Lab',
-    itemName: 'Structural Steel Prefabricated Mounting Mast',
-    amountPledged: '800 kg',
-    pledgeDate: '2026-09-09',
-    deliveryState: 'confirmed_by_college',
-    dispatchDate: '2026-09-11',
-    receiptConfirmedDate: '2026-09-12',
-    isProjectClosed: false,
-  },
-  {
-    id: 'c-2',
-    challengeRef: 'CH-GUM-001',
-    challengeTitle: 'Last-mile lightning alerts and safe shelter for farm workers, Gumla block',
-    collegeName: 'BIT Mesra ECE Lab',
-    itemName: 'Hardware Fabrication & Pilot Budget Grant',
-    amountPledged: '₹80,000',
-    pledgeDate: '2026-09-09',
-    deliveryState: 'confirmed_by_college',
-    receiptConfirmedDate: '2026-09-10',
-    isProjectClosed: false,
-  },
-  {
-    id: 'c-3',
-    challengeRef: 'CH-SAH-002',
-    challengeTitle: 'Ganga riverbank flood water filtration units',
-    collegeName: 'IIT-ISM Dhanbad Environmental Lab',
-    itemName: 'Mobile Gravity Ultrafiltration Cartridges',
-    amountPledged: '10 cartridges',
-    pledgeDate: '2026-09-11',
-    deliveryState: 'dispatched',
-    dispatchDate: '2026-09-12',
-    isProjectClosed: false,
-  },
-  {
-    id: 'c-4',
-    challengeRef: 'CH-DHN-101',
-    challengeTitle: 'Drinking Water Borewell Solar Submersible Repair',
-    collegeName: 'IIT-ISM Mining Engineering',
-    itemName: 'Submersible Pump Overhaul Grant',
-    amountPledged: '₹45,000',
-    pledgeDate: '2026-07-20',
-    deliveryState: 'confirmed_by_college',
-    receiptConfirmedDate: '2026-08-02',
-    isProjectClosed: true, // Closed project, stays reachable
-  },
-];
+interface Project {
+  id: string;
+  ref: string;
+  title: string;
+  district: string;
+  status: string;
+  closed: boolean;
+  my_contributions: number;
+  my_money: number;
+  stages_total: number;
+  stages_done: number;
+  progress_pct: number | null;
+  latest_update: { note: string; at: string; photos: string[] } | null;
+  days_since_update: number | null;
+}
+
+const STATE_STYLE: Record<string, string> = {
+  offered: 'bg-gray-100 text-gray-700',
+  committed: 'bg-blue-50 text-blue-800 border border-blue-200',
+  dispatched: 'bg-amber-100 text-amber-800 border border-amber-300',
+  received: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+  withdrawn: 'bg-red-50 text-red-700',
+};
 
 export default function MyContributionsPage() {
-  const [contributions, setContributions] = useState<ContributionRecord[]>(SEED_MY_CONTRIBUTIONS);
-  const [filterView, setFilterView] = useState<'all' | 'active' | 'closed'>('all');
-  const [selectedChatChallenge, setSelectedChatChallenge] = useState<string | null>('CH-GUM-001');
+  const { organisation } = useAuth();
+  const [data, setData] = useState<{
+    contributions: Contribution[];
+    projects: Project[];
+    totals: Record<string, number> | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Dispatch Date Setter
-  const handleUpdateDispatchDate = (id: string, newDate: string) => {
-    setContributions((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? { ...c, dispatchDate: newDate, deliveryState: 'dispatched' as DeliveryState }
-          : c
-      )
-    );
-  };
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      setData(await fetchMyContributions());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load your contributions.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const filtered = contributions.filter((c) => {
-    if (filterView === 'active') return !c.isProjectClosed;
-    if (filterView === 'closed') return c.isProjectClosed;
-    return true;
-  });
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const t = data?.totals;
+  const openProjects = (data?.projects ?? []).filter((p) => !p.closed);
+  const closedProjects = (data?.projects ?? []).filter((p) => p.closed);
 
   return (
-    <RouteGuard allowedRoles={['industry', 'coordinator', 'admin']} consoleTitle="My CSR Contributions">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+    <RoleGuard
+      allowedRoles={['industry', 'university', 'admin']}
+      consoleTitle="My Contributions"
+    >
+      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
         <RoleNav />
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-          {/* Header */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                Tata Steel CSR Foundation · Corporate Dashboard
-              </span>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#102027] mt-1">
-                My CSR Contributions & Delivery Tracking
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Stage 4 and 5 · Sponsorship and delivery
+              </div>
+              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
+                What you have given
               </h1>
-              <p className="text-xs text-gray-600 mt-1">
-                Track material dispatches, college receipts, and impact evidence for statutory Section 135 reporting.
+              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                {organisation
+                  ? `Everything ${organisation.name} has pledged, its delivery state, and the projects it funded — including the finished ones.`
+                  : 'Everything your organisation has pledged and what happened to it.'}
               </p>
             </div>
-
-            <Link
-              href="/needs"
-              className="touch-target px-4 py-2 bg-[#2E7180] hover:bg-[#245A66] text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-xs transition"
-            >
-              <Package className="w-3.5 h-3.5" />
-              Browse Open Needs Marketplace
-            </Link>
-          </div>
-
-          {/* Filter Bar (Active vs Closed Projects) */}
-          <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-[#CCD1C7] text-xs font-mono">
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-500 font-bold mr-2">Filter Projects:</span>
-              <button
-                type="button"
-                onClick={() => setFilterView('all')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  filterView === 'all'
-                    ? 'bg-[#2E7180] text-white font-bold'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+            <div className="flex items-center gap-2">
+              <Link
+                href="/needs"
+                className="h-9 px-3 rounded-lg bg-[#102027] text-white text-xs font-semibold flex items-center hover:bg-[#1D3540]"
               >
-                All ({contributions.length})
-              </button>
+                Find something to fund
+              </Link>
               <button
-                type="button"
-                onClick={() => setFilterView('active')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  filterView === 'active'
-                    ? 'bg-[#2E7180] text-white font-bold'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                onClick={() => {
+                  setLoading(true);
+                  load();
+                }}
+                className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
               >
-                Active Pilots ({contributions.filter((c) => !c.isProjectClosed).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterView('closed')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  filterView === 'closed'
-                    ? 'bg-[#2E7180] text-white font-bold'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Closed & Completed ({contributions.filter((c) => c.isProjectClosed).length})
+                <RefreshCw className="w-3.5 h-3.5" /> Refresh
               </button>
             </div>
-
-            <span className="text-gray-400 hidden sm:inline">
-              Closed projects remain fully accessible
-            </span>
           </div>
 
-          {/* TWO COLUMNS: Contributions List (Left 7) vs Direct College Chat (Right 5) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Col (7 cols): Contributions List */}
-            <div className="lg:col-span-7 space-y-4">
-              {filtered.map((item) => (
-                <div
-                  key={item.id}
-                  className={`bg-white border rounded-2xl p-5 shadow-xs space-y-3 transition ${
-                    item.isProjectClosed ? 'border-gray-300 opacity-90' : 'border-[#CCD1C7] hover:border-[#2E7180]'
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
-                        {item.challengeRef}
-                      </span>
-                      {item.isProjectClosed && (
-                        <span className="text-[10px] font-mono bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-bold">
-                          CLOSED / IMPACT VERIFIED
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Delivery State Badge */}
-                    {item.deliveryState === 'confirmed_by_college' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Confirmed Received by College
-                      </span>
-                    )}
-                    {item.deliveryState === 'dispatched' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-300">
-                        <Truck className="w-3.5 h-3.5 text-sky-600" />
-                        Dispatched in Transit
-                      </span>
-                    )}
-                    {item.deliveryState === 'pledged' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
-                        <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        Pledged · Awaiting Dispatch
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Item and Challenge info */}
-                  <div>
-                    <h3 className="text-sm font-bold text-[#102027]">{item.itemName}</h3>
-                    <p className="text-xs text-gray-500 font-mono mt-0.5">
-                      Pledged Share: <strong className="text-gray-900">{item.amountPledged}</strong> · Target Team:{' '}
-                      <strong className="text-[#2E7180]">{item.collegeName}</strong>
-                    </p>
-                  </div>
-
-                  {/* Dispatch and Receipt Status Dates */}
-                  <div className="p-3 bg-[#F4F6F5] rounded-xl text-xs font-mono space-y-1.5 border border-[#CCD1C7]/60">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-500">Dispatch Date:</span>
-                        <input
-                          type="date"
-                          value={item.dispatchDate || ''}
-                          disabled={item.deliveryState === 'confirmed_by_college'}
-                          onChange={(e) => handleUpdateDispatchDate(item.id, e.target.value)}
-                          className="px-2 py-0.5 rounded border border-[#CCD1C7] bg-white font-mono text-xs"
-                        />
-                      </div>
-
-                      {item.receiptConfirmedDate && (
-                        <div className="text-emerald-800 font-bold">
-                          Receipt Confirmed: {item.receiptConfirmedDate}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card footer actions */}
-                  <div className="pt-2 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedChatChallenge(item.challengeRef)}
-                      className="text-xs font-mono font-bold text-[#2E7180] hover:underline flex items-center gap-1"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      Message College Team ({item.collegeName})
-                    </button>
-
-                    <Link
-                      href={`/challenge/${item.challengeRef}`}
-                      className="text-xs font-mono text-gray-500 hover:text-gray-900 flex items-center gap-1"
-                    >
-                      View Live Project <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Right Col (5 cols): In-app Message Thread with College */}
-            <div className="lg:col-span-5 sticky top-20">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-[#2E7180]" />
-                    Direct College Chat (Stage 4)
-                  </span>
-                  <span className="text-[11px] font-mono text-gray-500">
-                    Challenge {selectedChatChallenge}
-                  </span>
-                </div>
-
-                <MessageThread
-                  challengeRef={selectedChatChallenge || 'CH-GUM-001'}
-                  projectTitle="Gumla Rural Lightning Siren Relay Network (12 Towers)"
-                  messages={[
-                    {
-                      id: 'm-1',
-                      senderName: 'R. S. Murthy',
-                      senderRole: 'industry',
-                      senderOrg: 'Tata Steel CSR',
-                      content: 'We have approved 800kg structural steel mast batch under Dispatch #TS-RNC-4401. Truck left depot this morning.',
-                      timestamp: 'Yesterday at 3:00 PM',
-                      isSelf: true,
-                    },
-                    {
-                      id: 'm-2',
-                      senderName: 'Dr. A. Verma',
-                      senderRole: 'university',
-                      senderOrg: 'BIT Mesra ECE',
-                      content: 'Thank you Mr. Murthy! We have received and confirmed the delivery on the ledger. Hardware assembly begins tomorrow.',
-                      timestamp: 'Today at 10:15 AM',
-                    },
-                  ]}
-                  currentUserRole="industry"
-                  onSendMessage={async () => {}}
-                />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Funding given
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-[#102027]">
+                {t?.money ? formatIndianCurrency(t.money) : '—'}
               </div>
             </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Lines taken
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-[#102027]">
+                {t?.lines ?? '—'}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-emerald-700 mb-1">
+                Confirmed received
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-emerald-700">
+                {t?.delivered ?? '—'}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Awaiting dispatch
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-[#102027]">
+                {t?.awaiting_dispatch ?? '—'}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-amber-800 mb-1">
+                With the college
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-amber-800">
+                {t?.awaiting_confirmation ?? '—'}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">awaiting confirmation</div>
+            </div>
           </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{error}</span>
+            </div>
+          )}
+
+          {loading ? (
+            <LoadingSkeleton rows={3} />
+          ) : (data?.contributions ?? []).length === 0 ? (
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-10 text-center">
+              <Package className="w-7 h-7 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-[#102027]">
+                You have not pledged anything yet
+              </p>
+              <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                Open lines across every funded project are on the marketplace.
+                You can take part of a line — another partner can take the rest.
+              </p>
+              <Link
+                href="/needs"
+                className="inline-flex mt-4 h-9 px-4 rounded-lg bg-[#102027] text-white text-xs font-semibold items-center hover:bg-[#1D3540]"
+              >
+                Browse open needs
+              </Link>
+            </div>
+          ) : (
+            <>
+              {/* contributions */}
+              <section>
+                <h2 className="font-bold text-[#102027] mb-2">Every pledge</h2>
+                <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#CCD1C7]">
+                  {(data?.contributions ?? []).map((c) => (
+                    <div key={c.id} className="p-4 flex flex-wrap items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span
+                            className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded uppercase ${
+                              STATE_STYLE[c.state] ?? 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {c.state}
+                          </span>
+                          {c.challenge?.closed && (
+                            <span className="font-mono text-[10px] text-gray-500 flex items-center gap-1">
+                              <Archive className="w-3 h-3" /> project closed
+                            </span>
+                          )}
+                          {c.awaiting && (
+                            <span className="font-mono text-[10px] text-amber-800 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> waiting on {c.awaiting}
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-semibold text-sm text-[#102027]">
+                          {c.kind === 'money'
+                            ? formatIndianCurrency(c.qty)
+                            : `${formatIndianNumber(c.qty)} ${c.need?.unit ?? ''}`}{' '}
+                          <span className="font-normal text-gray-600">
+                            {c.need?.item ? `· ${c.need.item}` : ''}
+                          </span>
+                        </div>
+                        {c.challenge && (
+                          <Link
+                            href={`/challenge/${c.challenge.ref}`}
+                            className="text-xs text-[#2E7180] hover:underline"
+                          >
+                            {c.challenge.ref} · {c.challenge.title}
+                          </Link>
+                        )}
+                        {c.receipt_note && (
+                          <p className="text-[11px] text-emerald-800 mt-1 flex items-start gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            {c.receipt_note}
+                          </p>
+                        )}
+                      </div>
+                      <div className="font-mono text-[10px] text-gray-500 text-right shrink-0 leading-relaxed">
+                        <div>pledged {new Date(c.created_at).toLocaleDateString('en-IN')}</div>
+                        {c.dispatched_at && (
+                          <div className="flex items-center gap-1 justify-end">
+                            <Truck className="w-3 h-3" />
+                            {new Date(c.dispatched_at).toLocaleDateString('en-IN')}
+                          </div>
+                        )}
+                        {c.received_at && (
+                          <div className="text-emerald-700">
+                            received {new Date(c.received_at).toLocaleDateString('en-IN')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* projects */}
+              {[
+                { label: 'Projects you are funding', list: openProjects },
+                { label: 'Finished projects', list: closedProjects },
+              ]
+                .filter((g) => g.list.length > 0)
+                .map((g) => (
+                  <section key={g.label}>
+                    <h2 className="font-bold text-[#102027] mb-2">{g.label}</h2>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      {g.list.map((p) => (
+                        <div
+                          key={p.id}
+                          className="bg-white rounded-xl border border-[#CCD1C7] p-4"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <Link
+                              href={`/challenge/${p.ref}`}
+                              className="font-semibold text-sm text-[#102027] hover:text-[#2E7180] leading-snug"
+                            >
+                              {p.title}
+                            </Link>
+                            <span className="font-mono text-[10px] text-gray-500 shrink-0">
+                              {p.ref}
+                            </span>
+                          </div>
+                          <div className="font-mono text-[10px] text-gray-500 mb-2.5">
+                            {p.district} · {String(p.status).replace(/_/g, ' ')} ·{' '}
+                            {p.my_contributions} pledge{p.my_contributions === 1 ? '' : 's'} from you
+                          </div>
+
+                          {p.stages_total > 0 ? (
+                            <>
+                              <div className="flex items-center justify-between font-mono text-[10px] text-gray-500 mb-1">
+                                <span>
+                                  {p.stages_done} of {p.stages_total} stages done
+                                </span>
+                                <span>{p.progress_pct}%</span>
+                              </div>
+                              <div className="h-2 rounded-full bg-[#E9EEEB] overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-[#2E7180]"
+                                  style={{ width: `${p.progress_pct ?? 0}%` }}
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <p className="font-mono text-[10px] text-gray-500">
+                              No delivery plan published yet
+                            </p>
+                          )}
+
+                          {p.latest_update ? (
+                            <p className="text-[11px] text-gray-700 mt-2.5 leading-relaxed">
+                              <span className="font-mono text-[10px] text-gray-500">
+                                {p.days_since_update === 0
+                                  ? 'today'
+                                  : `${p.days_since_update}d ago`}
+                                {' · '}
+                              </span>
+                              {p.latest_update.note.slice(0, 130)}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-gray-500 mt-2.5">
+                              No progress update posted yet.
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+            </>
+          )}
         </main>
       </div>
-    </RouteGuard>
+    </RoleGuard>
   );
 }

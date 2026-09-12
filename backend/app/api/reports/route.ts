@@ -6,7 +6,7 @@ import { supabaseServer, currentActor } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { intakeReport } from "@/lib/services/intake";
 import { traceTotalMs } from "@/lib/ai/compiler";
-import { isSttEnabled } from "@/lib/ai/stt";
+import { isSttEnabled, transcribe } from "@/lib/ai/stt";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -47,17 +47,41 @@ export const POST = route(async (request: NextRequest) => {
 
   const input = submitReportSchema.parse(payload);
 
-  // A voice note with no transcriber is the one case worth refusing outright.
+  // An audio-only report is transcribed HERE, before anything is written.
+  //
   // The pipeline would otherwise compile a content-free brief from the form
   // fields alone ("Unclassified local need in ..."), score it, and push it into
-  // the ranked queue - junk that a coordinator then has to clear. Say so
-  // instead. Once GROQ_API_KEY is set this branch never runs.
-  if (audio && !String(input.text ?? "").trim() && !isSttEnabled()) {
-    return fail(
-      503,
-      "Speech to text is not configured, so the voice note cannot be turned into a report yet. Type a line describing what happened, or try again once transcription is back.",
-      "stt_unavailable",
-    );
+  // the ranked queue - junk a coordinator then has to clear. Doing it after
+  // intake is no good either: the rows would already exist and refusing would
+  // just orphan them. So transcribe first, refuse cleanly, write nothing.
+  let transcribedText: string | null = null;
+  if (audio && !String(input.text ?? "").trim()) {
+    if (!isSttEnabled()) {
+      return fail(
+        503,
+        "Speech to text is not configured, so the voice note cannot be turned into a report yet. Type a line describing what happened.",
+        "stt_unavailable",
+      );
+    }
+    try {
+      const spoken = await transcribe(audio, { languageHint: input.lang ?? undefined });
+      transcribedText = (spoken.text ?? "").trim();
+    } catch (err) {
+      return fail(
+        503,
+        `That recording could not be transcribed - it may be too short, too quiet, or in an unsupported format. Try recording again, or type a line describing what happened. (${
+          err instanceof Error ? err.message : "unknown error"
+        })`,
+        "transcription_failed",
+      );
+    }
+    if (!transcribedText) {
+      return fail(
+        422,
+        "The recording came back empty - nothing was said, or it was too quiet to hear. Try again closer to the microphone, or type a line instead.",
+        "empty_transcript",
+      );
+    }
   }
 
   // Rate limit per account, or per IP for anonymous reports. A speed bump, not
@@ -74,9 +98,11 @@ export const POST = route(async (request: NextRequest) => {
 
   const result = await intakeReport(supabase, {
     ...input,
+    // Already transcribed above; passing the audio again would bill a second call.
+    text: transcribedText ?? input.text,
     channel: actor?.role === "volunteer" ? "volunteer" : "web",
     reporter_id: actor?.id ?? null,
-    audio,
+    audio: transcribedText ? null : audio,
     photo_urls: input.photo_urls,
     vulnerable: input.vulnerable,
   });

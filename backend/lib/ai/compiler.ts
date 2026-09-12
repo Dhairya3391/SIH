@@ -3,7 +3,7 @@ import { llmJson, MODEL_DRAFT, AiUnavailableError, isAiEnabled } from "./llm";
 import { BRIEF_SCHEMA, COMPILER_SYSTEM, isCompiledBrief, type CompiledBrief } from "./brief";
 import { compileWithRules, type FallbackInput } from "./fallback";
 import { embed, type EmbeddingSource } from "./embeddings";
-import { transcribe } from "./stt";
+import { transcribe, isSttEnabled } from "./stt";
 import type { VulnerabilityTag } from "@/lib/domain/types";
 
 /**
@@ -36,6 +36,15 @@ export interface CompileResult {
   trace: TraceStep[];
   /** True when any step had to fall back, so the UI can say so plainly. */
   degraded: boolean;
+  /**
+   * Why transcription produced nothing, when audio was sent.
+   *   "not_configured" - no GROQ_API_KEY on this deployment
+   *   "failed"         - the transcriber was reachable and rejected the audio
+   *   null             - it worked, or no audio was sent
+   * The caller needs the distinction: telling a villager the service is down
+   * when in fact their recording was unreadable sends them away for nothing.
+   */
+  transcriptionFailure: "not_configured" | "failed" | null;
 }
 
 export interface CompileInput {
@@ -60,6 +69,7 @@ export async function compile(input: CompileInput): Promise<CompileResult> {
 
   // --- 1. Transcribe ------------------------------------------------------
   let transcript: string | null = null;
+  let transcriptionFailure: CompileResult["transcriptionFailure"] = null;
   let text = (input.text ?? "").trim();
 
   if (input.audio) {
@@ -75,13 +85,22 @@ export async function compile(input: CompileInput): Promise<CompileResult> {
         detail: `${result.model}, detected ${result.language}`,
         usedAi: true,
       });
-    } catch {
+    } catch (err) {
       degraded = true;
+      // isSttEnabled() is the only thing that distinguishes "we cannot do this
+      // at all" from "we tried and this particular audio did not work".
+      transcriptionFailure = isSttEnabled() ? "failed" : "not_configured";
+      const detail =
+        transcriptionFailure === "not_configured"
+          ? "Speech to text is not configured on this deployment. The voice note is saved and the transcript is pending."
+          : `The transcriber could not read this recording: ${
+              err instanceof Error ? err.message : "unknown error"
+            }`;
       trace.push({
         step: "transcribe",
         label: "Transcribe",
         ms: Date.now() - started,
-        detail: "Speech to text unavailable. The voice note is saved and the transcript is pending.",
+        detail,
         usedAi: false,
       });
     }
@@ -195,6 +214,7 @@ export async function compile(input: CompileInput): Promise<CompileResult> {
     transcript,
     trace,
     degraded,
+    transcriptionFailure,
   };
 }
 

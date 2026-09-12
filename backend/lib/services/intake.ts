@@ -44,6 +44,8 @@ export interface IntakeResult {
   priority: number;
   confidence: string;
   degraded: boolean;
+  /** Why a voice note produced no transcript, when one was sent. */
+  transcriptionFailure?: "not_configured" | "failed" | null;
   /** True when the same client_id had already been filed. */
   duplicateSubmission: boolean;
 }
@@ -84,6 +86,7 @@ export async function intakeReport(
       priority: challenge?.priority ?? 0,
       confidence: challenge?.confidence ?? "unverified",
       degraded: false,
+      transcriptionFailure: null,
       duplicateSubmission: true,
     };
   }
@@ -277,6 +280,7 @@ export async function intakeReport(
     priority: scored.priority,
     confidence: scored.confidence,
     degraded: compiled.degraded,
+    transcriptionFailure: compiled.transcriptionFailure,
     duplicateSubmission: false,
   };
 }

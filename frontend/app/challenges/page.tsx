@@ -4,12 +4,13 @@ import React, { useMemo, useState } from "react";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
 import { Panel, Stat } from "@/components/ui/Surface";
-import { Toggle } from "@/components/ui/Button";
+import { ButtonLink, Toggle } from "@/components/ui/Button";
 import { Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import { ChallengeRow } from "@/components/domain/ChallengeRow";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
+import { useAuth } from "@/lib/auth";
 import { CATEGORY_LABEL, STATUS_LABEL, bandOf, humanise, num } from "@/lib/format";
 
 /**
@@ -31,6 +32,7 @@ export default function ChallengesPage() {
 type Sort = "priority" | "recent" | "reports";
 
 function AllChallenges() {
+  const { role } = useAuth();
   const res = useResource(() => apiClient.fetchChallenges({ limit: 300 }), []);
   const [q, setQ] = useState("");
   const [district, setDistrict] = useState("");
@@ -136,6 +138,25 @@ function AllChallenges() {
           <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
         ) : (
           <>
+            {role === "admin" && (
+              <div className="in-s mb-5 flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-alert-ink">
+                    <Icon name="shield" size={16} />
+                  </span>
+                  <div>
+                    <span className="text-[13px] font-bold text-ink">Administrator Mode</span>
+                    <p className="text-[12.5px] text-body">
+                      You can permanently delete any problem or inspect whole-life audit trails from the Command Centre.
+                    </p>
+                  </div>
+                </div>
+                <ButtonLink href="/admin#manage-problems" variant="danger" size="sm" icon="trash">
+                  Manage &amp; delete problems
+                </ButtonLink>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Stat
                 label="On the register"

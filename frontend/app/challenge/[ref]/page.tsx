@@ -2,11 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { BackLink, Main, PageHead } from "@/components/shell/PageHead";
 import { Card, Meter, Panel, Stat, Well } from "@/components/ui/Surface";
-import { ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { BandChip, Chip, ConfidenceChip, StatusChip, Tag } from "@/components/ui/Chip";
 import { AiNote, Empty, ErrorNote, Skeleton } from "@/components/ui/States";
 import { Icon, CATEGORY_ICON } from "@/components/ui/Icon";
@@ -61,6 +61,23 @@ function Brief() {
   const brief = c?.brief;
 
   const back = role ? ROLE_HOME[role] : "/";
+  const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!c) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiClient.deleteChallenge(c.id);
+      router.push("/admin");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete problem.");
+      setDeleting(false);
+    }
+  }
 
   if (res.loading && !res.settled) {
     return (
@@ -125,19 +142,59 @@ function Brief() {
               {/* Admin only: the history endpoint itself is requireRole("admin"),
                   so offering this to a coordinator would be a link to a refusal. */}
               {role === "admin" && (
-                <ButtonLink
-                  href={`/admin/challenges/${c.ref}`}
-                  variant="secondary"
-                  size="sm"
-                  icon="clock"
-                >
-                  Full record
-                </ButtonLink>
+                <>
+                  <ButtonLink
+                    href={`/admin/challenges/${c.ref}`}
+                    variant="secondary"
+                    size="sm"
+                    icon="clock"
+                  >
+                    Full record
+                  </ButtonLink>
+                  {!confirmDelete ? (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      icon="trash"
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      Delete problem
+                    </Button>
+                  ) : (
+                    <div className="in-s flex items-center gap-1.5 rounded-xl p-1">
+                      <span className="px-2 text-[11px] font-bold text-alert-ink">
+                        Permanently delete?
+                      </span>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        busy={deleting}
+                        onClick={handleDelete}
+                      >
+                        Yes, delete
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={deleting}
+                        onClick={() => setConfirmDelete(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         }
       />
+
+      {deleteError && (
+        <div className="shell mt-4">
+          <ErrorNote message={deleteError} />
+        </div>
+      )}
 
       <Main>
         {/* ---- the numbers ------------------------------------------------- */}

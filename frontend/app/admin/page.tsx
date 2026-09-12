@@ -120,6 +120,13 @@ function Command() {
         lede="Every role, every table, every timing. This screen is written to show what is stuck rather than what looks good — the flattering numbers are on the impact page."
         right={
           <div className="flex flex-wrap gap-2.5">
+            <a
+              href="#manage-problems"
+              className="btn btn-danger flex items-center gap-1.5 text-[13px]"
+            >
+              <Icon name="trash" size={14} />
+              Delete / manage problems
+            </a>
             <ButtonLink href="/admin/sla" variant="primary" icon="clock">
               SLA &amp; timings
             </ButtonLink>
@@ -186,15 +193,16 @@ function Command() {
             </div>
 
             {/* ---- manage problems & challenges (admin remove/delete) --- */}
-            <Panel
-              title="Manage Problems &amp; Challenges"
-              lede="Statewide registry of all reported and active challenges. Administrators can inspect, track, or permanently delete problems."
-              right={
-                <span className="mono in-s px-3 py-1 text-[11px] font-semibold text-navy">
-                  {num(filteredChallenges.length)} problems
-                </span>
-              }
-            >
+            <div id="manage-problems" className="scroll-mt-6">
+              <Panel
+                title="Manage Problems &amp; Challenges"
+                lede="Statewide registry of all reported and active challenges. Administrators can inspect, track, or permanently delete problems."
+                right={
+                  <span className="mono in-s px-3 py-1 text-[11px] font-semibold text-navy">
+                    {num(filteredChallenges.length)} problems
+                  </span>
+                }
+              >
               {actionMsg && (
                 <div className="in-s mb-4 flex items-center justify-between p-3.5">
                   <div className="flex items-center gap-2">
@@ -321,6 +329,7 @@ function Command() {
                 </ul>
               )}
             </Panel>
+          </div>
 
             {/* ---- quiet projects -------------------------------------- */}
             <Panel

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   AlertTriangle, 
   Shield, 
@@ -272,13 +273,13 @@ export default function HomePage() {
             </button>
 
             {/* Quick action button */}
-            <button 
-              onClick={() => alert('Reporting module will open in Next Sprint (Voice, Photo, GPS & SMS fallback).')}
+            <Link
+              href="/report"
               className="bg-[#2E7180] hover:bg-[#245A66] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm flex items-center gap-1.5 transition"
             >
               <PhoneCall className="w-3.5 h-3.5" />
               Report a Need
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -562,12 +563,12 @@ export default function HomePage() {
                     </span>
                   </div>
 
-                  <button 
-                    onClick={() => alert(`Opening Challenge ${challenge.id}: ${challenge.title}\n\nThis will link to the full Challenge Detail view with proposals, readiness scores, and Impact Ledger in the next phase.`)}
+                  <Link
+                    href="/queue"
                     className="inline-flex items-center gap-1 text-xs font-bold text-[#2E7180] hover:text-[#245A66] hover:translate-x-0.5 transition-all"
                   >
                     View Brief & Partners <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                  </Link>
                 </div>
               </article>
             ))}

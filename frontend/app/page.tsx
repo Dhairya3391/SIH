@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   AlertTriangle, 
   Shield, 
@@ -29,9 +29,12 @@ import {
   SEED_ORGANIZATIONS, 
   SEED_REPORTS 
 } from '@/data/seedData';
-import { Category, PriorityBand, UserRole } from '@/types/database';
+import { Category, Challenge, PriorityBand, UserRole } from '@/types/database';
+import { fetchChallenges } from '@/lib/api';
 
 export default function HomePage() {
+  const [challenges, setChallenges] = useState<Challenge[]>(SEED_CHALLENGES);
+  const [isLive, setIsLive] = useState<boolean>(false);
   const [selectedRegionId, setSelectedRegionId] = useState<string>('jharkhand');
   const [activeRole, setActiveRole] = useState<UserRole>('coordinator');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -53,7 +56,7 @@ export default function HomePage() {
 
   // Filtered challenges
   const filteredChallenges = useMemo(() => {
-    return SEED_CHALLENGES.filter(c => {
+    return challenges.filter(c => {
       // Region check
       if (c.region_id !== selectedRegionId) return false;
       // Crisis check if in crisis mode
@@ -75,11 +78,11 @@ export default function HomePage() {
       }
       return true;
     });
-  }, [selectedRegionId, isCrisisMode, categoryFilter, districtFilter, priorityFilter, searchQuery]);
+  }, [challenges, selectedRegionId, isCrisisMode, categoryFilter, districtFilter, priorityFilter, searchQuery]);
 
   // Statistics calculation
   const stats = useMemo(() => {
-    const regionChallenges = SEED_CHALLENGES.filter(c => c.region_id === selectedRegionId);
+    const regionChallenges = challenges.filter(c => c.region_id === selectedRegionId);
     const criticalCount = regionChallenges.filter(c => c.priority >= 75).length;
     const orgCount = SEED_ORGANIZATIONS.filter(o => o.region_id === selectedRegionId).length;
     const deployedCount = regionChallenges.filter(c => ['PILOT', 'DEPLOYED', 'IMPACT_VERIFIED'].includes(c.status)).length;
@@ -91,9 +94,30 @@ export default function HomePage() {
       orgs: orgCount || 7,
       deployed: deployedCount,
       people: peopleReached.toLocaleString(),
-      reports: SEED_REPORTS.filter(r => r.region_id === selectedRegionId).length || 25
+      reports: regionChallenges.reduce((acc, c) => acc + (c.report_count || 0), 0)
+        || SEED_REPORTS.filter(r => r.region_id === selectedRegionId).length
+        || 25
     };
-  }, [selectedRegionId]);
+  }, [challenges, selectedRegionId]);
+
+  // Pull the real queue from Postgres; the seed data above is only the first paint.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetchChallenges();
+        if (!cancelled && res.data && res.data.length > 0) {
+          setChallenges(res.data);
+          setIsLive(true);
+        }
+      } catch {
+        // keep the seed data on screen - the dashboard must never go blank
+      }
+    };
+    load();
+    const t = setInterval(load, 20000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   const getPriorityBadge = (priority: number, band: PriorityBand) => {
     if (priority >= 75) {
@@ -275,7 +299,13 @@ export default function HomePage() {
           </div>
 
           {/* 3 LIVE NUMBERS (HEADLINE KPIS) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-6">
+          <div className="flex items-center gap-2 mt-6 -mb-1 text-[11px] font-mono">
+            <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+            <span className={isLive ? 'text-emerald-700' : 'text-gray-400'}>
+              {isLive ? 'live from database · refreshes every 20s' : 'connecting to database…'}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-3">
             <div className="bg-white p-4 rounded-xl border border-[#CCD1C7] shadow-xs">
               <div className="flex items-center justify-between text-gray-500 mb-1">
                 <span className="text-xs font-semibold uppercase tracking-wider">Active Challenges</span>

@@ -22,25 +22,39 @@ export const GET = route(async (request: Request) => {
   const { district, hazard, limit } = readQuery(request, query);
   const supabase = supabaseAdmin();
 
-  let q = supabase
-    .from("challenges")
-    .select(
-      "id, ref, title, district, block, category, hazard_tags, severity, priority, confidence, status, people_est, report_count, reporter_count, brief, why_critical, created_at",
-    )
-    .in("confidence", ["unverified", "externally_corroborated", "community_corroborated"])
-    .order("priority", { ascending: false })
-    .limit(limit);
+  const COLUMNS =
+    "id, ref, title, district, block, category, hazard_tags, severity, priority, confidence, status, people_est, report_count, reporter_count, brief, why_critical, created_at";
 
-  if (district) q = q.eq("district", district);
-  if (hazard) q = q.contains("hazard_tags", [hazard]);
+  // `externally_corroborated` arrives with migration 0010. Ask for it, and if
+  // the enum does not carry it yet, fall back to the rungs that exist - the
+  // verifier desk has to work on both sides of that migration.
+  const rungsWithAi = ["unverified", "externally_corroborated", "community_corroborated"];
+  const rungsWithoutAi = ["unverified", "community_corroborated"];
 
-  const { data: challenges, error } = await q;
+  const load = async (rungs: string[]) => {
+    let q = supabase
+      .from("challenges")
+      .select(COLUMNS)
+      .in("confidence", rungs)
+      .order("priority", { ascending: false })
+      .limit(limit);
+    if (district) q = q.eq("district", district);
+    if (hazard) q = q.contains("hazard_tags", [hazard]);
+    return q;
+  };
+
+  let { data: challenges, error } = await load(rungsWithAi);
+  if (error && (error.code === "22P02" || /invalid input value for enum/i.test(error.message))) {
+    ({ data: challenges, error } = await load(rungsWithoutAi));
+  }
   if (error) throw error;
 
   const ids = (challenges ?? []).map((c) => c.id as string);
   const checksByChallenge = new Map<string, unknown[]>();
 
   if (ids.length > 0) {
+    // external_checks also arrives with 0010; absent, every row simply reads
+    // as "not checked yet".
     const { data: checks } = await supabase
       .from("external_checks")
       .select("challenge_id, provider, verdict, confidence, citations, reasoning, provider_error, checked_at")

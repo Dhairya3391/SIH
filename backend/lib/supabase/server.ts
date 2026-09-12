@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserRole } from "@/lib/domain/types";
@@ -8,13 +8,22 @@ import type { UserRole } from "@/lib/domain/types";
  * The request-scoped client. Everything a signed-in person does goes through
  * here, so row-level security applies to their actual role. This is what makes
  * the honest answer to "what if someone calls the API directly?" possible.
+ *
+ * Auth priority:
+ *   1. Supabase SSR cookie (browser sessions via the frontend rewrite)
+ *   2. Authorization: Bearer <jwt> header (smoke test and direct API callers)
+ *
+ * The Bearer fallback is important for the smoke test: @supabase/ssr cookies
+ * have SameSite=Lax and the Secure flag, which prevents them from being
+ * replayed by a Node.js script calling the deployed API directly.
  */
 export async function supabaseServer(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
+  const headerStore = await headers();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  return createServerClient(url, key, {
+  const client = createServerClient(url, key, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (list) => {
@@ -27,7 +36,21 @@ export async function supabaseServer(): Promise<SupabaseClient> {
       },
     },
   });
+
+  // If there is no cookie session, check for a Bearer token. This handles the
+  // smoke test and any direct API call that authenticates with a JWT rather than
+  // a browser cookie.
+  const authHeader = headerStore.get("authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    // setSession validates the token and populates the client's auth state.
+    // Errors here just mean no session — we don't throw.
+    await client.auth.setSession({ access_token: token, refresh_token: "" }).catch(() => null);
+  }
+
+  return client;
 }
+
 
 export interface Actor {
   id: string;

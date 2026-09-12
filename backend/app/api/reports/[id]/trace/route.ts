@@ -1,5 +1,5 @@
 import { ok, fail, route } from "@/lib/http";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * GET /api/reports/:id/trace - the pipeline trace panel.
@@ -11,7 +11,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 export const GET = route(
   async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
-    const supabase = await supabaseServer();
+    const supabase = supabaseAdmin();
 
     const { data: report, error } = await supabase
       .from("reports")

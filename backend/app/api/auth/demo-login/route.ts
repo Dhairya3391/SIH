@@ -50,7 +50,16 @@ export const POST = route(async (request: Request) => {
     .eq("id", data.user.id)
     .single();
 
-  return ok({ user: profile, role, email });
+  return ok({
+    user: profile,
+    role,
+    email,
+    // The access token is included so non-browser clients (e.g. the smoke
+    // test) can authenticate via Authorization: Bearer instead of a cookie.
+    // The cookie is still set for browser sessions via supabaseServer().
+    access_token: data.session?.access_token ?? null,
+    refresh_token: data.session?.refresh_token ?? null,
+  });
 });
 
 /** GET /api/auth/demo-login - who am I right now? */

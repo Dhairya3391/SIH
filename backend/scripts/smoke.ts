@@ -22,6 +22,7 @@ interface Check {
 }
 
 let cookie = "";
+let bearerToken = "";
 let challengeId = "";
 let reportId = "";
 
@@ -33,7 +34,14 @@ async function call(
     "content-type": "application/json",
     ...(init.headers as Record<string, string> | undefined),
   };
-  if (cookie) headers.cookie = cookie;
+  // Prefer Bearer token (set after demo-login), fall back to cookies.
+  // Bearer token works reliably against the deployed API where SameSite/Secure
+  // cookie constraints prevent the ssr cookie from surviving a Node.js roundtrip.
+  if (bearerToken) {
+    headers["authorization"] = `Bearer ${bearerToken}`;
+  } else if (cookie) {
+    headers.cookie = cookie;
+  }
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers, redirect: "manual" });
 
@@ -57,6 +65,7 @@ function data(body: Record<string, unknown>): Record<string, unknown> {
 
 async function loginAs(role: string): Promise<void> {
   cookie = "";
+  bearerToken = "";
   const { status, body } = await call("/api/auth/demo-login", {
     method: "POST",
     body: JSON.stringify({ role }),
@@ -66,6 +75,13 @@ async function loginAs(role: string): Promise<void> {
       `Could not sign in as ${role}: ${JSON.stringify(body.error ?? body)}. ` +
         "Set DEMO_PASSWORD and run the seed script.",
     );
+  }
+  // Use the JWT from the response body — this works regardless of cookie
+  // domain or SameSite policy, which is important when running the smoke
+  // test against jharsetu-api.vercel.app from a Node.js script.
+  const d = data(body);
+  if (typeof d.access_token === "string") {
+    bearerToken = d.access_token;
   }
 }
 

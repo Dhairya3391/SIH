@@ -41,6 +41,7 @@ function normaliseChallenge(raw: any): Challenge {
     ref: raw.ref ?? raw.id,
     priority_band:
       raw.priority_band ??
+      raw.band ??
       (raw.priority >= 75 ? 'critical' : raw.priority >= 55 ? 'high' : raw.priority >= 35 ? 'moderate' : 'long-term'),
     capabilities_needed: raw.capabilities_needed ?? raw.capabilities ?? [],
     ai_unsure_about:

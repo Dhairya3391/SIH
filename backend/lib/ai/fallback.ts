@@ -30,7 +30,7 @@ const RULES: Rule[] = [
     category: "disaster_safety",
     hazard: "lightning",
     dmPhase: "preparedness",
-    terms: ["lightning", "thunder", "bijli girna", "vajrapat", "bijli gir", "aakash bijli", "thunderstorm"],
+    terms: ["lightning", "thunder", "bijli girna", "bijli girne", "bijli giri", "vajrapat", "bijli gir", "aakash bijli", "aakashiya", "thunderstorm"],
     capabilities: ["electronics", "siren", "civil", "training"],
     needs: ["A siren relay that plays official alerts", "Low-cost shelter design", "Village training"],
     severityFloor: 4,
@@ -117,7 +117,7 @@ const RULES: Rule[] = [
 ];
 
 /** Phrases that push severity up, in English and transliterated Hindi. */
-const SEVERITY_5 = ["death", "died", "killed", "mar gaya", "maut", "marne", "drown", "dub gaya", "collapse", "trapped", "fanse"];
+const SEVERITY_5 = ["death", "died", "killed", "mar gaya", "mar gaye", "maut", "marne", "jaan chali gayi", "jaan chali", "drown", "dub gaya", "collapse", "trapped", "fanse"];
 const SEVERITY_4 = ["injur", "ghayal", "serious", "danger", "khatra", "emergency", "cut off", "no access", "बीमार"];
 
 const VULNERABILITY_TERMS: Array<[VulnerabilityTag, string[]]> = [
@@ -189,7 +189,7 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
   let peopleEst = input.peopleEst ?? 0;
   let peopleInferred = false;
   if (!peopleEst) {
-    const m = text.match(/(\d{2,6})\s*(people|log|persons|residents|families|parivar|workers)/);
+    const m = text.match(/(\d{2,6})\s*(people|log|logon|persons|residents|families|parivar|workers|children|bachche|bachchon|students|kisanon|farmers|villagers)/);
     if (m) {
       peopleEst = Number(m[1]);
       if (/families|parivar/.test(m[2])) peopleEst *= 4; // a household is not a person

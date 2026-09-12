@@ -125,10 +125,11 @@ export function compileReport(text: string, peopleEstimateInput?: number): Compi
     unsure = 'Cold-chain battery reserve during multi-day grid blackout.';
   }
 
-  // 2. Extract People affected (defaults to 100 if unspecified)
+  // 2. Extract People affected (defaults to 100 if unspecified).
+  // The unit is required: a bare number is usually days ("4 days"), not people.
   let people_est = peopleEstimateInput || 100;
   if (!peopleEstimateInput) {
-    const match = text.match(/(\d+)\s*(people|residents|villagers|baccho|kisan|log|families|ghar)/i);
+    const match = text.match(/(\d+)\s*(people|residents|villagers|baccho|bachche|bachchon|children|kisan|kisanon|farmers|students|log|logon|families|ghar|parivar)/i);
     if (match) {
       people_est = parseInt(match[1], 10);
     }

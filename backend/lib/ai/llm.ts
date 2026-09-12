@@ -49,17 +49,16 @@ export function getGeminiApiKeys(): string[] {
 }
 
 /**
- * Model cascade: primary flash (3.8 flash / 2.0 flash) -> 3.7 / 2.5 pro -> 3.6 / 2.0 exp ->
- * 3.5 / 1.5 flash -> 3.5 flash lite / 1.5 flash 8b.
+ * Model cascade: 3.8 flash -> 3.7 flash -> 3.6 flash -> 3.5 flash -> 3.5 flash lite.
  */
 export const GEMINI_MODEL_CASCADE = process.env.GEMINI_MODELS
   ? process.env.GEMINI_MODELS.split(",").map((m) => m.trim()).filter(Boolean)
   : [
-      "gemini-2.0-flash",
-      "gemini-2.5-pro",
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-flash",
-      "gemini-1.5-flash-8b",
+      "gemini-3.8-flash",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
     ];
 
 /**
@@ -197,7 +196,8 @@ async function callGeminiJson<T>(opts: LlmJsonOptions<T>, started: number): Prom
           continue;
         }
 
-        const value = JSON.parse(rawText) as T;
+        const cleanJson = rawText.replace(/^```json\s*|^```\s*|```$/g, "").trim();
+        const value = JSON.parse(cleanJson) as T;
         if (opts.validate && !opts.validate(value)) {
           lastError = new AiUnavailableError(`Gemini model ${model} output failed schema validation`);
           continue;

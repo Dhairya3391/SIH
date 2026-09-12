@@ -1,5 +1,8 @@
 -- JharSetu (SIH26043) Database Schema
--- Run this script in the Supabase SQL Editor
+-- Run ALL 245 lines in the Supabase SQL Editor
+
+-- 0. Clean reset of existing partial tables if any
+DROP TABLE IF EXISTS verifications, matches, assignments, pledges, resource_needs, milestones, evidence_files, impact_records, ledger, crisis_events, solutions, reports, challenges, org_capabilities, resources, organizations, regions CASCADE;
 
 -- 1. Enable optional extensions if available
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

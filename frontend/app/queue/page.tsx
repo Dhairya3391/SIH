@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { fetchChallenges, fetchChallengeDetail } from '@/lib/api';
 import { Challenge, ScoreBreakdown } from '@/types/database';
+import { RouteGuard } from '@/components/shell/RouteGuard';
+import { RoleNav } from '@/components/shell/RoleNav';
 
 export default function QueuePage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
@@ -82,8 +84,9 @@ export default function QueuePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-      {/* Ops Console Header */}
+    <RouteGuard allowedRoles={['coordinator', 'admin']} consoleTitle="Coordinator Operations Console">
+      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+        <RoleNav />
       <header className="bg-white border-b border-[#CCD1C7] px-4 py-3 sticky top-0 z-20 shadow-xs">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -240,7 +243,8 @@ export default function QueuePage() {
           )}
         </section>
       </main>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }
 

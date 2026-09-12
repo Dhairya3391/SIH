@@ -45,7 +45,73 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbars and transitions */
+/* Custom scrollbars, animations and accessibility utilities */
 * {
   box-sizing: border-box;
 }
+
+/* Accessibility: 44px touch targets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sohrai mural border accents (Peace Mode) */
+.sohrai-border {
+  border-image: repeating-linear-gradient(45deg, #2E7180, #2E7180 8px, #CCD1C7 8px, #CCD1C7 16px) 1;
+}
+
+.sohrai-strip {
+  background: repeating-linear-gradient(
+    -45deg,
+    #2E7180 0,
+    #2E7180 4px,
+    transparent 4px,
+    transparent 12px
+  );
+}
+
+/* Khovar scratch texture (Crisis Mode) */
+.khovar-scratched {
+  background-color: #102027;
+  background-image: radial-gradient(#D94F45 0.75px, transparent 0.75px), radial-gradient(#CCD1C7 0.75px, #102027 0.75px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+}
+
+/* AI Attribution Badge */
+.ai-provenance-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-ibm-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(46, 113, 128, 0.12);
+  color: #245A66;
+  border: 1px solid rgba(46, 113, 128, 0.25);
+  border-radius: 9999px;
+  padding: 0.1rem 0.45rem;
+  font-weight: 700;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F6F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #CCD1C7;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2E7180;
+}
+

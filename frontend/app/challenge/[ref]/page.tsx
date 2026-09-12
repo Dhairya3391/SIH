@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ArrowLeft, MapPin, Users, Flame, ChevronDown, CheckCircle2, ShieldQuestion, Wrench, Building2, PackagePlus, Loader2, ArrowRight } from 'lucide-react';
 import { fetchChallengeDetail, fetchNearbyResources, fetchMatches, adoptChallenge, pledgeResource } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { RoleNav } from '@/components/shell/RoleNav';
+import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
 
 export default function ChallengeDetailPage({ params }: { params: Promise<{ ref: string }> }) {
   const resolvedParams = use(params);
@@ -41,13 +43,44 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
     loadData();
   }, [resolvedParams.ref]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading challenge...</div>;
-  if (error || !data) return <div className="min-h-screen flex items-center justify-center text-red-500">{error || 'Challenge not found'}</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+        <RoleNav />
+        <LoadingSkeleton message="Retrieving compiled challenge brief & resource swarms..." />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+        <RoleNav />
+        <div className="flex-1 flex items-center justify-center p-6 text-center">
+          <div className="p-6 bg-white border border-red-200 rounded-2xl max-w-md shadow-xs space-y-3">
+            <span className="text-xs font-mono font-bold text-red-600 uppercase">Error Loading Challenge</span>
+            <p className="text-sm text-gray-700">{error || 'Challenge record could not be found'}</p>
+            <Link href="/overview" className="inline-block text-xs font-mono font-bold text-[#2E7180] underline">
+              Browse Statewide Directory
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const { challenge, gap, cluster, assignments } = data;
-  // The detail response's `matches` is the (deliberately empty) persisted
-  // table; the computed endpoint is the real recommendation set.
   const matches = computedMatches;
+
+  const roleBackLinks: Record<string, { href: string; label: string }> = {
+    citizen: { href: '/my-reports', label: 'My Reports' },
+    volunteer: { href: '/verify', label: 'Verification Queue' },
+    university: { href: '/college/problems', label: 'Problem Browser' },
+    industry: { href: '/needs', label: 'Needs Marketplace' },
+    coordinator: { href: '/queue', label: 'Triage Queue' },
+    admin: { href: '/admin', label: 'Command Center' },
+  };
+  const backTarget = roleBackLinks[role] || { href: '/overview', label: 'Overview' };
 
   const handleAdopt = async () => {
     if (!user?.org_id) return alert('No organisation associated with this user.');
@@ -88,18 +121,19 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
 
   return (
     <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-      <header className="bg-white border-b border-[#CCD1C7] px-4 py-3 sticky top-0 z-20 shadow-xs">
+      <RoleNav />
+
+      <div className="bg-white border-b border-[#CCD1C7] px-4 py-2 text-xs font-mono">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/queue" className="inline-flex items-center gap-1 text-xs font-bold text-gray-600 hover:text-[#102027]">
-              <ArrowLeft className="w-4 h-4" /> Back to Queue
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm">Challenge {challenge.ref ?? challenge.id}</span>
-          </div>
+          <Link
+            href={backTarget.href}
+            className="inline-flex items-center gap-1 font-bold text-gray-600 hover:text-[#102027] transition"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to {backTarget.label}
+          </Link>
+          <span className="text-gray-400">Challenge {challenge.ref ?? challenge.id}</span>
         </div>
-      </header>
+      </div>
 
       <main className="max-w-6xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-6">
         <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6">

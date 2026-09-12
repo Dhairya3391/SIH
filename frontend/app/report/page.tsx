@@ -15,6 +15,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { submitReport } from '@/lib/api';
+import { enqueueOfflineReport, QueuedReport } from '@/lib/offlineQueue';
 
 export default function ReportPage() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function ReportPage() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [micError, setMicError] = useState('');
+  const [offlineQueued, setOfflineQueued] = useState<QueuedReport | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -115,6 +117,24 @@ export default function ReportPage() {
 
     setIsSubmitting(true);
     setErrorMessage('');
+    setOfflineQueued(null);
+
+    // If device is offline, store in offline outbox queue immediately
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const queued = enqueueOfflineReport({
+        text,
+        district,
+        village,
+        people_est: parseInt(peopleEst, 10) || 100,
+      });
+      setOfflineQueued(queued);
+      setIsSubmitting(false);
+      setTimeout(() => {
+        router.push('/my-reports');
+      }, 3000);
+      return;
+    }
+
     try {
       const res = await submitReport({
         text,
@@ -126,10 +146,24 @@ export default function ReportPage() {
 
       setResult(res);
       setTimeout(() => {
-        router.push('/queue');
+        router.push('/my-reports');
       }, 2500);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to submit report');
+      // If network submission failed due to connection drop, fallback to offline queue
+      if (!navigator.onLine || err.message?.includes('fetch') || err.message?.includes('network')) {
+        const queued = enqueueOfflineReport({
+          text,
+          district,
+          village,
+          people_est: parseInt(peopleEst, 10) || 100,
+        });
+        setOfflineQueued(queued);
+        setTimeout(() => {
+          router.push('/my-reports');
+        }, 3000);
+      } else {
+        setErrorMessage(err.message || 'Failed to submit report');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -162,7 +196,20 @@ export default function ReportPage() {
             </p>
           </div>
 
-          {result ? (
+          {offlineQueued ? (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-center space-y-2 animate-fade-in">
+              <CheckCircle2 className="w-10 h-10 text-amber-600 mx-auto" />
+              <h3 className="font-bold text-sm text-amber-900 font-mono">
+                Saved to Local Offline Outbox (No Network Required)
+              </h3>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Your report has been safely queued on this phone. It will automatically transmit to the district compiler the moment cellular or Wi-Fi connectivity returns.
+              </p>
+              <div className="p-2 bg-white/80 rounded border border-amber-200 text-[11px] font-mono text-gray-600">
+                Client Queue ID: <strong className="text-gray-900">{offlineQueued.clientId}</strong> · Status: <span className="font-bold text-amber-700">PENDING AUTO-SYNC</span>
+              </div>
+            </div>
+          ) : result ? (
             <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl text-center animate-fade-in">
               <CheckCircle2 className="w-10 h-10 text-[#3E8064] mx-auto mb-2" />
               <h3 className="font-bold text-sm text-[#102027]">Report Submitted & Compiled!</h3>

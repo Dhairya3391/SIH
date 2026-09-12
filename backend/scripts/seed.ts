@@ -6,7 +6,7 @@ import {
   SEED_RESOURCES, 
   SEED_CHALLENGES, 
   SEED_REPORTS 
-} from '../src/data/seedData';
+} from '../supabase/seed/seed_data';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();

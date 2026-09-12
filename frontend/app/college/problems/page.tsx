@@ -1,157 +1,358 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { 
-  Search, 
-  Filter, 
-  MapPin, 
-  Users, 
-  ArrowRight, 
-  GraduationCap, 
-  Lightbulb,
+import {
+  AlertCircle,
   CheckCircle2,
-  AlertTriangle,
-  ArrowLeft
+  Clock,
+  Filter,
+  GraduationCap,
+  MapPin,
+  RefreshCw,
+  Trophy,
+  Users,
 } from 'lucide-react';
 import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { SEED_CHALLENGES } from '@/data/seedData';
+import { RoleNav } from '@/components/shell/RoleNav';
+import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
+import { CountdownToClose } from '@/components/shared/CountdownToClose';
+import { fetchCollegeProblems } from '@/lib/api';
+import { formatIndianNumber } from '@/components/shared/ContributionSplitter';
 
-export default function CollegeProblemsCatalogPage() {
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [search, setSearch] = useState('');
+/**
+ * Verified problems a college may propose against, with the competition state
+ * on every card, because that is what a college actually decides on: is a
+ * window open, when does it close, what is the score to beat, and am I in it.
+ *
+ * The leading SCORE is shown. The leading document and the leading college are
+ * not, until the window closes - showing the number motivates a better
+ * proposal, showing the rest invites copying and off-platform pressure.
+ */
 
-  const problems = SEED_CHALLENGES.filter(c => {
-    if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (c.title || '').toLowerCase().includes(q) || (c.problem || '').toLowerCase().includes(q);
+interface Problem {
+  id: string;
+  ref: string;
+  title: string;
+  district: string;
+  block: string | null;
+  category: string;
+  priority: number;
+  people_est: number;
+  report_count: number;
+  confidence: string;
+  status: string;
+  brief: { problem?: string; needs?: string[] } | null;
+  capabilities: string[] | null;
+  competition: {
+    state: string;
+    closes_at?: string;
+    window_days?: number;
+    leader_score?: number | null;
+    proposal_count?: number;
+  };
+  my_proposal: {
+    id: string;
+    version: number;
+    state: string;
+    score: number | null;
+    verdict: string | null;
+    is_leading: boolean | null;
+  } | null;
+}
+
+function CompetitionBadge({ p }: { p: Problem }) {
+  const c = p.competition;
+  const mine = p.my_proposal;
+
+  if (c.state === 'not_opened') {
+    return (
+      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-[#102027] text-white">
+        NO PROPOSALS YET — YOU WOULD OPEN THE WINDOW
+      </span>
+    );
+  }
+  if (c.state === 'awarded') {
+    return (
+      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-gray-200 text-gray-700">
+        CLOSED — AWARDED
+      </span>
+    );
+  }
+  if (c.state === 'reopened') {
+    return (
+      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-amber-100 text-amber-800">
+        REOPENED — NO VIABLE PROPOSAL LAST TIME
+      </span>
+    );
+  }
+  if (mine && mine.is_leading) {
+    return (
+      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+        <Trophy className="w-3 h-3" /> YOUR PROPOSAL IS LEADING · {mine.score}
+      </span>
+    );
+  }
+  if (mine && mine.is_leading === false) {
+    return (
+      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-red-100 text-red-800 border border-red-300">
+        OUTSCORED · LEADING {c.leader_score} · YOURS {mine.score ?? '—'}
+      </span>
+    );
+  }
+  return (
+    <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-[#E5A83B]/20 text-[#8A5A00]">
+      {c.leader_score != null ? `SCORE TO BEAT · ${c.leader_score}` : 'OPEN FOR PROPOSALS'}
+    </span>
+  );
+}
+
+export default function CollegeProblemsPage() {
+  const [rows, setRows] = useState<Problem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [district, setDistrict] = useState('all');
+  const [onlyOpen, setOnlyOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const res = await fetchCollegeProblems({
+        district: district === 'all' ? undefined : district,
+      });
+      setRows(res.problems as Problem[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load verified problems.');
+    } finally {
+      setLoading(false);
     }
-    return true;
-  });
+  }, [district]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const districts = useMemo(() => [...new Set(rows.map((r) => r.district))].sort(), [rows]);
+
+  const shown = useMemo(
+    () =>
+      onlyOpen
+        ? rows.filter((r) => r.competition.state === 'open' || r.competition.state === 'not_opened')
+        : rows,
+    [rows, onlyOpen],
+  );
+
+  const stats = useMemo(
+    () => ({
+      total: rows.length,
+      unclaimed: rows.filter((r) => r.competition.state === 'not_opened').length,
+      open: rows.filter((r) => r.competition.state === 'open').length,
+      mine: rows.filter((r) => r.my_proposal).length,
+    }),
+    [rows],
+  );
 
   return (
-    <RoleGuard 
-      allowedRoles={['university', 'coordinator', 'admin']} 
-      title="Problem Statements Catalog"
-      description="Curated engineering and societal problem statements derived from verified citizen reports, ready for university student capstones and faculty lab adoption."
+    <RoleGuard
+      allowedRoles={['university', 'coordinator', 'admin']}
+      consoleTitle="Verified Problems"
     >
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-[#CCD1C7] shadow-sm">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-blue-700">
-              <Link href="/college" className="hover:underline flex items-center gap-1">
-                <ArrowLeft className="w-3.5 h-3.5" /> Campus R&D Node
-              </Link>
-              <span>/</span>
-              <span>Problem Catalog</span>
+      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
+        <RoleNav />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Stage 3 · Academic solution portal
+              </div>
+              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
+                Problems open for proposals
+              </h1>
+              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                Human-verified only. A proposal written against an unverified
+                report risks a semester of work on something that turns out to
+                be wrong.
+              </p>
             </div>
-            <h1 className="text-2xl font-bold text-[#102027] mt-1">
-              District Problem Statements for University Adoption
-            </h1>
-            <p className="text-xs text-gray-500 mt-1">
-              Select an open challenge to assemble a student team or submit a technical proposal.
-            </p>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-[#CCD1C7]">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 outline-none"
+            <button
+              onClick={() => {
+                setLoading(true);
+                load();
+              }}
+              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
             >
-              <option value="all">All Disciplines (Civil, Water, Health, Energy, Agri)</option>
-              <option value="water">Water & Sanitation</option>
-              <option value="disaster">Disaster & Flash Floods</option>
-              <option value="health">Healthcare & Primary Care</option>
-              <option value="energy">Clean Energy & Microgrids</option>
-              <option value="agriculture">Agriculture & Irrigation</option>
-              <option value="roads">Rural Roads & Infrastructure</option>
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { k: 'Verified and open', v: stats.total, sub: 'available to propose against' },
+              { k: 'No proposals yet', v: stats.unclaimed, sub: 'you would open the window' },
+              { k: 'Windows running', v: stats.open, sub: 'a score already to beat' },
+              { k: 'Your submissions', v: stats.mine, sub: 'across these problems' },
+            ].map((s) => (
+              <div key={s.k} className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+                <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                  {s.k}
+                </div>
+                <div className="text-2xl font-extrabold font-mono text-[#102027]">{s.v}</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">{s.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-xl border border-[#CCD1C7] p-3 flex flex-wrap items-center gap-3">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-gray-500 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5" /> Filter
+            </span>
+            <select
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              className="h-9 px-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-xs outline-none focus:border-[#2E7180]"
+            >
+              <option value="all">All districts</option>
+              {districts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
             </select>
+            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={onlyOpen}
+                onChange={(e) => setOnlyOpen(e.target.checked)}
+                className="w-4 h-4 accent-[#2E7180]"
+              />
+              Only ones I can still enter
+            </label>
+            <Link
+              href="/college/projects"
+              className="ml-auto text-xs font-semibold text-[#2E7180] hover:underline"
+            >
+              My proposals and projects →
+            </Link>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search problem statements..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-600"
-            />
-          </div>
-        </div>
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{error}</span>
+            </div>
+          )}
 
-        {/* Problems Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {problems.map((prob) => {
-            const isCritical = prob.priority >= 75;
-            return (
-              <div
-                key={prob.id}
-                className="bg-white rounded-2xl border border-[#CCD1C7] p-6 hover:border-blue-500 transition shadow-sm flex flex-col justify-between space-y-4"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
-                        {prob.ref || prob.id}
+          {loading ? (
+            <LoadingSkeleton rows={4} />
+          ) : shown.length === 0 ? (
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-10 text-center">
+              <GraduationCap className="w-7 h-7 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-[#102027]">
+                Nothing verified is waiting for a proposal
+              </p>
+              <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                Problems appear here once a verifier has confirmed them with
+                sources or a field photo. Until then they sit on the verifier
+                desk, not here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {shown.map((p) => (
+                <article
+                  key={p.id}
+                  className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden"
+                >
+                  <div className="p-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span
+                        className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded ${
+                          p.priority >= 75
+                            ? 'bg-red-100 text-red-800'
+                            : p.priority >= 55
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {p.priority >= 75 ? 'CRITICAL' : p.priority >= 55 ? 'HIGH' : 'MODERATE'}{' '}
+                        {p.priority}
                       </span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-800">
-                        {prob.category.toUpperCase()}
+                      <span className="font-mono text-[10px] text-gray-600 border border-[#CCD1C7] px-1.5 py-0.5 rounded uppercase">
+                        {String(p.category).replace(/_/g, ' ')}
                       </span>
+                      <span className="font-mono text-[10px] text-emerald-700 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {String(p.confidence).replace(/_/g, ' ')}
+                      </span>
+                      <span className="font-mono text-[10px] text-gray-500">{p.ref}</span>
                     </div>
 
-                    <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${
-                      isCritical ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      PRIORITY {prob.priority}/100
-                    </span>
+                    <h2 className="font-bold text-[#102027] leading-snug">{p.title}</h2>
+                    {p.brief?.problem && (
+                      <p className="text-xs text-gray-600 mt-1.5 leading-relaxed line-clamp-2">
+                        {p.brief.problem}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 font-mono text-[10px] text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {p.district}
+                        {p.block ? ` · ${p.block}` : ''}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3 h-3" /> {formatIndianNumber(p.people_est)} people
+                      </span>
+                      <span>{p.report_count} reports merged</span>
+                    </div>
+
+                    {p.capabilities && p.capabilities.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {p.capabilities.map((c) => (
+                          <span
+                            key={c}
+                            className="font-mono text-[10px] bg-[#F4F6F5] border border-[#CCD1C7] px-1.5 py-0.5 rounded"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <h3 className="text-base font-bold text-[#102027]">
-                    {prob.title}
-                  </h3>
-
-                  <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
-                    {prob.problem}
-                  </p>
-                </div>
-
-                <div className="space-y-3 pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                      {prob.district}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-gray-400" />
-                      ~{prob.people_est.toLocaleString()} Impacted
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                  <div className="px-4 py-3 bg-[#F4F6F5] border-t border-[#CCD1C7] flex flex-wrap items-center gap-3">
+                    <CompetitionBadge p={p} />
+                    {p.competition.state === 'open' && p.competition.closes_at && (
+                      <span className="flex items-center gap-1.5 font-mono text-[11px] text-gray-600">
+                        <Clock className="w-3.5 h-3.5" />
+                        <CountdownToClose
+                          closeDate={p.competition.closes_at}
+                          status={p.competition.state}
+                          leadingScore={p.competition.leader_score ?? undefined}
+                          compact
+                        />
+                      </span>
+                    )}
+                    {p.competition.proposal_count ? (
+                      <span className="font-mono text-[10px] text-gray-500">
+                        {p.competition.proposal_count} proposal
+                        {p.competition.proposal_count === 1 ? '' : 's'} in
+                      </span>
+                    ) : null}
                     <Link
-                      href={`/college/problems/${prob.ref || prob.id}`}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs transition shadow-sm"
+                      href={`/college/problems/${p.ref}`}
+                      className="ml-auto h-9 px-4 rounded-lg bg-[#102027] text-white text-xs font-semibold flex items-center hover:bg-[#1D3540]"
                     >
-                      <Lightbulb className="w-4 h-4" />
-                      <span>Adopt & Submit Proposal</span>
-                      <ArrowRight className="w-4 h-4" />
+                      {p.my_proposal ? 'Resubmit or review' : 'Read and propose'}
                     </Link>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
+                </article>
+              ))}
+            </div>
+          )}
+        </main>
       </div>
     </RoleGuard>
   );

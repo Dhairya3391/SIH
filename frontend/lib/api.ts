@@ -320,3 +320,49 @@ export async function fetchNeeds(
 export async function fetchAdminMetrics() {
   return getJson('/api/admin/metrics');
 }
+
+/** GET /api/college/proposals - this college's submissions with their rubrics. */
+export async function fetchMyProposals() {
+  const d = await getJson('/api/college/proposals');
+  return { proposals: d?.proposals ?? [], count: d?.count ?? 0 };
+}
+
+/** POST /api/college/proposals - submit a proposal and open/join the window. */
+export async function submitProposal(payload: {
+  challenge_id: string;
+  extracted_text: string;
+  document_name?: string;
+  document_pages?: number;
+}) {
+  const res = await fetch('/api/college/proposals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || 'Could not submit the proposal');
+  return unwrap(json);
+}
+
+/** GET /api/contributions/mine - what this org gave, and what happened to it. */
+export async function fetchMyContributions() {
+  return getJson('/api/contributions/mine');
+}
+
+/** GET /api/admin/sla - attainment per stage and per district. */
+export async function fetchSla() {
+  return getJson('/api/admin/sla');
+}
+
+/** GET /api/admin/challenges/[ref]/history - the complete ordered record. */
+export async function fetchChallengeHistory(refOrId: string) {
+  return getJson(`/api/admin/challenges/${encodeURIComponent(refOrId)}/history`);
+}
+
+/** POST /api/challenges/[id]/corroborate - look for independent proof. */
+export async function runCorroboration(challengeId: string) {
+  const res = await fetch(`/api/challenges/${challengeId}/corroborate`, { method: 'POST' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || 'Corroboration could not run');
+  return unwrap(json);
+}

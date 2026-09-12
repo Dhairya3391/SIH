@@ -37,10 +37,15 @@ export const GET = route(async (request: Request) => {
 
   // KPI 1: time from report to team formed.
   const matched = live.filter((c) => c.team_formed_at);
-  const timesToTeam = matched.map(
-    (c) => (new Date(c.team_formed_at!).getTime() - new Date(c.created_at).getTime()) / 60000,
-  );
+  const timesToTeam = matched
+    .map((c) => elapsedMinutes(c.created_at, c.team_formed_at))
+    .filter((n): n is number => n != null);
   const medianMinutesToTeam = median(timesToTeam);
+
+  // A duration is only meaningful when the end is actually after the start.
+  // Inverted pairs are a data fault, not a fast response, and a dashboard that
+  // reports minus seventy days destroys trust in every other number on it.
+  const invertedDurations = matched.length - timesToTeam.length;
 
   // KPI 2: share reaching pilot or deployment.
   const reachedPilot = live.filter((c) =>
@@ -70,6 +75,12 @@ export const GET = route(async (request: Request) => {
     (types) => types.has("univ") && types.has("company"),
   ).length;
 
+  const medianResolution = median(
+    impactRows
+      .map((r) => r.time_to_resolution_min)
+      .filter((n): n is number => typeof n === "number" && n >= 0),
+  );
+
   const funnel = {
     reported: live.length,
     refined: live.filter((c) => c.status !== "REPORTED").length,
@@ -86,14 +97,19 @@ export const GET = route(async (request: Request) => {
     region_id,
     headline: {
       median_minutes_to_team_formed: medianMinutesToTeam,
+      // The same figure in hours, because that is the unit a judge reads.
+      median_hours_to_team_formed: toHours(medianMinutesToTeam),
       pct_reaching_pilot_or_deployment: live.length ? Math.round((reachedPilot / live.length) * 100) : 0,
       university_industry_collaborations: uniCorpCollaborations,
+      // How many challenges the KPI above is actually based on. Null with a
+      // sample of zero is honest; null with no explanation is not.
+      sample_size: timesToTeam.length,
     },
     speed: {
       median_minutes_to_team_formed: medianMinutesToTeam,
-      median_minutes_to_resolution: median(
-        impactRows.map((r) => r.time_to_resolution_min).filter((n): n is number => n != null),
-      ),
+      median_hours_to_team_formed: toHours(medianMinutesToTeam),
+      median_minutes_to_resolution: medianResolution,
+      median_hours_to_resolution: toHours(medianResolution),
     },
     quality: {
       pct_verified: live.length
@@ -121,8 +137,35 @@ export const GET = route(async (request: Request) => {
     crisis: { active: crises.length, events: crises },
     /** Every figure above comes from seeded records in the demo. Say so on screen. */
     simulated: live.every((c) => c.is_simulated),
+    /**
+     * Challenges whose team_formed_at precedes their created_at. Always zero on
+     * a healthy database. Non-zero means a seed wrote its timestamps out of
+     * order, and those rows were left out of the KPI rather than dragging it
+     * negative.
+     */
+    data_warnings: invertedDurations > 0
+      ? { inverted_durations: invertedDurations }
+      : null,
   });
 });
+
+/**
+ * Minutes between two timestamps, or null when either is missing or the end is
+ * before the start. Returning null keeps a bad row out of an average instead of
+ * letting it poison one.
+ */
+function elapsedMinutes(from: string | null, to: string | null): number | null {
+  if (!from || !to) return null;
+  const start = new Date(from).getTime();
+  const end = new Date(to).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (end < start) return null;
+  return (end - start) / 60000;
+}
+
+function toHours(minutes: number | null): number | null {
+  return minutes == null ? null : Math.round((minutes / 60) * 10) / 10;
+}
 
 function median(values: number[]): number | null {
   if (!values.length) return null;

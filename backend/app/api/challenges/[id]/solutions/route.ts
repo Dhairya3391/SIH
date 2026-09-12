@@ -1,10 +1,47 @@
-import { ok, route, readJson } from "@/lib/http";
+import { ok, fail, route, readJson } from "@/lib/http";
 import { solutionSchema } from "@/lib/validation/schemas";
 import { requireRole, supabaseServer } from "@/lib/supabase/server";
 import { transition } from "@/lib/services/lifecycle";
 import { appendLedger } from "@/lib/services/ledger";
 import { prefillRatings } from "@/lib/domain/readiness";
 import { challengeGap } from "@/lib/services/swarm";
+
+/**
+ * GET /api/challenges/:id/solutions - list all proposals for a challenge.
+ *
+ * The same data is already included in the full detail response
+ * (GET /api/challenges/:id), so the FE should prefer that single round-trip.
+ * This endpoint exists for cases where only solutions are needed — e.g. the
+ * solutions panel rendered independently.
+ *
+ * DECISION (2026-09-12): FE reads solutions from GET /api/challenges/:id by
+ * default. GET /api/challenges/:id/solutions is the secondary path.
+ * docs/API.md lists both. There is no third path.
+ */
+export const GET = route(
+  async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
+    const { id } = await params;
+    const supabase = await supabaseServer();
+
+    const { data: challenge } = await supabase
+      .from("challenges")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!challenge) return fail(404, "No such challenge.", "not_found");
+
+    const { data: solutions, error } = await supabase
+      .from("solutions")
+      .select(
+        "id, title, approach, cost_estimate, deploy_days, risks, ratings, readiness, readiness_notes, status, created_at, organizations(name, type)",
+      )
+      .eq("challenge_id", id)
+      .order("readiness", { ascending: false, nullsFirst: false });
+    if (error) throw error;
+
+    return ok({ solutions: solutions ?? [] });
+  },
+);
 
 /**
  * POST /api/challenges/:id/solutions - a student team submits a proposal.

@@ -6,6 +6,7 @@ import { computeConfidence } from "@/lib/domain/confidence";
 import { computeReadiness } from "@/lib/domain/readiness";
 import { parseCodedSms } from "@/lib/sms/codec";
 import { USER_ROLES, type Category, type VulnerabilityTag } from "@/lib/domain/types";
+import { appendMany } from "@/lib/services/ledger";
 import * as SEED from "./data";
 
 /**
@@ -549,6 +550,58 @@ async function seedGumlaLightning(supabase: SupabaseClient, orgIds: Map<string, 
     { challenge_id: challenge.id, solution_id: pilot?.id ?? null, title: "Twelve villages trained on the siren protocol", due: inDays(45), status: "pending" },
   ]);
 
+  // Ledger entries for every lifecycle transition.
+  // The seed writes rows directly into tables without going through the API
+  // lifecycle, so these entries backfill the timeline that the challenge
+  // detail page and GET /timeline both read.
+  await appendMany(supabase, [
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "reported",
+      regionId: JHARKHAND,
+      payload: { ref: challenge.ref, district: "Gumla", report_count: reports.length },
+      actor: null,
+      actorRole: "citizen",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "refined",
+      regionId: JHARKHAND,
+      payload: { note: "Brief confirmed by the compiler. 31 reports across 12 villages." },
+      actor: null,
+      actorRole: "system",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "verified",
+      regionId: JHARKHAND,
+      payload: { note: "Two field visits confirmed. Coordinator reviewed and approved.", verifications: 3 },
+      actor: null,
+      actorRole: "coordinator",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "team_formed",
+      regionId: JHARKHAND,
+      payload: { assignments: 3, team_size: 5 },
+      actor: null,
+      actorRole: "coordinator",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "solution_proposed",
+      regionId: JHARKHAND,
+      payload: { solutions: 2, approved_for_pilot: "Siren relay for official IMD and Damini alerts, plus low-cost shelter kits" },
+      actor: null,
+      actorRole: "university",
+    },
+  ]);
+
   // A second Gumla challenge, already at the evidence stage, so the "prove"
   // step of the demo has something finished to show without waiting.
   const proven = await seedProvenPilot(supabase, orgIds);
@@ -631,6 +684,66 @@ async function seedProvenPilot(supabase: SupabaseClient, orgIds: Map<string, str
     remaining_need: "Nine of the twelve villages in the wider block still have no siren or shelter.",
     community_confirmed: false,
   });
+
+  // Backfill the full lifecycle so this challenge's timeline is non-empty.
+  await appendMany(supabase, [
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "reported",
+      regionId: JHARKHAND,
+      payload: { district: "Gumla", block: "Ghaghra panchayat" },
+      actorRole: "citizen",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "refined",
+      regionId: JHARKHAND,
+      payload: { note: "Compiled from four reports. Siren relay category confirmed." },
+      actorRole: "system",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "verified",
+      regionId: JHARKHAND,
+      payload: { note: "Field visit confirmed. All three villages reached." },
+      actorRole: "coordinator",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "team_formed",
+      regionId: JHARKHAND,
+      payload: { assignments: 2 },
+      actorRole: "coordinator",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "solution_proposed",
+      regionId: JHARKHAND,
+      payload: { note: "BIT Mesra proposed the siren relay design." },
+      actorRole: "university",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "piloted",
+      regionId: JHARKHAND,
+      payload: { note: "Pilot approved. Sirenunits installed in all three villages." },
+      actorRole: "coordinator",
+    },
+    {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "deployed",
+      regionId: JHARKHAND,
+      payload: { people_served: 1200, vulnerable_served: 430 },
+      actorRole: "coordinator",
+    },
+  ]);
 
   return { challenges: 1, pledges: 0 };
 }

@@ -83,6 +83,7 @@ have to create an account first.
 |---|---|---|
 | GET | `/api/challenges` | filters: `region_id`, `district`, `category`, `status`, `band`, `mode`, `org_id`, `q`, `limit`, `offset` |
 | GET | `/api/challenges/:id` | everything the detail screen needs, in one call |
+| GET | `/api/challenges/:id/solutions` | solutions only — prefer the detail endpoint unless you need solutions in isolation |
 | GET | `/api/challenges/:id/actions` | what this user may legally do next |
 | GET | `/api/challenges/:id/nearby` | registry resources within `radius_km` |
 | GET | `/api/challenges/:id/matches` | recommended partners, each with reasons |

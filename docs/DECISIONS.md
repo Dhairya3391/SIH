@@ -107,3 +107,36 @@ npx vercel alias set <the-new-url> jharsetu-lilac.vercel.app
 
 The alias step is required — `jharsetu-lilac.vercel.app` is not the project's
 default production domain.
+
+---
+
+## 6. Solutions endpoint: FE reads from the detail response (2026-09-12)
+
+`GET /api/challenges/:id/solutions` was POST-only (HTTP 405 on GET).
+
+**Decision**: the canonical path for the frontend is `GET /api/challenges/:id`
+(the full detail endpoint — one round trip, everything the page needs). A
+dedicated `GET /api/challenges/:id/solutions` handler now also exists for cases
+where only solutions are needed (e.g. the solutions panel rendered on its own).
+
+Both endpoints return the same shape: `{ solutions: [...] }`. docs/API.md lists
+both. There is no third data path.
+
+---
+
+## 7. Matches table: used as a write-through cache (2026-09-12)
+
+The `matches` table had 0 rows after the initial seed.
+
+**Decision**: keep the table. It is a write-through cache: when
+`GET /api/challenges/:id/matches?refresh=true` (or the first unaided call)
+invokes `computeMatches`, the results are upserted into `matches` on conflict
+`(challenge_id, org_id)`. Subsequent calls hit the table directly and return
+instantly. The coordinator's queue shows the cached score and reasons — the ones
+actually shown on screen — rather than recomputing every refresh.
+
+The seed does **not** pre-populate this table. The first call to the matches
+endpoint populates it. This is intentional: matches are recomputed against the
+live database state, not the state at seed time.
+
+If the database is reset, the table is truncated alongside every other table.

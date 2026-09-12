@@ -21,12 +21,17 @@ export default function VerifyQueuePage() {
   const [districtFilter, setDistrictFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [customReports, setCustomReports] = useState<any[]>([]);
+  const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
 
   React.useEffect(() => {
     try {
       const saved = localStorage.getItem('jharsetu_custom_reports');
       if (saved) {
         setCustomReports(JSON.parse(saved));
+      }
+      const v = localStorage.getItem('jharsetu_verified_report_ids');
+      if (v) {
+        setVerifiedIds(JSON.parse(v));
       }
     } catch {}
   }, []);

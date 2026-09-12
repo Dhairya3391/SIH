@@ -20,8 +20,20 @@ import { SEED_REPORTS } from '@/data/seedData';
 export default function VerifyQueuePage() {
   const [districtFilter, setDistrictFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [customReports, setCustomReports] = useState<any[]>([]);
 
-  const reports = SEED_REPORTS.filter(r => {
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('jharsetu_custom_reports');
+      if (saved) {
+        setCustomReports(JSON.parse(saved));
+      }
+    } catch {}
+  }, []);
+
+  const allReports = [...customReports, ...SEED_REPORTS];
+
+  const reports = allReports.filter(r => {
     if (districtFilter !== 'all' && (r.district || '').toLowerCase() !== districtFilter.toLowerCase()) return false;
     if (search && !(r.original_text || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;

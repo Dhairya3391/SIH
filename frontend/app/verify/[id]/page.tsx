@@ -24,13 +24,31 @@ export default function VerifyDetailPage() {
   const router = useRouter();
   const id = params?.id as string;
 
-  const report = SEED_REPORTS.find(r => r.id === id) || SEED_REPORTS[0];
+  const [report, setReport] = useState<any>(SEED_REPORTS.find(r => r.id === id) || SEED_REPORTS[0]);
 
-  const [severityConfirmed, setSeverityConfirmed] = useState(report.urgency || 4);
-  const [peopleEst, setPeopleEst] = useState(report.people_est || 450);
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('jharsetu_custom_reports');
+      if (saved) {
+        const custom: any[] = JSON.parse(saved);
+        const match = custom.find(r => r.id === id || r.client_id === id);
+        if (match) setReport(match);
+      }
+    } catch {}
+  }, [id]);
+
+  const [severityConfirmed, setSeverityConfirmed] = useState(4);
+  const [peopleEst, setPeopleEst] = useState(450);
   const [notes, setNotes] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [uploadProof, setUploadProof] = useState(true);
+
+  React.useEffect(() => {
+    if (report) {
+      setSeverityConfirmed(report.urgency || 4);
+      setPeopleEst(report.people_est || 450);
+    }
+  }, [report]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -23,9 +23,17 @@ import { useAuth } from '@/lib/auth';
 export default function MyReportsPage() {
   const { user } = useAuth();
   const [filter, setFilter] = useState<'all' | 'active' | 'resolved'>('all');
+  const [customReports, setCustomReports] = useState<any[]>([]);
 
-  // Filter seed reports for citizen demo (Sunita Soren / Gumla reports)
-  const myReports = SEED_REPORTS.filter(r => r.district === 'Gumla' || r.reporter_name?.includes('Sunita') || true).slice(0, 4);
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('jharsetu_custom_reports');
+      if (saved) setCustomReports(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // Combine custom newly submitted reports with seed reports
+  const myReports = [...customReports, ...SEED_REPORTS.filter(r => r.district === 'Gumla' || r.reporter_name?.includes('Sunita') || true)].slice(0, 6);
 
   return (
     <RoleGuard 

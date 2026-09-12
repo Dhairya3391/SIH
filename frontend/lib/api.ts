@@ -366,3 +366,46 @@ export async function runCorroboration(challengeId: string) {
   if (!res.ok) throw new Error(json?.error?.message || 'Corroboration could not run');
   return unwrap(json);
 }
+
+// ---------------------------------------------------------------------------
+// Messaging: one thread per challenge per contributing organisation.
+// ---------------------------------------------------------------------------
+
+/** GET /api/threads - every conversation this organisation is a party to. */
+export async function fetchThreads() {
+  const d = await getJson('/api/threads');
+  return { threads: d?.threads ?? [], count: d?.count ?? 0 };
+}
+
+/** POST /api/threads - open the thread for a challenge, or return the existing one. */
+export async function openThread(payload: {
+  challenge_id: string;
+  college_org_id?: string;
+  contributor_org_id?: string;
+}) {
+  const res = await fetch('/api/threads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || 'Could not open a conversation');
+  return unwrap(json);
+}
+
+/** GET /api/threads/[id]/messages - reading also marks the other side read. */
+export async function fetchMessages(threadId: string) {
+  return getJson(`/api/threads/${threadId}/messages`);
+}
+
+/** POST /api/threads/[id]/messages */
+export async function sendMessage(threadId: string, body: string) {
+  const res = await fetch(`/api/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || 'Could not send that message');
+  return unwrap(json);
+}

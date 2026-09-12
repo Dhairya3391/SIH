@@ -21,7 +21,8 @@ import {
   PhoneCall,
   LayoutDashboard,
   Eye,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth, ROLE_HOME } from '@/lib/auth';
 import { UserRole } from '@/types/database';
@@ -81,12 +82,14 @@ export function RoleNav({
           { href: '/college', label: 'Console Overview', icon: LayoutDashboard },
           { href: '/college/problems', label: 'Browse Problems', icon: FileText },
           { href: '/college/projects', label: 'My R&D Projects', icon: GraduationCap },
+          { href: '/messages', label: 'Messages', icon: MessageSquare },
           { href: '/overview', label: 'All Challenges', icon: Eye },
         ];
       case 'industry':
         return [
           { href: '/needs', label: 'Needs Marketplace', icon: HeartHandshake },
           { href: '/contributions', label: 'My Contributions', icon: Building2 },
+          { href: '/messages', label: 'Messages', icon: MessageSquare },
           { href: '/overview', label: 'All Challenges', icon: Eye },
         ];
       case 'coordinator':

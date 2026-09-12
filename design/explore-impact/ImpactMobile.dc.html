@@ -1,0 +1,250 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    body {
+      margin: 0; background: #F7F9FC; color: #14263A;
+      font-family: Mukta, system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    a { color: #164B7A; text-decoration: none; }
+    a:hover { color: #0B2A4A; text-decoration: underline; }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
+    p { margin: 0; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+    .eyebrow {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #7B8B9C;
+    }
+    .card {
+      background: #FFFFFF; border: 1px solid #D9E2EC; border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(11, 42, 74, 0.06);
+    }
+    .pad { padding-left: 20px; padding-right: 20px; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+    .track { flex-grow: 1; height: 18px; background: #F1F5F9; border-radius: 4px; overflow: hidden; }
+    .fill { height: 18px; border-radius: 0 4px 4px 0; }
+  </style>
+</helmet>
+
+<div style="width: 390px; background: #F7F9FC;">
+
+  <div class="pad" style="background: #0B2A4A; display: flex; align-items: center; justify-content: space-between; height: 30px;">
+    <span class="mono" style="font-size: 9.5px; letter-spacing: 0.06em; color: #C7DDEC; text-transform: uppercase;">Government of Jharkhand</span>
+    <span class="mono" style="font-size: 9.5px; color: #8DB9D8;">SIH26043</span>
+  </div>
+
+  <div class="pad" style="background: #FFFFFF; border-bottom: 1px solid #D9E2EC; display: flex; align-items: center; justify-content: space-between; height: 62px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 34px; height: 34px; border-radius: 9px; background: #164B7A; display: flex; align-items: center; justify-content: center;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18"></path><path d="M6 17V9a6 6 0 0 1 12 0v8"></path><path d="M12 3v2"></path></svg>
+      </div>
+      <span style="font-size: 17px; font-weight: 800; color: #0B2A4A;">JharSetu</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <div style="display: flex; height: 34px; border: 1px solid #D9E2EC; border-radius: 8px; overflow: hidden;">
+        <span style="display: flex; align-items: center; padding: 0 9px; font-size: 12.5px; font-weight: 600; background: #164B7A; color: #FFFFFF;">&#x0939;&#x093F;&#x0902;</span>
+        <span style="display: flex; align-items: center; padding: 0 9px; font-size: 12.5px; font-weight: 600; color: #526579;">EN</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h16"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 12px; padding-top: 28px; padding-bottom: 18px;">
+    <span class="eyebrow">Public accountability</span>
+    <h1 style="font-size: 32px; font-weight: 800; color: #0B2A4A;">Impact and analytics</h1>
+    <p style="font-size: 15.5px; line-height: 1.55; color: #526579;">What the platform has moved, how fast, and what remains unmet. Computed from the live record.</p>
+  </div>
+
+  <div class="pad" style="padding-bottom: 22px;">
+    <div style="display: flex; gap: 10px; padding: 13px 14px; background: #FFF6D9; border: 1px solid #F0CE70; border-radius: 10px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A86F00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 9v4"></path><path d="M10.3 3.9 2.5 17.4A1.7 1.7 0 0 0 4 20h16a1.7 1.7 0 0 0 1.5-2.6L13.7 3.9a1.7 1.7 0 0 0-3 0Z"></path><path d="M12 17h.01"></path></svg>
+      <span style="font-size: 13.5px; line-height: 1.55; color: #7A4D00;"><strong style="font-weight: 700;">Demonstration data.</strong> Every record counted here is seeded and carries a simulated flag in the database.</span>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 26px;">
+    <div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 20px 18px;">
+      <span class="eyebrow" style="font-size: 10px;">Reaching pilot or deployment</span>
+      <span class="mono" style="font-size: 46px; font-weight: 600; line-height: 1; color: #0B2A4A;">23<span style="font-size: 22px; color: #7B8B9C;">%</span></span>
+      <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">46 of 195 verified challenges have a partner building something.</p>
+    </div>
+    <div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 20px 18px;">
+      <span class="eyebrow" style="font-size: 10px;">Median time to a team</span>
+      <span class="mono" style="font-size: 46px; font-weight: 600; line-height: 1; color: #0B2A4A;">41<span style="font-size: 22px; color: #7B8B9C;">h</span></span>
+      <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">First report to a formal acceptance. Based on 24 challenges.</p>
+    </div>
+    <div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 20px 18px;">
+      <span class="eyebrow" style="font-size: 10px;">University and industry together</span>
+      <span class="mono" style="font-size: 46px; font-weight: 600; line-height: 1; color: #07545B;">2</span>
+      <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">Both a university and a company on one team. The number the problem statement asks for.</p>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-bottom: 22px;">
+    <div class="card" style="display: flex; flex-direction: column; gap: 16px; padding: 22px 18px;">
+      <div style="display: flex; flex-direction: column; gap: 7px;">
+        <h2 style="font-size: 21px; font-weight: 800; color: #0B2A4A;">Where challenges stop</h2>
+        <p style="font-size: 13.5px; line-height: 1.5; color: #526579;">Every stage of the loop, and how many reached it.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Reported</span><div class="track"><div class="fill" style="width: 100%; background: #8DB9D8;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">195</span></div>
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Refined</span><div class="track"><div class="fill" style="width: 100%; background: #4B8FC2;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">195</span></div>
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Verified</span><div class="track"><div class="fill" style="width: 87.7%; background: #256FA8;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">171</span></div>
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Team formed</span><div class="track"><div class="fill" style="width: 12.3%; background: #1D5D91;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">24</span></div>
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Piloted</span><div class="track"><div class="fill" style="width: 23.6%; background: #164B7A;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">46</span></div>
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Deployed</span><div class="track"><div class="fill" style="width: 11.3%; background: #123B63;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">22</span></div>
+        <div class="bar"><span style="width: 104px; font-size: 13px; font-weight: 600; color: #14263A;">Impact verified</span><div class="track"><div class="fill" style="width: 10.8%; background: #0B2A4A;"></div></div><span class="mono" style="width: 32px; text-align: right; font-size: 13px; font-weight: 600; color: #14263A;">21</span></div>
+      </div>
+      <div style="display: flex; gap: 9px; padding: 12px 13px; background: #FFF6D9; border: 1px solid #F0CE70; border-radius: 9px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A86F00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span style="font-size: 12.5px; line-height: 1.55; color: #7A4D00;">Team formed counts only challenges with a recorded formation time, which is why it sits below piloted.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-bottom: 22px;">
+    <div class="card" style="display: flex; flex-direction: column; gap: 14px; padding: 22px 18px;">
+      <span class="eyebrow" style="font-size: 10px;">Tamper-evident record</span>
+      <h2 style="font-size: 21px; font-weight: 800; color: #0B2A4A;">The ledger checks itself, live.</h2>
+      <p style="font-size: 14.5px; line-height: 1.6; color: #526579;">Every approval, pledge and closure is written to an append-only log where each row is hashed against the one before it.</p>
+      <div style="display: flex; flex-direction: column; gap: 11px; padding: 16px; background: #E6F7F7; border: 1px solid #C5EAEA; border-radius: 11px;">
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #087F86; flex-shrink: 0;">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 16px; font-weight: 700; color: #07545B;">Verified</span>
+            <span class="mono" style="font-size: 12px; color: #087F86;">checked just now</span>
+          </div>
+        </div>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #07545B;">All 214 ledger entries recompute to their stored hashes. Nothing has been altered.</p>
+      </div>
+      <a href="#" style="font-size: 14px; font-weight: 600;">Read the full activity log &rarr;</a>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 22px;">
+    <div class="card" style="display: flex; flex-direction: column; gap: 14px; padding: 22px 18px;">
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <h3 style="font-size: 18px; font-weight: 700; color: #0B2A4A;">By district</h3>
+        <p style="font-size: 13px; color: #7B8B9C;">Top six of twenty-four</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="bar"><span style="width: 86px; font-size: 13px; color: #14263A;">Gumla</span><div class="track"><div class="fill" style="width: 100%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">18</span></div>
+        <div class="bar"><span style="width: 86px; font-size: 13px; color: #14263A;">Sahebganj</span><div class="track"><div class="fill" style="width: 78%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">14</span></div>
+        <div class="bar"><span style="width: 86px; font-size: 13px; color: #14263A;">Dhanbad</span><div class="track"><div class="fill" style="width: 61%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">11</span></div>
+        <div class="bar"><span style="width: 86px; font-size: 13px; color: #14263A;">Ranchi</span><div class="track"><div class="fill" style="width: 56%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">10</span></div>
+        <div class="bar"><span style="width: 86px; font-size: 13px; color: #14263A;">Palamu</span><div class="track"><div class="fill" style="width: 50%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">9</span></div>
+        <div class="bar"><span style="width: 86px; font-size: 13px; color: #14263A;">Giridih</span><div class="track"><div class="fill" style="width: 44%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">8</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 14px; padding: 22px 18px;">
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <h3 style="font-size: 18px; font-weight: 700; color: #0B2A4A;">By category</h3>
+        <p style="font-size: 13px; color: #7B8B9C;">This is not a disaster-only platform</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="bar"><span style="width: 100px; font-size: 13px; color: #14263A;">Water</span><div class="track"><div class="fill" style="width: 100%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">32</span></div>
+        <div class="bar"><span style="width: 100px; font-size: 13px; color: #14263A;">Health</span><div class="track"><div class="fill" style="width: 91%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">29</span></div>
+        <div class="bar"><span style="width: 100px; font-size: 13px; color: #14263A;">Disaster safety</span><div class="track"><div class="fill" style="width: 84%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">27</span></div>
+        <div class="bar"><span style="width: 100px; font-size: 13px; color: #14263A;">Roads</span><div class="track"><div class="fill" style="width: 75%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">24</span></div>
+        <div class="bar"><span style="width: 100px; font-size: 13px; color: #14263A;">Education</span><div class="track"><div class="fill" style="width: 69%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">22</span></div>
+        <div class="bar"><span style="width: 100px; font-size: 13px; color: #14263A;">Agriculture</span><div class="track"><div class="fill" style="width: 66%; background: #256FA8;"></div></div><span class="mono" style="width: 26px; text-align: right; font-size: 12.5px; color: #526579;">21</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-bottom: 22px;">
+    <div class="card" style="display: flex; flex-direction: column; gap: 16px; padding: 22px 18px;">
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <h3 style="font-size: 18px; font-weight: 700; color: #0B2A4A;">How the queue is distributed</h3>
+        <p style="font-size: 13px; color: #7B8B9C;">All 195 open challenges by priority band</p>
+      </div>
+      <div style="display: flex; height: 38px; border-radius: 6px; overflow: hidden; gap: 2px;">
+        <div style="width: 26.7%; background: #6842A6; display: flex; align-items: center; justify-content: center;"><span class="mono" style="font-size: 13px; font-weight: 600; color: #FFFFFF;">52</span></div>
+        <div style="width: 36.4%; background: #D9A514; display: flex; align-items: center; justify-content: center;"><span class="mono" style="font-size: 13px; font-weight: 600; color: #14263A;">71</span></div>
+        <div style="width: 24.6%; background: #256FA8; display: flex; align-items: center; justify-content: center;"><span class="mono" style="font-size: 13px; font-weight: 600; color: #FFFFFF;">48</span></div>
+        <div style="width: 12.3%; background: #42BCBC; display: flex; align-items: center; justify-content: center;"><span class="mono" style="font-size: 13px; font-weight: 600; color: #14263A;">24</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 9px;">
+          <span style="width: 12px; height: 12px; border-radius: 3px; background: #6842A6; flex-shrink: 0; margin-top: 3px;"></span>
+          <span style="font-size: 13.5px; color: #14263A;"><strong style="font-weight: 700;">Critical</strong> &middot; 75 and above. Needs action now.</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 9px;">
+          <span style="width: 12px; height: 12px; border-radius: 3px; background: #D9A514; flex-shrink: 0; margin-top: 3px;"></span>
+          <span style="font-size: 13.5px; color: #14263A;"><strong style="font-weight: 700;">High</strong> &middot; 50 to 74. Needs a partner soon.</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 9px;">
+          <span style="width: 12px; height: 12px; border-radius: 3px; background: #256FA8; flex-shrink: 0; margin-top: 3px;"></span>
+          <span style="font-size: 13.5px; color: #14263A;"><strong style="font-weight: 700;">Moderate</strong> &middot; 25 to 49. Planned work.</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 9px;">
+          <span style="width: 12px; height: 12px; border-radius: 3px; background: #42BCBC; flex-shrink: 0; margin-top: 3px;"></span>
+          <span style="font-size: 13.5px; color: #14263A;"><strong style="font-weight: 700;">Long term</strong> &middot; below 25. Structural, not urgent.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 30px;">
+    <div class="card" style="display: flex; flex-direction: column; gap: 14px; padding: 22px 18px;">
+      <h3 style="font-size: 18px; font-weight: 700; color: #0B2A4A;">What reached people</h3>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #E8EEF4;">
+        <span style="font-size: 14px; color: #526579;">People served</span>
+        <span class="mono" style="font-size: 22px; font-weight: 600; color: #0B2A4A;">38,400</span>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #E8EEF4;">
+        <span style="font-size: 14px; color: #526579;">In vulnerable groups</span>
+        <span class="mono" style="font-size: 22px; font-weight: 600; color: #07545B;">11,520</span>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 14px; color: #526579;">Still unmet and waiting</span>
+        <span class="mono" style="font-size: 22px; font-weight: 600; color: #A86F00;">76</span>
+      </div>
+      <p style="font-size: 12.5px; line-height: 1.55; color: #7B8B9C;">We do not publish an estimated cost saved. It could not be measured honestly.</p>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 14px; padding: 22px 18px;">
+      <h3 style="font-size: 18px; font-weight: 700; color: #0B2A4A;">How trustworthy the record is</h3>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #E8EEF4;">
+        <span style="font-size: 14px; color: #526579;">Above unverified confidence</span>
+        <span class="mono" style="font-size: 22px; font-weight: 600; color: #0B2A4A;">64%</span>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #E8EEF4;">
+        <span style="font-size: 14px; color: #526579;">Duplicates merged</span>
+        <span class="mono" style="font-size: 22px; font-weight: 600; color: #0B2A4A;">33</span>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 14px; color: #526579;">Confirmed by the community</span>
+        <span class="mono" style="font-size: 22px; font-weight: 600; color: #07545B;">21</span>
+      </div>
+      <p style="font-size: 12.5px; line-height: 1.55; color: #7B8B9C;">A closure is not counted as impact until the people who reported it say it is fixed.</p>
+    </div>
+  </div>
+
+  <div class="pad" style="background: #0B2A4A; display: flex; flex-direction: column; gap: 6px; padding-top: 26px; padding-bottom: 26px;">
+    <span style="font-size: 12.5px; line-height: 1.5; color: #8DB9D8;">Government of Jharkhand &middot; SIH26043</span>
+    <span style="font-size: 12.5px; color: #7B8B9C;">Demonstration deployment. Seeded records are labelled as simulated.</span>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":3260}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

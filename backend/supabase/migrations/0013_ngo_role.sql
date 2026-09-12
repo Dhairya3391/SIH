@@ -1,0 +1,22 @@
+-- ===========================================================================
+-- JharSetu 0013 - the NGO role
+-- ===========================================================================
+-- Companies supply materials; NGOs fund money. Those are different jobs with
+-- different consoles, so an NGO gets its own role instead of borrowing the
+-- company one.
+--
+-- Nothing else in the report -> verify -> propose -> fund -> deliver flow
+-- needs a schema change:
+--   * AI verification is a verifications row with method = 'ai_external' (0010)
+--   * college requirements are resource_needs rows
+--   * dispatch and receipt live on pledges (state, dispatched_at, received_at - 0010)
+--   * progress lives in progress_stages / progress_updates (0010)
+--
+-- Postgres 12+ allows ADD VALUE inside a transaction, but the new value cannot
+-- be used until that transaction commits. Run this on its own - the Supabase
+-- SQL editor or `npm run db:push` both do - and then create the demo login:
+--
+--   npx tsx scripts/ensure-demo-accounts.ts      (creates ngo@jharsetu.demo)
+-- ===========================================================================
+
+alter type user_role add value if not exists 'ngo';

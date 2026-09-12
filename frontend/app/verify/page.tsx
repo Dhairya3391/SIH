@@ -12,18 +12,20 @@ import { ChallengeRow } from "@/components/domain/ChallengeRow";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { useNow } from "@/lib/useNow";
-import { VERDICT_LABEL, bandOf, hours, humanise, num, relative } from "@/lib/format";
-import type { VerifyQueueItem } from "@/types/database";
+import { VERDICT_LABEL, bandOf, hours, humanise, num, relative, truncate } from "@/lib/format";
+import type { AiVerifiedItem, VerifyQueueItem } from "@/types/database";
 
 /**
- * The verification queue.
+ * The verification desk.
  *
- * Ordered by what is blocking, not by what arrived last: an unverified report
- * with a high score holds up everything downstream, because no college can
- * propose against a problem nobody has confirmed exists.
+ * When a report arrives the AI looks for independent proof on its own. What
+ * it verifies goes straight to colleges; what it cannot is here, ordered by
+ * what is blocking - an unverified report with a high score holds up
+ * everything downstream, because no college can propose against a problem
+ * nobody has confirmed exists.
  *
- * The AI corroboration verdict is shown on every row, and it is never
- * presented as a decision — a row that says "supports" still needs a person.
+ * The problems the AI verified are listed below the queue for audit: a
+ * verifier can still reject one that does not stand.
  */
 export default function VerifyPage() {
   return (
@@ -48,6 +50,7 @@ function VerifyQueue() {
   // Memoised so an unresolved fetch does not hand every useMemo below a
   // brand-new empty array on each render.
   const queue = useMemo(() => res.data?.queue ?? [], [res.data]);
+  const aiVerified = useMemo(() => res.data?.recently_verified_by_ai ?? [], [res.data]);
 
   const districts = useMemo(
     () => [...new Set(queue.map((q) => q.district).filter(Boolean) as string[])].sort(),
@@ -84,7 +87,7 @@ function VerifyQueue() {
       <PageHead
         eyebrow="Verifier"
         title="What needs a person to look at it"
-        lede="Each of these is a claim with evidence attached. Your job is to weigh the evidence and decide — the AI checks sit beside the citizen's own words, and they never decide for you."
+        lede="The AI has already searched weather records, news and the web for these and could not confirm them on its own. Weigh what it found beside the citizen's words, then confirm with sources or photos — or reject with a reason the reporter will read."
         right={
           <div className="flex items-center gap-2.5">
             <select
@@ -121,15 +124,15 @@ function VerifyQueue() {
                 sub={district ? `In ${district}` : "Across Jharkhand"}
               />
               <Stat
-                label="Outside proof found"
-                value={num(counts.supports)}
-                sub="Weather, news or web supports the claim"
-                tone={counts.supports > 0 ? "teal" : undefined}
+                label="Verified by AI"
+                value={num(aiVerified.length)}
+                sub="In the last 14 days, from cited sources"
+                tone={aiVerified.length > 0 ? "teal" : undefined}
               />
               <Stat
                 label="Never checked"
                 value={num(counts.unchecked)}
-                sub="No corroboration has been run yet"
+                sub="Not disaster-type, or the check has not run"
                 tone={counts.unchecked > 0 ? "alert" : undefined}
               />
               <Stat
@@ -167,7 +170,7 @@ function VerifyQueue() {
               {(
                 [
                   ["all", `Everything (${queue.length})`],
-                  ["supports", `Supported (${counts.supports})`],
+                  ["supports", `Some support (${counts.supports})`],
                   ["inconclusive", "Inconclusive"],
                   ["unchecked", `Unchecked (${counts.unchecked})`],
                 ] as [Lens, string][]
@@ -184,7 +187,7 @@ function VerifyQueue() {
                 title={queue.length === 0 ? "The queue is empty" : "Nothing matches that filter"}
                 why={
                   queue.length === 0
-                    ? "Every report in this district has been verified or rejected. New reports appear here within a minute of being filed."
+                    ? "Every report has been verified — by the AI or a person — or rejected. New reports that the AI cannot confirm appear here within a minute of being filed."
                     : "Every report is here, just not under this lens. Switch back to Everything to see the full queue."
                 }
               />
@@ -197,23 +200,42 @@ function VerifyQueue() {
             )}
 
             <Panel
-              title="How verification changes things"
+              title="Verified by the AI in the last two weeks"
+              lede="These found independent, cited proof and opened to colleges without waiting for a person. Open any that look wrong — you can still reject one until a college is awarded the work."
+            >
+              {aiVerified.length === 0 ? (
+                <p className="text-[13px] leading-relaxed text-body">
+                  Nothing was verified automatically in the last fortnight. Either no disaster-type
+                  reports arrived, or the outside records did not confirm them — in which case they
+                  are in the queue above.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {aiVerified.map((item) => (
+                    <AiRow key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
+            </Panel>
+
+            <Panel
+              title="How verification works"
               lede="The confidence ladder is what colleges and funders read, so each rung has to mean something specific."
               depth="in"
             >
               <ul className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-body">
                 <li>
-                  <strong className="text-ink">Confirm</strong> needs at least one source and a
-                  note. It moves the problem to field verified and unblocks the proposal stage.
+                  <strong className="text-ink">The AI checks first.</strong> For a disaster-type
+                  report it searches the weather at that place and time, the news and the web. A
+                  supporting verdict with cited sources verifies it immediately.
+                </li>
+                <li>
+                  <strong className="text-ink">Confirm</strong> needs a note and at least one
+                  source or photo. The problem becomes field verified and opens to colleges.
                 </li>
                 <li>
                   <strong className="text-ink">Reject</strong> needs a reason, which the reporter
-                  can see. A rejected report is not deleted — the record of it, and of why, stays.
-                </li>
-                <li>
-                  <strong className="text-ink">Corroborate</strong> asks the model to search
-                  weather archives, news and the open web. It can only reach{" "}
-                  <em>externally corroborated</em>, never field verified.
+                  is sent. A rejected report is not deleted — the record of it, and of why, stays.
                 </li>
               </ul>
             </Panel>
@@ -251,7 +273,7 @@ function QueueRow({ item }: { item: VerifyQueueItem }) {
                 verdict === "supports" ? "teal" : verdict === "contradicts" ? "alert" : "high"
               }
             >
-              {VERDICT_LABEL[verdict ?? ""] ?? humanise(verdict ?? "")}
+              AI: {VERDICT_LABEL[verdict ?? ""] ?? humanise(verdict ?? "")}
             </Chip>
           ) : (
             <Chip tone="neutral">Not checked</Chip>
@@ -267,6 +289,46 @@ function QueueRow({ item }: { item: VerifyQueueItem }) {
       note={
         item.why_critical ? (
           <p className="text-[12.5px] leading-relaxed text-body">{item.why_critical}</p>
+        ) : null
+      }
+    />
+  );
+}
+
+function AiRow({ item }: { item: AiVerifiedItem }) {
+  return (
+    <ChallengeRow
+      href={`/verify/${item.id}`}
+      reference={item.ref}
+      title={item.title}
+      district={item.district}
+      block={item.block}
+      category={item.category}
+      priority={item.priority}
+      band={bandOf(item.priority)}
+      people={item.people_est}
+      reports={item.report_count}
+      reporters={item.reporter_count}
+      confidence={item.confidence}
+      status={item.status}
+      hazards={item.hazard_tags}
+      right={
+        <>
+          <Chip tone="teal">AI verified</Chip>
+          <Tag>
+            {item.ai_verification.sources.length} source
+            {item.ai_verification.sources.length === 1 ? "" : "s"}
+          </Tag>
+          <span className="mono text-[10px] uppercase tracking-[0.08em] text-mute">
+            {relative(item.ai_verification.at)}
+          </span>
+        </>
+      }
+      note={
+        item.ai_verification.note ? (
+          <p className="text-[12.5px] leading-relaxed text-body">
+            {truncate(item.ai_verification.note, 240)}
+          </p>
         ) : null
       }
     />

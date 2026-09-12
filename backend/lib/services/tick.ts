@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   pendingProposals,
-  scoreProposal,
+  scoreAndNotify,
   dueWindows,
   closeWindow,
   SchemaNotReadyError,
@@ -46,7 +46,7 @@ export async function opportunisticTick(
     const pending = (await pendingProposals(supabase, maxScores)).slice(0, maxScores);
     for (const id of pending) {
       try {
-        await scoreProposal(supabase, id);
+        await scoreAndNotify(supabase, id);
         scored += 1;
       } catch {
         // the proposal is handed back to 'submitted' by scoreProposal itself

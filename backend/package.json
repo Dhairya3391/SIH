@@ -18,6 +18,8 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.58.0",
     "next": "^15.5.4",
+    "pdf-parse": "^2.4.5",
+    "piexifjs": "^1.0.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "server-only": "^0.0.1",

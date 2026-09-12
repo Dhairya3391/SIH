@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
 import { Card, Panel, Stat } from "@/components/ui/Surface";
@@ -26,15 +27,19 @@ import { num } from "@/lib/format";
 export default function MessagesPage() {
   return (
     <RouteGuard>
-      <Messages />
+      {/* useSearchParams needs a boundary: ?thread= opens a conversation directly. */}
+      <Suspense fallback={null}>
+        <Messages />
+      </Suspense>
     </RouteGuard>
   );
 }
 
 function Messages() {
   const { role } = useAuth();
+  const params = useSearchParams();
   const res = useResource(() => apiClient.fetchThreads(), []);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(params.get("thread"));
 
   // Memoised so an unresolved fetch does not hand every useMemo below a
   // brand-new empty array on each render.
@@ -104,7 +109,7 @@ function Messages() {
             <Empty
               icon="chat"
               title="No conversations yet"
-              why="A thread opens when a company or NGO pledges against a need on a challenge a college is working on. Until both sides exist there is nobody to talk to."
+              why="A thread opens when a company or NGO asks a college a question about a published need, or pledges against one. Until both sides exist there is nobody to talk to."
             />
             <Panel title="Who can be in a thread" lede="Two parties, and observers." depth="in">
               <ul className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-body">

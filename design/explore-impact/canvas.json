@@ -1,0 +1,39 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Explore" },
+    { "id": "page-2", "name": "Impact" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "/explore — desktop 1440", "page": "page-1", "x": 0, "y": 0, "w": 1440, "h": 2320 },
+    { "file": "ExploreMobile.dc.html", "title": "/explore — mobile 390", "page": "page-1", "x": 1580, "y": 0, "w": 390, "h": 2560 },
+    { "file": "Impact.dc.html", "title": "/impact — desktop 1440", "page": "page-2", "x": 0, "y": 0, "w": 1440, "h": 2500 },
+    { "file": "ImpactMobile.dc.html", "title": "/impact — mobile 390", "page": "page-2", "x": 1580, "y": 0, "w": 390, "h": 3260 }
+  ],
+  "annotations": [
+    {
+      "id": "explore-note",
+      "page": "page-1",
+      "x": 0,
+      "y": -210,
+      "w": 660,
+      "text": "/explore — GET /api/challenges\nList left, sticky map right. Band chips double as the filter and the legend.\nThe redaction banner is shown because the list response carries redacted: true for anyone who is not a coordinator."
+    },
+    {
+      "id": "impact-note",
+      "page": "page-2",
+      "x": 0,
+      "y": -210,
+      "w": 660,
+      "text": "/impact — GET /api/dashboard/metrics plus GET /api/ledger/verify\nBars carry a CSS-only hover tooltip, no JS needed.\nThe funnel's amber note is the data_warnings component: team_formed sits below piloted because older seeded rows have no team_formed_at."
+    },
+    {
+      "id": "palette-note",
+      "page": "page-2",
+      "x": 700,
+      "y": -210,
+      "w": 500,
+      "text": "Band colours were re-stepped from your ramps so adjacent pairs stay apart for colourblind readers:\ncritical #6842A6, high #D9A514, moderate #256FA8, long term #42BCBC.\nChips keep the darker text steps. Every band also carries its name, never colour alone."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

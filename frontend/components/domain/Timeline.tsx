@@ -22,24 +22,47 @@ const SLOW_GAP_HOURS = 48;
 
 const KIND: Record<string, { tone: ChipTone; icon: IconName; label: string }> = {
   report: { tone: "neutral", icon: "mic", label: "Citizen report" },
-  reported: { tone: "neutral", icon: "mic", label: "Citizen report" },
-  external: { tone: "moderate", icon: "cloud", label: "AI corroboration" },
-  corroborated: { tone: "moderate", icon: "cloud", label: "AI corroboration" },
-  verified: { tone: "teal", icon: "shield", label: "Human verification" },
+  compiled: { tone: "neutral", icon: "spark", label: "Compiled" },
+  merged: { tone: "neutral", icon: "list", label: "Report merged" },
+  routed: { tone: "neutral", icon: "shield", label: "To verifier" },
+  external_check: { tone: "moderate", icon: "cloud", label: "AI check" },
+  ai_verified: { tone: "teal", icon: "spark", label: "AI verified" },
+  human_verified: { tone: "teal", icon: "shield", label: "Verified" },
+  approved: { tone: "teal", icon: "check", label: "Approved" },
   rejected: { tone: "alert", icon: "x", label: "Rejected" },
-  proposal: { tone: "high", icon: "file", label: "Proposal submitted" },
+  proposal_submitted: { tone: "high", icon: "file", label: "Proposal" },
+  proposal_scored: { tone: "high", icon: "gauge", label: "Proposal scored" },
+  window_awarded: { tone: "critical", icon: "trophy", label: "Awarded" },
+  window_reopened: { tone: "high", icon: "refresh", label: "Window reopened" },
+  stages_generated: { tone: "navy", icon: "list", label: "Stages planned" },
+  requirements: { tone: "navy", icon: "box", label: "Requirements" },
+  pledge: { tone: "teal", icon: "wallet", label: "Pledge" },
+  dispatched: { tone: "moderate", icon: "upload", label: "Sent" },
+  received: { tone: "teal", icon: "check", label: "Received" },
+  withdrawn: { tone: "alert", icon: "x", label: "Withdrawn" },
+  funded: { tone: "teal", icon: "wallet", label: "Funded" },
+  work_started: { tone: "navy", icon: "play", label: "Work started" },
+  stage: { tone: "navy", icon: "list", label: "Stage" },
+  update: { tone: "teal", icon: "camera", label: "Progress update" },
+  completed: { tone: "teal", icon: "check", label: "Work complete" },
+  confirmed: { tone: "teal", icon: "heart", label: "Confirmed" },
+  message: { tone: "neutral", icon: "chat", label: "Message" },
+  ledger: { tone: "neutral", icon: "shield", label: "Ledger" },
+  // Older event names, matched by substring below.
+  external: { tone: "moderate", icon: "cloud", label: "AI check" },
+  verified: { tone: "teal", icon: "shield", label: "Verified" },
+  proposal: { tone: "high", icon: "file", label: "Proposal" },
   scored: { tone: "high", icon: "gauge", label: "Proposal scored" },
   lead: { tone: "critical", icon: "trophy", label: "Lead changed" },
-  awarded: { tone: "critical", icon: "trophy", label: "Window awarded" },
+  awarded: { tone: "critical", icon: "trophy", label: "Awarded" },
   contribution: { tone: "teal", icon: "box", label: "Contribution" },
-  pledge: { tone: "teal", icon: "box", label: "Contribution" },
-  update: { tone: "teal", icon: "check", label: "Progress update" },
-  stage: { tone: "navy", icon: "list", label: "Stage" },
   transition: { tone: "navy", icon: "arrow", label: "Status change" },
 };
 
 function kindOf(kind: string) {
-  const key = Object.keys(KIND).find((k) => kind.toLowerCase().includes(k));
+  const k = (kind ?? "").toLowerCase();
+  if (KIND[k]) return KIND[k];
+  const key = Object.keys(KIND).find((x) => k.includes(x));
   return key ? KIND[key] : { tone: "neutral" as ChipTone, icon: "chev" as IconName, label: humanise(kind) };
 }
 

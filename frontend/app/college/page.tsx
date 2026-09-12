@@ -35,6 +35,7 @@ function CollegeOverview() {
   const proposals = useResource(() => apiClient.fetchMyProposals(), []);
   const problems = useResource(() => apiClient.fetchCollegeProblems(), []);
   const threads = useResource(() => apiClient.fetchThreads(), []);
+  const projects = useResource(() => apiClient.fetchCollegeProjects(), []);
 
   // Memoised so an unresolved fetch does not hand every useMemo below a
   // brand-new empty array on each render.
@@ -43,7 +44,7 @@ function CollegeOverview() {
   const stats = useMemo(() => {
     const leading = rows.filter((p) => p.is_leading === true);
     const behind = rows.filter((p) => p.is_leading === false);
-    const awarded = rows.filter((p) => p.state === "awarded");
+    const awarded = rows.filter((p) => p.state === "winner");
     const closing = rows
       .filter((p) => p.window?.state === "open" && p.window.closes_at)
       .sort(
@@ -51,7 +52,7 @@ function CollegeOverview() {
           new Date(a.window!.closes_at!).getTime() - new Date(b.window!.closes_at!).getTime(),
       );
     const funding = rows
-      .filter((p) => p.state === "awarded" || p.is_leading === true)
+      .filter((p) => p.state === "winner" || p.is_leading === true)
       .reduce((sum, p) => sum + (p.funding_required ?? 0), 0);
     return { leading, behind, awarded, closing, funding };
   }, [rows]);
@@ -129,6 +130,61 @@ function CollegeOverview() {
                 sub="Across leading and awarded proposals"
               />
             </div>
+
+            {/* ---- projects you won --------------------------------------- */}
+            <Panel
+              title="Projects you won"
+              lede="Publish what each one needs, confirm what arrives, and post progress as you deliver."
+              right={
+                <ButtonLink href="/college/projects" variant="secondary" size="sm" icon="box">
+                  All projects
+                </ButtonLink>
+              }
+            >
+              {projects.error ? (
+                <ErrorNote message={projects.error} code={projects.code} onRetry={projects.reload} />
+              ) : (projects.data?.projects ?? []).length === 0 ? (
+                <p className="text-[13px] leading-relaxed text-body">
+                  No project awarded to you yet. When a window closes with your proposal leading,
+                  the problem appears here and you publish the funding and materials it needs.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-2.5">
+                  {(projects.data?.projects ?? []).slice(0, 5).map((pr) => (
+                    <li key={pr.id}>
+                      <Link
+                        href={`/college/projects/${pr.ref}`}
+                        className="up-s up-hit flex flex-wrap items-center justify-between gap-3 p-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+                            {pr.ref} · {humanise(pr.status)}
+                          </div>
+                          <div className="mt-1 truncate text-[14px] font-bold text-navy-dark">{pr.title}</div>
+                        </div>
+                        <div className="flex flex-none flex-wrap items-center gap-2">
+                          {!pr.requirements_published ? (
+                            <Chip tone="alert">Publish requirements</Chip>
+                          ) : (
+                            <Chip tone={pr.pct_pledged === 100 ? "teal" : "moderate"}>
+                              {pr.pct_pledged ?? 0}% pledged
+                            </Chip>
+                          )}
+                          {pr.contributions_awaiting_receipt > 0 && (
+                            <Chip tone="high">{pr.contributions_awaiting_receipt} to confirm</Chip>
+                          )}
+                          {pr.stages_total > 0 && (
+                            <Tag>
+                              {pr.stages_done}/{pr.stages_total} stages
+                            </Tag>
+                          )}
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
 
             {/* ---- closing soonest ---------------------------------------- */}
             <Panel
@@ -285,8 +341,8 @@ function CollegeOverview() {
                 <ErrorNote message={threads.error} code={threads.code} onRetry={threads.reload} />
               ) : (threads.data?.threads ?? []).length === 0 ? (
                 <p className="text-[13px] leading-relaxed text-body">
-                  No threads yet. One opens when a company or NGO pledges against a need on a
-                  challenge you are working on.
+                  No threads yet. One opens when a company or NGO asks about, or pledges against, a
+                  need you published.
                 </p>
               ) : (
                 <ul className="flex flex-col gap-2.5">

@@ -11,9 +11,9 @@ import { BandChip, Chip, ConfidenceChip, StatusChip, Tag } from "@/components/ui
 import { AiNote, Empty, ErrorNote, Skeleton } from "@/components/ui/States";
 import { Icon, CATEGORY_ICON } from "@/components/ui/Icon";
 import { ScoreFactors } from "@/components/domain/ScoreFactors";
-import { ConfidenceLadder } from "@/components/domain/Corroboration";
+import { ConfidenceLadder, Corroboration } from "@/components/domain/Corroboration";
 import { NeedLineRow } from "@/components/domain/NeedCard";
-import { TimelineList } from "@/components/domain/Timeline";
+import { StageTracker, TimelineList } from "@/components/domain/Timeline";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { useAuth } from "@/lib/auth";
@@ -40,8 +40,9 @@ import {
  * on grey.
  */
 export default function ChallengePage() {
+  // Public: a citizen follows their report by its reference, with or without an account.
   return (
-    <RouteGuard>
+    <RouteGuard allowAnonymous>
       <Brief />
     </RouteGuard>
   );
@@ -134,9 +135,20 @@ function Brief() {
               <StatusChip status={c.status} />
             </div>
             <div className="flex flex-wrap gap-2">
-              {c.confidence === "unverified" && (
-                <ButtonLink href={`/verify/${c.id}`} variant="secondary" size="sm" icon="shield">
-                  Verify
+              {["REPORTED", "REFINED"].includes(c.status) &&
+                (role === "verifier" || role === "volunteer" || role === "coordinator" || role === "admin") && (
+                  <ButtonLink href={`/verify/${c.id}`} variant="secondary" size="sm" icon="shield">
+                    Verify
+                  </ButtonLink>
+                )}
+              {detail?.project && role && ["industry", "ngo", "coordinator", "admin", "university"].includes(role) && (
+                <ButtonLink
+                  href={role === "university" ? `/college/projects/${c.ref}` : `/projects/${c.ref}`}
+                  variant="secondary"
+                  size="sm"
+                  icon="box"
+                >
+                  Project
                 </ButtonLink>
               )}
               {/* Admin only: the history endpoint itself is requireRole("admin"),
@@ -367,6 +379,51 @@ function Brief() {
               </div>
             </Panel>
 
+            {detail?.project && (
+              <Panel
+                title="The work"
+                lede={`Awarded to ${detail.project.college?.name ?? "a college"}${detail.project.awarded_at ? ` on ${dateOnly(detail.project.awarded_at)}` : ""}. The delivery plan and the college's latest progress.`}
+                right={
+                  <span className="mono text-[11px] font-semibold text-navy">
+                    {detail.project.stages_done}/{detail.project.stages.length} stages
+                  </span>
+                }
+              >
+                {detail.project.stages.length > 0 ? (
+                  <StageTracker stages={detail.project.stages} />
+                ) : (
+                  <p className="text-[13px] leading-relaxed text-body">No delivery plan is on record yet.</p>
+                )}
+                {detail.project.updates.length > 0 && (
+                  <div className="hairline mt-4 pt-4">
+                    <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      Latest progress
+                    </div>
+                    <ul className="mt-2.5 flex flex-col gap-2.5">
+                      {detail.project.updates.slice(0, 5).map((u) => (
+                        <li key={u.id} className="in-s p-3">
+                          <div className="mono text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                            {dateTime(u.created_at)}
+                          </div>
+                          <p className="mt-1 text-[13px] leading-relaxed text-ink">{u.note}</p>
+                          {u.photos.length > 0 && role && role !== "citizen" && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {u.photos.map((ph) => (
+                                <a key={ph} href={ph} target="_blank" rel="noopener noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={ph} alt="Progress" className="h-[56px] w-[80px] rounded-md object-cover" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Panel>
+            )}
+
             <Panel
               title="Why it is ranked here"
               lede="Every factor, with its cap and the sentence behind it."
@@ -492,10 +549,39 @@ function Brief() {
                     {detail.verifications.map((v) => (
                       <li key={v.id} className="up-s p-3">
                         <div className="mono text-[9.5px] uppercase tracking-[0.08em] text-mute">
-                          {v.kind} · {dateOnly(v.created_at)}
+                          {v.kind === "inaccurate"
+                            ? "rejected / flagged"
+                            : v.method === "ai_external"
+                              ? "verified by AI from sources"
+                              : v.method === "coordinator"
+                                ? "coordinator"
+                                : v.kind === "field"
+                                  ? "verifier"
+                                  : v.kind}{" "}
+                          · {dateOnly(v.created_at)}
                         </div>
-                        {v.note && (
-                          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink">{v.note}</p>
+                        {(v.rejected_reason || v.note) && (
+                          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink">{v.rejected_reason ?? v.note}</p>
+                        )}
+                        {(v.source_urls?.length ?? 0) > 0 && (
+                          <ul className="mt-1.5 flex flex-col gap-0.5">
+                            {v.source_urls!.slice(0, 6).map((s, i) =>
+                              /^https?:\/\//i.test(s) ? (
+                                <li key={i}>
+                                  <a href={s} target="_blank" rel="noopener noreferrer nofollow" className="mono break-all text-[10.5px] text-navy hover:underline">
+                                    {s}
+                                  </a>
+                                </li>
+                              ) : (
+                                <li key={i} className="mono text-[10.5px] text-body">
+                                  {s}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        )}
+                        {(v.photo_count ?? 0) > 0 && (
+                          <p className="mono mt-1 text-[10px] text-mute">{v.photo_count} field photo(s) on file</p>
                         )}
                       </li>
                     ))}
@@ -503,6 +589,12 @@ function Brief() {
                 </div>
               )}
             </Panel>
+
+            {detail?.external?.checked && (
+              <Panel title="What outside records say" lede="The AI's latest weather, news and web check.">
+                <Corroboration external={detail.external} />
+              </Panel>
+            )}
 
             {detail?.gap && detail.gap.needs.length > 0 && (
               <Panel

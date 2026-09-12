@@ -288,6 +288,7 @@ async function seedDemoUsers(
     coordinator: orgIds.get("Jharkhand State Disaster Management Authority (demo data)") ?? null,
     university: orgIds.get("BIT Mesra, Department of Electronics and Communication") ?? null,
     industry: orgIds.get("Damodar Steel Works (fictional)") ?? null,
+    ngo: orgIds.get("Palamu Jan Kalyan Trust (fictional)") ?? null,
     admin: null,
   };
 
@@ -298,6 +299,7 @@ async function seedDemoUsers(
     coordinator: "Demo district coordinator",
     university: "Demo university team lead",
     industry: "Demo CSR lead",
+    ngo: "Demo NGO programme lead",
     admin: "Demo administrator",
   };
 
@@ -414,6 +416,7 @@ async function seedGumlaLightning(supabase: SupabaseClient, orgIds: Map<string, 
 
   const confidence = computeConfidence({
     uniqueReporters: reporters,
+    externallyVerified: false,
     hasFieldVerification: true,
     coordinatorApproved: true,
     resolvedWithEvidence: false,

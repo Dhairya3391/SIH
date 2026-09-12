@@ -1,5 +1,5 @@
-import type { NextRequest } from "next/server";
-import { ok, fail, route, readJson, rateLimit } from "@/lib/http";
+import { after, type NextRequest } from "next/server";
+import { ok, fail, route, rateLimit } from "@/lib/http";
 import { submitReportSchema } from "@/lib/validation/schemas";
 import { checkUpload } from "@/lib/validation/schemas";
 import { supabaseServer, currentActor } from "@/lib/supabase/server";
@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { intakeReport } from "@/lib/services/intake";
 import { traceTotalMs } from "@/lib/ai/compiler";
 import { isSttEnabled, transcribe } from "@/lib/ai/stt";
+import { runCorroboration, shouldCorroborateAfterIntake } from "@/lib/services/corroboration";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -213,6 +214,27 @@ export const POST = route(async (request: NextRequest) => {
     vulnerable: input.vulnerable,
   });
 
+  // The AI verification step - weather, news and web - runs after the response
+  // is sent. A citizen on a weak connection must not wait on three outside
+  // services, and a slow provider must never cost them their report.
+  let corroboration: "queued" | "not_disaster" | "skipped" = "skipped";
+  let corroborationReason = "This report had already been received.";
+  if (!result.duplicateSubmission && result.challengeId) {
+    const plan = await shouldCorroborateAfterIntake(supabase, result.challengeId, result.decision);
+    corroboration = !plan.run ? "skipped" : plan.disaster.disaster ? "queued" : "not_disaster";
+    corroborationReason = plan.run ? plan.disaster.reason : plan.reason;
+    if (plan.run) {
+      const challengeId = result.challengeId;
+      const trigger = result.decision === "merge" ? "merge" : "intake";
+      after(() =>
+        runCorroboration(supabaseAdmin(), challengeId, { trigger }).then(
+          () => undefined,
+          (err) => console.error("[reports] corroboration failed", err),
+        ),
+      );
+    }
+  }
+
   return ok({
     report_id: result.reportId,
     challenge_id: result.challengeId,
@@ -227,5 +249,12 @@ export const POST = route(async (request: NextRequest) => {
     /** True when any AI step fell back to deterministic code. */
     degraded: result.degraded,
     already_received: result.duplicateSubmission,
+    /**
+     * "queued": a disaster-type report; independent proof is being looked for
+     * and, if found, verifies it within a minute. "not_disaster": outside
+     * records cannot confirm this kind of problem, so a verifier will.
+     */
+    corroboration,
+    corroboration_reason: corroborationReason,
   }, { status: result.duplicateSubmission ? 200 : 201 });
 });

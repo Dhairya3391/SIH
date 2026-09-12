@@ -157,10 +157,55 @@ export const approvePilotSchema = z.object({
 
 export const pledgeSchema = z.object({
   need_id: z.string().uuid(),
-  org_id: z.string().uuid(),
-  qty: z.coerce.number().min(0.01).max(1_000_000),
-  kind: pledgeKind,
+  /** Only an admin pledging on an organisation's behalf sends this; everyone else pledges as their own. */
+  org_id: z.string().uuid().optional(),
+  /** Rupees for a funding line, the line's own unit for materials. */
+  qty: z.coerce.number().min(0.01).max(100_000_000),
+  /** Ignored: the kind always comes from the need itself. Accepted for older clients. */
+  kind: pledgeKind.optional(),
   note: z.string().max(500).optional(),
+  expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.").optional(),
+});
+
+export const dispatchSchema = z.object({
+  expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.").optional(),
+  note: z.string().max(500).optional(),
+});
+
+export const receiveSchema = z.object({
+  receipt_note: z.string().max(500).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// College projects
+// ---------------------------------------------------------------------------
+
+export const requirementsSchema = z.object({
+  /** Rupees. Omit or 0 when the project needs no money, only materials. */
+  funding_amount: z.coerce.number().min(0).max(100_000_000).nullish(),
+  materials: z
+    .array(
+      z.object({
+        item: z.string().trim().min(2).max(120),
+        qty: z.coerce.number().min(0.01).max(10_000_000),
+        unit: z.string().trim().max(30).nullish(),
+      }),
+    )
+    .max(30)
+    .default([]),
+  note: z.string().max(1000).nullish(),
+});
+
+export const stageUpdateSchema = z.object({
+  status: z.enum(["pending", "in_progress", "done", "blocked"]),
+  note: z.string().trim().max(2000).nullish(),
+  photo_paths: z.array(z.string().max(500)).max(10).default([]),
+});
+
+export const progressUpdateSchema = z.object({
+  note: z.string().trim().min(5, "Say what happened, in a sentence.").max(3000),
+  stage_id: z.string().uuid().nullish(),
+  photo_paths: z.array(z.string().max(500)).max(10).default([]),
 });
 
 // ---------------------------------------------------------------------------

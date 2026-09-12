@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
 import { Card, Panel, Stat } from "@/components/ui/Surface";
@@ -12,16 +13,17 @@ import { NeedCard } from "@/components/domain/NeedCard";
 import * as apiClient from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useResource } from "@/lib/useResource";
-import { CATEGORY_LABEL, humanise, num } from "@/lib/format";
+import { CATEGORY_LABEL, humanise, num, quantity, rupees } from "@/lib/format";
 import type { NeedLine } from "@/types/database";
 
 /**
  * The needs board.
  *
- * Every line is itemised and every line is divisible. A need for twelve siren
- * units can be closed by six organisations giving two each — which is the
- * entire point, because most CSR budgets in the state are small and a board
- * that only accepts whole needs turns those donors away.
+ * Every line a college published for a project it won, and not yet covered.
+ * A company sees the material lines first; an NGO sees the funding lines.
+ * Every line is divisible - 10 kg of steel can be 5 kg from one company and
+ * 5 kg from another - and a fully covered line leaves the board. The college
+ * behind each line can be asked anything before committing.
  */
 export default function NeedsPage() {
   return (
@@ -31,23 +33,22 @@ export default function NeedsPage() {
   );
 }
 
-type Lens = "all" | "open" | "nearly" | "untouched";
+type Group = "materials" | "funding" | "all";
+type Lens = "open" | "nearly" | "untouched";
 
 function NeedsBoard() {
-  const { organisation, user } = useAuth();
+  const { organisation, user, role } = useAuth();
+  const router = useRouter();
+  const [group, setGroup] = useState<Group>(role === "ngo" ? "funding" : role === "industry" ? "materials" : "all");
   const [district, setDistrict] = useState("");
-  const [kind, setKind] = useState("");
   const [lens, setLens] = useState<Lens>("open");
   const [pledging, setPledging] = useState<NeedLine | null>(null);
+  const [messaging, setMessaging] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; thread?: string | null } | null>(null);
 
   const res = useResource(
-    () =>
-      apiClient.fetchNeeds({
-        district: district || undefined,
-        kind: kind || undefined,
-        limit: 120,
-      }),
-    [district, kind],
+    () => apiClient.fetchNeeds({ district: district || undefined, group, limit: 150 }),
+    [district, group],
   );
 
   // Memoised so an unresolved fetch does not hand every useMemo below a
@@ -55,58 +56,53 @@ function NeedsBoard() {
   const needs = useMemo(() => res.data?.needs ?? [], [res.data]);
 
   const districts = useMemo(
-    () =>
-      [
-        ...new Set(needs.map((n) => n.challenge?.district).filter(Boolean) as string[]),
-      ].sort(),
-    [needs],
-  );
-  const kinds = useMemo(
-    () => [...new Set(needs.map((n) => n.kind).filter(Boolean))].sort(),
+    () => [...new Set(needs.map((n) => n.challenge?.district).filter(Boolean) as string[])].sort(),
     [needs],
   );
 
-  const remainingOf = (n: NeedLine) =>
-    n.qty_remaining ?? n.qty_open ?? n.qty_needed - n.qty_pledged;
+  const remainingOf = (n: NeedLine) => n.qty_remaining ?? n.qty_open ?? n.qty_needed - n.qty_pledged;
 
   const counts = useMemo(() => {
-    const open = needs.filter((n) => remainingOf(n) > 0);
     const untouched = needs.filter((n) => n.qty_pledged === 0);
     const nearly = needs.filter((n) => n.pct_closed >= 60 && remainingOf(n) > 0);
-    const people = [
-      ...new Map(
-        open.filter((n) => n.challenge).map((n) => [n.challenge.id, n.challenge.people_est]),
-      ).values(),
-    ].reduce((a, b) => a + b, 0);
-    return { open: open.length, untouched: untouched.length, nearly: nearly.length, people };
+    const projects = new Set(needs.map((n) => n.challenge?.id)).size;
+    const money = needs.filter((n) => n.kind === "money").reduce((s, n) => s + remainingOf(n), 0);
+    return { untouched: untouched.length, nearly: nearly.length, projects, money };
   }, [needs]);
 
   const rows = useMemo(() => {
     const filtered =
-      lens === "open"
-        ? needs.filter((n) => remainingOf(n) > 0)
-        : lens === "nearly"
-          ? needs.filter((n) => n.pct_closed >= 60 && remainingOf(n) > 0)
-          : lens === "untouched"
-            ? needs.filter((n) => n.qty_pledged === 0)
-            : needs;
-    // Nearly-closed lines first: finishing one delivers something, starting
-    // five delivers nothing.
+      lens === "nearly"
+        ? needs.filter((n) => n.pct_closed >= 60)
+        : lens === "untouched"
+          ? needs.filter((n) => n.qty_pledged === 0)
+          : needs;
+    // Nearly-closed lines first: finishing one delivers something, starting five delivers nothing.
     return filtered
       .slice()
-      .sort(
-        (a, b) =>
-          b.pct_closed - a.pct_closed ||
-          (b.challenge?.priority ?? 0) - (a.challenge?.priority ?? 0),
-      );
+      .sort((a, b) => b.pct_closed - a.pct_closed || (b.challenge?.priority ?? 0) - (a.challenge?.priority ?? 0));
   }, [needs, lens]);
+
+  const canPledge = Boolean(organisation) && (role === "industry" || role === "ngo");
+
+  async function messageCollege(need: NeedLine) {
+    setMessaging(need.need_id);
+    try {
+      const t = await apiClient.openThread({ challenge_id: need.challenge.id });
+      router.push(`/messages?thread=${t.thread_id}`);
+    } catch (err) {
+      setNotice({ text: err instanceof Error ? err.message : "The conversation could not be opened." });
+    } finally {
+      setMessaging(null);
+    }
+  }
 
   return (
     <>
       <PageHead
-        eyebrow="Company / NGO"
-        title="What is actually needed"
-        lede="Itemised lines from problems that a person verified and a college is building against. Give part of a line or all of it — six organisations closing one need together is the normal case, not a fallback."
+        eyebrow={role === "ngo" ? "NGO" : role === "industry" ? "Company" : "Needs board"}
+        title={group === "funding" ? "Projects that need funding" : group === "materials" ? "Materials projects need" : "What projects need"}
+        lede="Itemised lines from verified problems that a college won and is delivering. Give part of a line or all of it, and ask the college anything first — the conversation stays on the project's record."
         right={
           <div className="flex flex-wrap items-center gap-2.5">
             <select
@@ -122,24 +118,45 @@ function NeedsBoard() {
                 </option>
               ))}
             </select>
-            <select
-              className="field max-w-[170px]"
-              value={kind}
-              onChange={(e) => setKind(e.target.value)}
-              aria-label="Filter by kind"
-            >
-              <option value="">All kinds</option>
-              {kinds.map((k) => (
-                <option key={k} value={k}>
-                  {humanise(k)}
-                </option>
-              ))}
-            </select>
+            <ButtonLink href="/contributions" variant="secondary" icon="wallet">
+              My contributions
+            </ButtonLink>
           </div>
         }
       />
 
       <Main>
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["materials", "Materials (companies)"],
+              ["funding", "Funding (NGOs)"],
+              ["all", "Everything"],
+            ] as [Group, string][]
+          ).map(([key, label]) => (
+            <Toggle key={key} active={group === key} onClick={() => setGroup(key)}>
+              <Icon name={key === "funding" ? "wallet" : key === "materials" ? "box" : "list"} size={13} />
+              {label}
+            </Toggle>
+          ))}
+        </div>
+
+        {notice && (
+          <div className="in-s flex flex-wrap items-center justify-between gap-3 p-3.5" role="status">
+            <p className="text-[13px] leading-relaxed text-body">{notice.text}</p>
+            <div className="flex items-center gap-2">
+              {notice.thread && (
+                <ButtonLink href={`/messages?thread=${notice.thread}`} variant="secondary" size="sm" icon="chat">
+                  Open the conversation
+                </ButtonLink>
+              )}
+              <button type="button" aria-label="Dismiss" className="text-mute" onClick={() => setNotice(null)}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {res.loading && !res.settled ? (
           <>
             <SkeletonStats />
@@ -150,10 +167,11 @@ function NeedsBoard() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat label="Open lines" value={num(needs.length)} sub={`Across ${num(counts.projects)} project${counts.projects === 1 ? "" : "s"}`} />
               <Stat
-                label="Open lines"
-                value={num(counts.open)}
-                sub={district ? `In ${district}` : "Across Jharkhand"}
+                label="Funding still needed"
+                value={rupees(counts.money)}
+                sub={group === "materials" ? "Switch to Funding to see these lines" : "Summed across open funding lines"}
               />
               <Stat
                 label="Nothing pledged yet"
@@ -162,42 +180,19 @@ function NeedsBoard() {
                 tone={counts.untouched > 0 ? "alert" : undefined}
               />
               <Stat
-                label="Over 60% closed"
+                label="Over 60% covered"
                 value={num(counts.nearly)}
                 sub="A small contribution finishes these"
                 tone={counts.nearly > 0 ? "teal" : undefined}
               />
-              <Stat
-                label="People behind them"
-                value={num(counts.people)}
-                sub="Across the problems with open lines"
-              />
             </div>
-
-            {counts.nearly > 0 && (
-              <Card depth="in" className="flex items-start gap-3 p-4">
-                <span className="mt-px text-teal-ink">
-                  <Icon name="box" size={16} />
-                </span>
-                <p className="text-[13px] leading-relaxed text-body">
-                  <strong className="text-ink">
-                    {counts.nearly} line{counts.nearly === 1 ? " is" : "s are"} more than 60%
-                    closed.
-                  </strong>{" "}
-                  Those are the cheapest deliveries in the state right now — a partial line blocks
-                  the same execution stage as an empty one, so finishing one is worth more than
-                  starting three.
-                </p>
-              </Card>
-            )}
 
             <div className="flex flex-wrap items-center gap-2">
               {(
                 [
-                  ["open", `Still open (${counts.open})`],
+                  ["open", `Still open (${needs.length})`],
                   ["nearly", `Nearly there (${counts.nearly})`],
                   ["untouched", `Untouched (${counts.untouched})`],
-                  ["all", `Everything (${needs.length})`],
                 ] as [Lens, string][]
               ).map(([key, label]) => (
                 <Toggle key={key} active={lens === key} onClick={() => setLens(key)}>
@@ -209,11 +204,15 @@ function NeedsBoard() {
             {rows.length === 0 ? (
               <Empty
                 icon="box"
-                title={needs.length === 0 ? "No open needs right now" : "Nothing under this lens"}
+                title={needs.length === 0 ? "Nothing open right now" : "Nothing under this lens"}
                 why={
                   needs.length === 0
-                    ? "Needs appear here when a college's awarded proposal is broken into itemised lines. If the board is empty, no awarded project is currently short of anything."
-                    : "The lines are all still there, just not in this subset. Switch to Everything."
+                    ? group === "funding"
+                      ? "No project is short of money at the moment. Lines appear when a college that won a problem publishes its budget, and leave once they are fully covered."
+                      : group === "materials"
+                        ? "No project is short of materials at the moment. Lines appear when a college that won a problem publishes its bill of materials, and leave once they are fully covered."
+                        : "No project is short of anything right now."
+                    : "The lines are all still there, just not in this subset. Switch to Still open."
                 }
               />
             ) : (
@@ -222,47 +221,52 @@ function NeedsBoard() {
                   <NeedCard
                     key={n.need_id}
                     need={n}
-                    onPledge={organisation ? setPledging : undefined}
+                    onPledge={canPledge ? setPledging : undefined}
+                    onMessage={organisation ? messageCollege : undefined}
+                    messaging={messaging === n.need_id}
                   />
                 ))}
               </div>
             )}
 
-            {!organisation && (
+            {!canPledge && (
               <Card depth="in" className="flex items-start gap-3 p-4">
-                <span className="mt-px text-alert-ink">
-                  <Icon name="alert" size={16} />
+                <span className="mt-px text-mute">
+                  <Icon name="info" size={16} />
                 </span>
                 <p className="text-[13px] leading-relaxed text-body">
-                  {user?.role === "admin"
-                    ? "You are signed in as the system owner, which is not attached to an organisation. Pledging is disabled because a pledge has to belong to somebody — the button is shown as unavailable rather than hidden so you can see what a company would see."
-                    : "This account is not linked to an organisation, so it cannot pledge. An administrator has to attach it first."}
+                  {!organisation
+                    ? user?.role === "admin"
+                      ? "You are signed in as the system owner, which is not attached to an organisation, so pledging is off. This is what companies and NGOs see."
+                      : "This account is not linked to an organisation, so it cannot pledge. An administrator has to attach it first."
+                    : "Only company and NGO accounts pledge. This view is read-only for your role."}
                 </p>
               </Card>
             )}
 
             <Panel
               title="What happens after you pledge"
-              lede="A pledge is a commitment that gets tracked to delivery, not a donation that disappears."
+              lede="A pledge is a commitment tracked to delivery, not a donation that disappears."
               depth="in"
             >
               <ol className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-body">
                 <li>
-                  <strong className="text-ink">Offered.</strong> The line shows your quantity as
-                  pledged and the college can plan around it.
+                  <strong className="text-ink">Pledged.</strong> The line shows your share and the
+                  college is told. A conversation with the college opens so you can agree details.
                 </li>
                 <li>
-                  <strong className="text-ink">Dispatched.</strong> You mark it sent. The college
-                  sees what is coming and when.
+                  <strong className="text-ink">Sent.</strong> You mark materials dispatched, or money
+                  transferred, from My contributions.
                 </li>
                 <li>
-                  <strong className="text-ink">Received.</strong> The college confirms. Only then
-                  does the stage that depended on it unblock.
+                  <strong className="text-ink">Received.</strong> The college confirms it arrived,
+                  with the date.
                 </li>
                 <li>
-                  <strong className="text-ink">Afterwards.</strong> It stays on your contributions
-                  page permanently, with the stage it unlocked and any photograph the college
-                  filed — including after the project closes.
+                  <strong className="text-ink">Afterwards.</strong> Once a project is fully funded it
+                  leaves this board, but it stays on your contributions page — with its delivery
+                  stages and the college&rsquo;s progress updates and photos — until the work is done
+                  and after.
                 </li>
               </ol>
             </Panel>
@@ -273,10 +277,13 @@ function NeedsBoard() {
       {pledging && organisation && (
         <PledgeSheet
           need={pledging}
-          orgId={organisation.id}
           onClose={() => setPledging(null)}
-          onDone={() => {
+          onDone={(result) => {
             setPledging(null);
+            setNotice({
+              text: `Pledged ${result.amount} of ${result.item}. ${result.thread ? "The college has been told, and a conversation with them is open." : "The college has been told."}`,
+              thread: result.thread,
+            });
             res.reload();
           }}
         />
@@ -286,43 +293,40 @@ function NeedsBoard() {
 }
 
 /**
- * The pledge form. Defaults to the whole remaining quantity but does not
- * insist on it — the quantity field is the fractional part of "fractional
- * sponsorship", so it has to be first-class rather than an advanced option.
+ * The pledge form. Defaults to the whole remaining amount but does not insist
+ * on it — the part is what makes several contributors possible.
  */
 function PledgeSheet({
   need,
-  orgId,
   onClose,
   onDone,
 }: {
   need: NeedLine;
-  orgId: string;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (r: { amount: string; item: string; thread: string | null }) => void;
 }) {
+  const money = need.kind === "money";
   const remaining = need.qty_remaining ?? need.qty_open ?? need.qty_needed - need.qty_pledged;
   const [qty, setQty] = useState(String(remaining));
+  const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const amount = Number(qty);
-  const valid = Number.isFinite(amount) && amount > 0 && amount <= remaining;
+  const valid = Number.isFinite(amount) && amount > 0 && amount <= remaining + 1e-9;
 
   async function submit() {
-    if (!need.challenge) return;
     setBusy(true);
     setError(null);
     try {
-      await apiClient.pledge(need.challenge.id, {
+      const result = await apiClient.pledge(need.challenge.id, {
         need_id: need.need_id,
-        org_id: orgId,
         qty: amount,
-        kind: need.kind,
         note: note.trim() || undefined,
+        expected_delivery_date: !money && date ? date : undefined,
       });
-      onDone();
+      onDone({ amount: quantity(amount, need.unit, need.kind), item: need.item, thread: result.thread_id });
     } catch (err) {
       setError(err instanceof Error ? err.message : "The pledge was not recorded.");
     } finally {
@@ -340,15 +344,14 @@ function PledgeSheet({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="up w-full max-w-[480px] p-6">
+      <div className="up max-h-[92vh] w-full max-w-[480px] overflow-y-auto p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <span className="eyebrow">Pledge</span>
+            <span className="eyebrow">{money ? "Fund" : "Supply"}</span>
             <h2 className="mt-2 text-[20px] font-extrabold text-navy-dark">{need.item}</h2>
             <div className="mono mt-1.5 text-[10.5px] uppercase tracking-[0.1em] text-mute">
               {need.challenge?.ref} · {need.challenge?.district} ·{" "}
-              {CATEGORY_LABEL[need.challenge?.category ?? ""] ??
-                humanise(need.challenge?.category ?? "")}
+              {CATEGORY_LABEL[need.challenge?.category ?? ""] ?? humanise(need.challenge?.category ?? "")}
             </div>
           </div>
           <button
@@ -363,43 +366,49 @@ function PledgeSheet({
 
         <div className="in mt-5 p-4">
           <div className="flex items-baseline justify-between">
-            <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
-              still open
-            </span>
-            <span className="mono text-[15px] font-semibold text-ink">
-              {num(remaining)} {need.unit}
-            </span>
+            <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">still open</span>
+            <span className="mono text-[15px] font-semibold text-ink">{quantity(remaining, need.unit, need.kind)}</span>
           </div>
+          {need.college && (
+            <div className="mono mt-2 text-[10.5px] text-body">for {need.college.name}</div>
+          )}
         </div>
 
         <label className="mt-4 flex flex-col gap-2">
           <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
-            How much you can give ({need.unit})
+            {money ? "Amount you can give (₹)" : `How much you can give (${need.unit})`}
           </span>
           <input
             className="field"
             type="number"
-            min={1}
+            min={money ? 1 : 0}
+            step={money ? 1 : "any"}
             max={remaining}
             value={qty}
             onChange={(e) => setQty(e.target.value)}
           />
+          {valid && <span className="mono text-[11px] text-navy">{quantity(amount, need.unit, need.kind)}</span>}
         </label>
 
         <div className="mt-2.5 flex flex-wrap gap-2">
           {[0.25, 0.5, 1].map((f) => {
-            const v = Math.max(1, Math.round(remaining * f));
+            const v = money ? Math.max(1, Math.round(remaining * f)) : Math.max(0.01, Math.round(remaining * f * 100) / 100);
             return (
-              <Toggle
-                key={f}
-                active={Number(qty) === v}
-                onClick={() => setQty(String(v))}
-              >
-                {f === 1 ? "All of it" : `${Math.round(f * 100)}%`} · {num(v)} {need.unit}
+              <Toggle key={f} active={Number(qty) === v} onClick={() => setQty(String(v))}>
+                {f === 1 ? "All of it" : `${Math.round(f * 100)}%`} · {quantity(v, need.unit, need.kind)}
               </Toggle>
             );
           })}
         </div>
+
+        {!money && (
+          <label className="mt-4 flex flex-col gap-2">
+            <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+              Expected delivery date — optional
+            </span>
+            <input className="field max-w-[220px]" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+        )}
 
         <label className="mt-4 flex flex-col gap-2">
           <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
@@ -410,14 +419,14 @@ function PledgeSheet({
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Can release from the Ranchi stockyard on Tuesday. Galvanised finish."
+            placeholder={money ? "Transfer through our CSR account after your acknowledgement." : "Can release from the Ranchi stockyard on Tuesday. Galvanised finish."}
           />
         </label>
 
         {!valid && qty !== "" && (
           <p className="mt-3 text-[12.5px] leading-relaxed text-alert-ink">
-            Enter between 1 and {num(remaining)} {need.unit}. Pledging more than is needed would
-            show a line as over-closed and mislead everyone downstream.
+            Enter an amount above zero and no more than {quantity(remaining, need.unit, need.kind)} — pledging more
+            than is needed would mislead everyone downstream.
           </p>
         )}
 
@@ -432,14 +441,14 @@ function PledgeSheet({
 
         <div className="mt-5">
           <Caveat icon="shield">
-            This records a commitment against your organisation, visible to the college and to the
-            district. It is not a payment — delivery is confirmed separately by the college.
+            This records a commitment from your organisation, visible to the college and the
+            district. It is not a payment — you mark it sent, and the college confirms receipt.
           </Caveat>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">
           <Button variant="primary" busy={busy} disabled={!valid} onClick={submit} icon="check">
-            Pledge {valid ? `${num(amount)} ${need.unit}` : ""}
+            Pledge {valid ? quantity(amount, need.unit, need.kind) : ""}
           </Button>
           <Button variant="secondary" onClick={onClose}>
             Cancel
@@ -447,16 +456,9 @@ function PledgeSheet({
         </div>
 
         <div className="mt-4 flex items-center gap-2">
-          <Chip tone="neutral">{humanise(need.kind)}</Chip>
-          {need.capability && <Chip tone="neutral">{humanise(need.capability)}</Chip>}
-          <ButtonLink
-            href={`/challenge/${need.challenge?.ref}`}
-            variant="secondary"
-            size="sm"
-            icon="eye"
-            className="ml-auto"
-          >
-            Read the brief
+          <Chip tone="neutral">{money ? "Funding" : humanise(need.kind)}</Chip>
+          <ButtonLink href={`/projects/${need.challenge?.ref}`} variant="secondary" size="sm" icon="eye" className="ml-auto">
+            See the project
           </ButtonLink>
         </div>
       </div>

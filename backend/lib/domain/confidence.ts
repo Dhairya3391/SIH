@@ -2,22 +2,25 @@
  * Formula 2 of 5: the confidence ladder.
  *
  * Confidence answers "is it real?". Priority answers "how urgent is it?". They
- * are kept apart on purpose, because AI cannot answer the first on its own and
- * conflating them is how a portal ends up ranking rumours.
+ * are kept apart on purpose, because conflating them is how a portal ends up
+ * ranking rumours.
  *
  *   unverified
  *   -> community corroborated   (>= 3 independent reporters in the cluster)
- *   -> field verified           (a volunteer or NGO photo)
+ *   -> externally corroborated  (the AI found independent proof - weather,
+ *                                news or web - and cited every source)
+ *   -> field verified           (a verifier confirmed it with sources or photos)
  *   -> coordinator approved
  *   -> resolved with evidence
  *
- * An "inaccurate" flag from verified locals drops it one level until somebody
- * checks. Plain SMS from an unknown number starts at the bottom. Low confidence
- * is labelled, never hidden.
+ * Everything from "externally corroborated" up counts as verified and opens the
+ * problem to colleges. An "inaccurate" flag filed after the last positive check
+ * drops it one rung until somebody looks again. Plain SMS from an unknown number
+ * starts at the bottom. Low confidence is labelled, never hidden.
  */
 
 import type { ConfidenceLevel } from "./types";
-import { CONFIDENCE_LEVELS } from "./types";
+import { CONFIDENCE_LEVELS, VERIFIED_CONFIDENCE } from "./types";
 
 export const COMMUNITY_CORROBORATION_THRESHOLD = 3;
 
@@ -25,10 +28,15 @@ export function confidenceRank(level: ConfidenceLevel): number {
   return CONFIDENCE_LEVELS.indexOf(level);
 }
 
+export function isVerifiedConfidence(level: string | null | undefined): boolean {
+  return VERIFIED_CONFIDENCE.includes(level as ConfidenceLevel);
+}
+
 export function confidenceLabel(level: ConfidenceLevel): string {
   switch (level) {
     case "unverified": return "Unverified";
     case "community_corroborated": return "Community corroborated";
+    case "externally_corroborated": return "Verified by independent sources";
     case "field_verified": return "Field verified";
     case "coordinator_approved": return "Coordinator approved";
     case "resolved_with_evidence": return "Resolved with evidence";
@@ -38,12 +46,14 @@ export function confidenceLabel(level: ConfidenceLevel): string {
 export interface ConfidenceInput {
   /** Distinct reporters across the whole cluster, not raw report count. */
   uniqueReporters: number;
-  /** A volunteer or NGO has filed a `field` verification with a photo. */
+  /** The corroboration engine found cited, independent proof and verified it. */
+  externallyVerified: boolean;
+  /** A verifier or volunteer confirmed it with sources or photos. */
   hasFieldVerification: boolean;
   coordinatorApproved: boolean;
-  /** Closure evidence is in and a verifier has signed it off. */
+  /** Closure evidence is in and the community signed it off. */
   resolvedWithEvidence: boolean;
-  /** Open `inaccurate` flags from verified locals that nobody has checked yet. */
+  /** `inaccurate` flags filed after the most recent positive check. */
   openInaccurateFlags: number;
   /** Plain SMS from a number we do not know starts at the bottom of the ladder. */
   fromUnknownSmsOnly?: boolean;
@@ -64,21 +74,30 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     level = "community_corroborated";
     reason = `${input.uniqueReporters} independent reporters describe the same problem.`;
   }
+  if (input.externallyVerified) {
+    level = "externally_corroborated";
+    reason = "The AI found independent sources - weather records, news or the web - confirming it, and cited them.";
+  }
   if (input.hasFieldVerification) {
     level = "field_verified";
-    reason = "A field volunteer or NGO confirmed it on the ground with a photo.";
+    reason = "A verifier confirmed it with sources or photos.";
   }
   if (input.coordinatorApproved) {
     level = "coordinator_approved";
-    reason = "A district or faculty coordinator approved the compiled brief.";
+    reason = "A district coordinator approved the compiled brief.";
   }
   if (input.resolvedWithEvidence) {
     level = "resolved_with_evidence";
-    reason = "Closed with evidence and a verifier's sign-off.";
+    reason = "Closed with evidence and the community's sign-off.";
   }
 
   // An unknown SMS number on its own never climbs past the bottom rung.
-  if (input.fromUnknownSmsOnly && !input.hasFieldVerification && !input.coordinatorApproved) {
+  if (
+    input.fromUnknownSmsOnly &&
+    !input.hasFieldVerification &&
+    !input.coordinatorApproved &&
+    !input.externallyVerified
+  ) {
     return {
       level: "unverified",
       reason: "Arrived as plain SMS from a number we do not recognise, so it starts unverified.",
@@ -91,7 +110,7 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     const rank = Math.max(0, confidenceRank(level) - 1);
     if (rank !== confidenceRank(level)) demoted = true;
     level = CONFIDENCE_LEVELS[rank];
-    reason = `${input.openInaccurateFlags} verified local(s) flagged this as inaccurate, so it drops a level until someone checks.`;
+    reason = `${input.openInaccurateFlags} flag(s) say this is inaccurate, so it drops a level until someone checks.`;
   }
 
   return { level, reason, demoted };

@@ -27,6 +27,7 @@ const ROLE_ICON: Record<UserRole, IconName> = {
   coordinator: "gauge",
   university: "grad",
   industry: "box",
+  ngo: "wallet",
   admin: "eye",
 };
 
@@ -158,7 +159,7 @@ function LoginInner() {
         <section className="up p-6 sm:p-7">
           <span className="eyebrow">Sign in</span>
           <h1 className="mt-3 text-[30px] font-extrabold text-navy-dark sm:text-[34px]">
-            One door, six roles
+            One door, every role
           </h1>
           <p className="mt-2.5 text-[14.5px] leading-relaxed text-body">
             Your role comes from your account, not from a dropdown. You land on the console that
@@ -237,12 +238,12 @@ function LoginInner() {
                   What each account is responsible for
                 </h2>
                 <p className="mt-1.5 max-w-[60ch] text-[13.5px] leading-relaxed text-body">
-                  The six roles are a chain, not a menu. A report only becomes work once each link
+                  The roles are a chain, not a menu. A report only becomes work once each link
                   has done its own job, and no link can do another&rsquo;s.
                 </p>
               </div>
               <span className="mono hidden flex-none text-[10.5px] uppercase tracking-[0.1em] text-mute sm:inline">
-                6 roles
+                {ALL_ROLES.length} roles
               </span>
             </div>
 

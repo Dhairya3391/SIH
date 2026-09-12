@@ -92,7 +92,7 @@ function CollegeProblems() {
       <PageHead
         eyebrow="College"
         title="Problems open to proposals"
-        lede="Verified by a person, ranked by the district, and waiting for someone to solve them. You compete on the quality of the proposal — not on who submits first."
+        lede="Verified — by the AI from independent sources, or by a person — ranked by severity, and waiting for someone to solve them. You compete on the quality of the proposal, not on who submits first."
         right={
           <div className="flex flex-wrap items-center gap-2.5">
             <select
@@ -199,7 +199,7 @@ function CollegeProblems() {
                 }
                 why={
                   problems.length === 0
-                    ? "Problems appear here once a verifier confirms them. Until then they are still being checked, which is deliberate — a college should not build against an unconfirmed report."
+                    ? "Problems appear here once the AI finds independent proof or a verifier confirms them, and leave once a college is awarded. Until then they are still being checked, which is deliberate — a college should not build against an unconfirmed report."
                     : "The problems are all still listed, just not in this subset. Switch back to All."
                 }
               />
@@ -293,6 +293,13 @@ function ProblemCard({ problem }: { problem: CollegeProblem }) {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <BandChip band={problem.band ?? bandOf(problem.priority)} />
         <ConfidenceChip confidence={problem.confidence} />
+        {problem.verification && (
+          <Tag icon={<Icon name={problem.verification.method === "ai" ? "spark" : "shield"} size={11} />}>
+            {problem.verification.method === "ai"
+              ? `AI · ${problem.verification.sources} source${problem.verification.sources === 1 ? "" : "s"}`
+              : `${problem.verification.method} verified`}
+          </Tag>
+        )}
         <Tag>{num(problem.people_est)} people</Tag>
       </div>
 

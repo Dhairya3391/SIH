@@ -12,15 +12,16 @@ import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { useAuth } from "@/lib/auth";
 import type { Challenge } from "@/types/database";
-import { CATEGORY_LABEL, STATUS_LABEL, bandOf, humanise, num } from "@/lib/format";
+import { ACTIVE_STATUSES, CATEGORY_LABEL, STATUS_LABEL, bandOf, humanise, num } from "@/lib/format";
 
 /**
  * Every problem on the register, searchable.
  *
  * This is the reference list rather than a work queue — the coordinator's
- * triage and the verifier's queue both rank for a purpose. Here you can find a
- * specific problem by name, reference or place, which is what you need when
- * someone rings up asking about one.
+ * triage and the verifier's queue both rank for a purpose. It opens on the
+ * problems still in play: once a problem is awarded and funded it leaves this
+ * list, and is tracked from the project pages instead. "Awarded & closed" and
+ * "Everything" bring it back.
  */
 export default function ChallengesPage() {
   return (
@@ -31,14 +32,17 @@ export default function ChallengesPage() {
 }
 
 type Sort = "priority" | "recent" | "reports";
+type Scope = "active" | "delivery" | "all";
 
 function AllChallenges() {
-  const { role, demoSignIn } = useAuth();
-  const res = useResource(() => apiClient.fetchChallenges({ limit: 300 }), []);
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
+  const res = useResource(() => apiClient.fetchChallenges({ limit: 500 }), []);
   const [q, setQ] = useState("");
   const [district, setDistrict] = useState("");
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState<Sort>("priority");
+  const [scope, setScope] = useState<Scope>("active");
 
   const [localChallenges, setLocalChallenges] = useState<Challenge[] | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -53,13 +57,11 @@ function AllChallenges() {
 
   const all = useMemo(() => localChallenges ?? res.data?.challenges ?? [], [localChallenges, res.data]);
 
+  // Deleting is an administrator's act, checked again on the server.
   async function handleDelete(id: string, ref: string) {
     setDeletingId(id);
     setActionMsg(null);
     try {
-      if (role !== "admin") {
-        await demoSignIn("admin");
-      }
       await apiClient.deleteChallenge(id);
       setLocalChallenges((prev) => (prev ?? all).filter((c) => c.id !== id));
       setDeleteTarget(null);
@@ -71,18 +73,30 @@ function AllChallenges() {
     }
   }
 
+  const inScope = useMemo(
+    () =>
+      all.filter((c) =>
+        scope === "all"
+          ? true
+          : scope === "active"
+            ? ACTIVE_STATUSES.includes(c.status)
+            : !ACTIVE_STATUSES.includes(c.status),
+      ),
+    [all, scope],
+  );
+
   const districts = useMemo(
-    () => [...new Set(all.map((c) => c.district).filter(Boolean) as string[])].sort(),
-    [all],
+    () => [...new Set(inScope.map((c) => c.district).filter(Boolean) as string[])].sort(),
+    [inScope],
   );
   const statuses = useMemo(
-    () => [...new Set(all.map((c) => c.status).filter(Boolean))],
-    [all],
+    () => [...new Set(inScope.map((c) => c.status).filter(Boolean))],
+    [inScope],
   );
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const filtered = all
+    const filtered = inScope
       .filter((c) =>
         needle
           ? [c.ref, c.title, c.district, c.block, c.category, ...(c.hazard_tags ?? [])]
@@ -99,19 +113,21 @@ function AllChallenges() {
       if (sort === "reports") return b.report_count - a.report_count;
       return b.priority - a.priority;
     });
-  }, [all, q, district, status, sort]);
+  }, [inScope, q, district, status, sort]);
 
   const people = useMemo(
     () => rows.reduce((sum, c) => sum + (c.people_est ?? 0), 0),
     [rows],
   );
 
+  const activeCount = all.filter((c) => ACTIVE_STATUSES.includes(c.status)).length;
+
   return (
     <>
       <PageHead
         eyebrow="Register"
         title="All challenges"
-        lede="The full register, searchable by reference, title, place or hazard. Not a work queue — for that, use triage or the verification queue, which rank for a reason."
+        lede="Searchable by reference, title, place or hazard. Opens on the problems still in play; awarded and closed problems have left the list and are tracked on their project pages."
         right={
           <div className="flex flex-wrap items-center gap-2.5">
             <label className="relative">
@@ -140,7 +156,7 @@ function AllChallenges() {
               ))}
             </select>
             <select
-              className="field max-w-[190px]"
+              className="field max-w-[210px]"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label="Filter by status"
@@ -152,9 +168,11 @@ function AllChallenges() {
                 </option>
               ))}
             </select>
-            <ButtonLink href="/admin" variant="secondary" icon="gauge">
-              Admin console
-            </ButtonLink>
+            {isAdmin && (
+              <ButtonLink href="/admin" variant="secondary" icon="gauge">
+                Admin console
+              </ButtonLink>
+            )}
           </div>
         }
       />
@@ -169,30 +187,11 @@ function AllChallenges() {
           <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
         ) : (
           <>
-            {role === "admin" && (
-              <div className="in-s mb-5 flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-alert-ink">
-                    <Icon name="shield" size={16} />
-                  </span>
-                  <div>
-                    <span className="text-[13px] font-bold text-ink">Administrator Mode</span>
-                    <p className="text-[12.5px] text-body">
-                      You can permanently delete any problem or inspect whole-life audit trails from the Command Centre.
-                    </p>
-                  </div>
-                </div>
-                <ButtonLink href="/admin#manage-problems" variant="danger" size="sm" icon="trash">
-                  Manage &amp; delete problems
-                </ButtonLink>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Stat
-                label="On the register"
-                value={num(res.data?.total ?? all.length)}
-                sub={`${num(all.length)} loaded`}
+                label="Still in play"
+                value={num(activeCount)}
+                sub={`of ${num(res.data?.total ?? all.length)} on the register`}
               />
               <Stat label="Matching" value={num(rows.length)} sub="With your filters applied" />
               <Stat
@@ -203,12 +202,31 @@ function AllChallenges() {
               <Stat
                 label="Districts"
                 value={num(districts.length)}
-                sub="Represented in the loaded set"
+                sub="Represented in this view"
               />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ["active", "Still in play"],
+                    ["delivery", "Awarded & closed"],
+                    ["all", "Everything"],
+                  ] as [Scope, string][]
+                ).map(([key, label]) => (
+                  <Toggle
+                    key={key}
+                    active={scope === key}
+                    onClick={() => {
+                      setScope(key);
+                      setStatus("");
+                    }}
+                  >
+                    {label}
+                  </Toggle>
+                ))}
+                <span className="mx-1 hidden h-6 w-px bg-[var(--color-line,#CCD1C7)] sm:inline-block" />
                 {(
                   [
                     ["priority", "Highest score"],
@@ -228,114 +246,112 @@ function AllChallenges() {
               )}
             </div>
 
+            {actionMsg && (
+              <div className="in-s flex items-center justify-between p-3.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-moderate">
+                    <Icon name="check" size={15} />
+                  </span>
+                  <span className="text-[13px] font-medium text-ink">{actionMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionMsg(null)}
+                  className="text-mute hover:text-ink"
+                  aria-label="Dismiss message"
+                >
+                  <Icon name="x" size={14} />
+                </button>
+              </div>
+            )}
+
             {rows.length === 0 ? (
               <Empty
                 icon="search"
                 title="Nothing matches"
                 why={
                   q
-                    ? `No challenge on the register mentions "${q}" in its reference, title, place or hazard tags. Try a shorter search, or clear the district and status filters.`
-                    : "The filters exclude everything. Clear one to widen the list."
+                    ? `No challenge in this view mentions "${q}" in its reference, title, place or hazard tags. Try a shorter search, switch to Everything, or clear the district and status filters.`
+                    : "The filters exclude everything in this view. Clear one, or switch to Everything."
                 }
               />
             ) : (
-              <>
-                {actionMsg && (
-                  <div className="in-s mb-4 flex items-center justify-between p-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-moderate">
-                        <Icon name="check" size={15} />
-                      </span>
-                      <span className="text-[13px] font-medium text-ink">{actionMsg}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActionMsg(null)}
-                      className="text-mute hover:text-ink"
-                      aria-label="Dismiss message"
-                    >
-                      <Icon name="x" size={14} />
-                    </button>
-                  </div>
-                )}
+              <div className="flex flex-col gap-3">
+                {rows.slice(0, 80).map((c) => {
+                  const isDeleting = deletingId === c.id;
+                  const isTarget = deleteTarget === c.id;
 
-                <div className="flex flex-col gap-3">
-                  {rows.slice(0, 80).map((c) => {
-                    const isDeleting = deletingId === c.id;
-                    const isTarget = deleteTarget === c.id;
-
-                    return (
-                      <ChallengeRow
-                        key={c.id}
-                        href={`/challenge/${c.ref}`}
-                        reference={c.ref}
-                        title={c.title}
-                        district={c.district}
-                        block={c.block}
-                        category={c.category}
-                        priority={c.priority}
-                        band={c.band ?? bandOf(c.priority)}
-                        people={c.people_est}
-                        reports={c.report_count}
-                        reporters={c.reporter_count}
-                        confidence={c.confidence}
-                        status={c.status}
-                        hazards={c.hazard_tags}
-                        updatedAt={c.updated_at}
-                        right={
-                          !isTarget ? (
+                  return (
+                    <ChallengeRow
+                      key={c.id}
+                      href={ACTIVE_STATUSES.includes(c.status) ? `/challenge/${c.ref}` : `/challenge/${c.ref}`}
+                      reference={c.ref}
+                      title={c.title}
+                      district={c.district}
+                      block={c.block}
+                      category={c.category}
+                      priority={c.priority}
+                      band={c.band ?? bandOf(c.priority)}
+                      people={c.people_est}
+                      reports={c.report_count}
+                      reporters={c.reporter_count}
+                      confidence={c.confidence}
+                      status={c.status}
+                      hazards={c.hazard_tags}
+                      updatedAt={c.updated_at}
+                      right={
+                        !isAdmin ? undefined : !isTarget ? (
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            icon="trash"
+                            onClick={() => setDeleteTarget(c.id)}
+                          >
+                            Delete
+                          </Button>
+                        ) : (
+                          <div className="in-s flex flex-wrap items-center gap-1.5 rounded-xl p-1.5">
+                            <span className="px-1 text-[11px] font-bold text-alert-ink">
+                              Permanently delete?
+                            </span>
                             <Button
                               variant="danger"
                               size="sm"
-                              icon="trash"
-                              onClick={() => setDeleteTarget(c.id)}
+                              busy={isDeleting}
+                              onClick={() => handleDelete(c.id, c.ref)}
                             >
-                              Delete
+                              Yes, delete
                             </Button>
-                          ) : (
-                            <div className="in-s flex flex-wrap items-center gap-1.5 rounded-xl p-1.5">
-                              <span className="px-1 text-[11px] font-bold text-alert-ink">
-                                Permanently delete?
-                              </span>
-                              <Button
-                                variant="danger"
-                                size="sm"
-                                busy={isDeleting}
-                                onClick={() => handleDelete(c.id, c.ref)}
-                              >
-                                Yes, delete
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                disabled={isDeleting}
-                                onClick={() => setDeleteTarget(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          )
-                        }
-                      />
-                    );
-                  })}
-                  {rows.length > 80 && (
-                    <p className="mono text-center text-[10.5px] uppercase tracking-[0.1em] text-mute">
-                      showing 80 of {num(rows.length)} matches · narrow the search to see the rest
-                    </p>
-                  )}
-                </div>
-              </>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={isDeleting}
+                              onClick={() => setDeleteTarget(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        )
+                      }
+                    />
+                  );
+                })}
+                {rows.length > 80 && (
+                  <p className="mono text-center text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                    showing 80 of {num(rows.length)} matches · narrow the search to see the rest
+                  </p>
+                )}
+              </div>
             )}
 
             <Panel
-              title="Categories in the loaded set"
+              title="Categories in this view"
               lede="What the district is actually dealing with, by volume."
               depth="in"
             >
               <div className="flex flex-wrap gap-2">
                 {Object.entries(
-                  all.reduce<Record<string, number>>((acc, c) => {
+                  inScope.reduce<Record<string, number>>((acc, c) => {
                     acc[c.category] = (acc[c.category] ?? 0) + 1;
                     return acc;
                   }, {}),

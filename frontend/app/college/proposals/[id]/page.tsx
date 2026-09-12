@@ -126,6 +126,66 @@ function Verdict() {
       />
 
       <Main>
+        {p.is_winner && p.challenge && (
+          <Card depth="in" className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-teal-ink">
+                  <Icon name="trophy" size={18} />
+                </span>
+                <div>
+                  <h2 className="text-[16px] font-bold text-navy-dark">Your proposal won this problem</h2>
+                  <p className="mt-2 max-w-[72ch] text-[13.5px] leading-relaxed text-body">
+                    Next, publish the funding and materials it needs — pre-filled from this document —
+                    so companies and NGOs can contribute. Delivery stages have been drawn from it too.
+                  </p>
+                </div>
+              </div>
+              <ButtonLink href={`/college/projects/${p.challenge.ref}`} variant="primary" icon="box">
+                Go to the project
+              </ButtonLink>
+            </div>
+          </Card>
+        )}
+
+        {notViable && p.ai_score !== null && (
+          <Card depth="in" className="p-5">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-alert-ink">
+                <Icon name="alert" size={18} />
+              </span>
+              <div>
+                <h2 className="text-[16px] font-bold text-navy-dark">Rejected: not viable</h2>
+                <p className="mt-2 max-w-[72ch] text-[13.5px] leading-relaxed text-body">
+                  The reviewer found this proposal not viable for this problem. The reason for every
+                  criterion, and what has to change, is below.
+                  {windowOpen ? " The window is still open, so you can submit a new version." : ""}
+                </p>
+                {(p.ai_rubric?.required_changes?.length ?? 0) > 0 && (
+                  <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-[13px] leading-relaxed text-ink">
+                    {p.ai_rubric!.required_changes.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {p.ai_rubric?.source === "rules" && (
+          <Card depth="in" className="flex items-start gap-3 p-4">
+            <span className="mt-px text-mute">
+              <Icon name="info" size={16} />
+            </span>
+            <p className="text-[13px] leading-relaxed text-body">
+              No AI reviewer was available when this was submitted, so the same published rubric was
+              applied by rule-based checks. The score and reasons are deterministic and explain what
+              was found in the document.
+            </p>
+          </Card>
+        )}
+
         {/* ---- the displacement notice, spelled out ----------------------- */}
         {displaced && (
           <Card depth="in" className="p-5">
@@ -210,6 +270,7 @@ function Verdict() {
               rubric={p.ai_rubric}
               score={p.ai_score}
               verdict={p.ai_verdict}
+              model={p.ai_model}
               funding={p.funding_required}
               currency={p.currency}
               durationDays={p.duration_days}
@@ -228,7 +289,18 @@ function Verdict() {
               <dl className="flex flex-col">
                 <Row label="Version" value={`v${p.version}`} />
                 <Row label="State" value={humanise(p.state)} />
-                <Row label="Document" value={p.document_name ?? "—"} />
+                <Row
+                  label="Document"
+                  value={
+                    p.document_url ? (
+                      <a href={p.document_url} target="_blank" rel="noopener noreferrer" className="text-navy hover:underline">
+                        {p.document_name ?? "Open PDF"}
+                      </a>
+                    ) : (
+                      (p.document_name ?? "—")
+                    )
+                  }
+                />
                 <Row label="Submitted" value={dateTime(p.submitted_at)} />
                 <Row
                   label="Scored"

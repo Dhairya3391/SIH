@@ -1,0 +1,23 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Landing — desktop 1440", "x": 0, "y": 0, "w": 1440, "h": 4400 },
+    { "file": "Mobile.dc.html", "title": "Landing — mobile 390", "x": 1580, "y": 0, "w": 390, "h": 5200 }
+  ],
+  "annotations": [
+    {
+      "id": "theme-note",
+      "x": 0,
+      "y": -190,
+      "w": 620,
+      "text": "JharSetu landing page.\nGovernment navy palette applied over the app's existing Mukta + IBM Plex Mono type.\nNavy #164B7A carries every action. Amber and violet are reserved for status, never for buttons."
+    },
+    {
+      "id": "placeholder-note",
+      "x": 1580,
+      "y": -190,
+      "w": 390,
+      "text": "[SMS NUMBER] in the footer is the one placeholder — fill it in once the gateway phone has a SIM."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

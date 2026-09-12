@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppBar } from "@/components/shell/AppBar";
+import { Chrome } from "@/components/shell/Chrome";
 import { GovStrip, Logo } from "@/components/shell/GovStrip";
 import { Skeleton } from "@/components/ui/States";
 import { ButtonLink } from "@/components/ui/Button";
@@ -27,10 +28,17 @@ import type { UserRole } from "@/types/database";
  */
 export function RouteGuard({
   roles,
+  allowAnonymous,
   children,
 }: {
   /** Override the map in lib/nav.ts. Rarely needed. */
   roles?: UserRole[];
+  /**
+   * A public page that is richer when signed in - the tracking page behind a
+   * report reference. A signed-out visitor gets the page with the public header
+   * instead of a login wall.
+   */
+  allowAnonymous?: boolean;
   children: React.ReactNode;
 }) {
   const { role, loading, isAuthenticated } = useAuth();
@@ -40,13 +48,22 @@ export function RouteGuard({
   const allowed = roles ?? rolesFor(pathname) ?? [];
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || allowAnonymous) return;
     if (!isAuthenticated) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [loading, isAuthenticated, pathname, router]);
+  }, [loading, isAuthenticated, pathname, router, allowAnonymous]);
 
   if (loading) return <BootScreen />;
+
+  if (!isAuthenticated && allowAnonymous) {
+    return (
+      <>
+        <Chrome />
+        {children}
+      </>
+    );
+  }
 
   if (!isAuthenticated) {
     // The redirect above is in flight. Show the frame, not a console.

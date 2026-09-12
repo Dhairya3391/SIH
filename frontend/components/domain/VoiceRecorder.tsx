@@ -6,57 +6,6 @@ import { Button } from "@/components/ui/Button";
 
 type State = "idle" | "recording" | "recorded" | "unsupported" | "denied";
 
-/**
- * Encode raw PCM Float32 samples → WAV Blob.
- *
- * WAV has an explicit byte-length header, so the resulting file always has a
- * correct, finite duration — unlike WebM from MediaRecorder which frequently
- * reports Infinity in Chrome, breaking <audio>.play().
- */
-function encodeWav(samples: Float32Array, sampleRate: number): Blob {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-  const blockAlign = numChannels * (bitsPerSample / 8);
-  const dataLength = samples.length * (bitsPerSample / 8);
-  const buffer = new ArrayBuffer(44 + dataLength);
-  const view = new DataView(buffer);
-
-  // RIFF header
-  writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataLength, true);
-  writeString(view, 8, "WAVE");
-
-  // fmt chunk
-  writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true); // chunk size
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-
-  // data chunk
-  writeString(view, 36, "data");
-  view.setUint32(40, dataLength, true);
-
-  // Convert Float32 [-1,1] → Int16
-  let offset = 44;
-  for (let i = 0; i < samples.length; i++, offset += 2) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-
-  return new Blob([buffer], { type: "audio/wav" });
-}
-
-function writeString(view: DataView, offset: number, str: string) {
-  for (let i = 0; i < str.length; i++) {
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
-}
-
 function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -82,11 +31,10 @@ export function VoiceRecorder({
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
-  const ctxRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const samplesRef = useRef<Float32Array[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   const urlRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -103,17 +51,17 @@ export function VoiceRecorder({
   // Cleanup on unmount
   useEffect(
     () => () => {
-      stopTracks();
-      if (ctxRef.current) {
-        ctxRef.current.close().catch(() => {});
-        ctxRef.current = null;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
       }
+      stopTracks();
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     },
     [stopTracks],
   );
 
   async function start() {
+    console.log("[VoiceRecorder] start() called (MediaRecorder mode)...");
     setError(null);
     setPlaybackError(null);
 
@@ -131,31 +79,41 @@ export function VoiceRecorder({
         },
       });
       streamRef.current = stream;
-      samplesRef.current = [];
+      audioChunksRef.current = [];
 
-      // Create AudioContext and capture PCM
-      const ctx = new AudioContext({ sampleRate: 16000 });
-      ctxRef.current = ctx;
+      // The native MediaRecorder avoids all AudioContext bugs (silent streams, GC, suspension).
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
 
-      const source = ctx.createMediaStreamSource(stream);
-      sourceRef.current = source;
-
-      // ScriptProcessorNode to grab raw PCM buffers
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-
-      processor.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        // Copy the buffer — the underlying ArrayBuffer is reused
-        samplesRef.current.push(new Float32Array(input));
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
       };
 
-      source.connect(processor);
-      processor.connect(ctx.destination);
+      mediaRecorder.onstop = () => {
+        // Create WebM or default audio blob
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        
+        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+        const next = URL.createObjectURL(audioBlob);
+        urlRef.current = next;
+        setUrl(next);
+
+        const finalSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+        setSeconds(finalSec);
+        setDuration(finalSec);
+        setState("recorded");
+        
+        console.log(`[VoiceRecorder] MediaRecorder stopped. Blob size: ${audioBlob.size} bytes, Duration: ${finalSec} seconds.`);
+        onChange(audioBlob, finalSec);
+      };
 
       startTimeRef.current = Date.now();
       setSeconds(0);
       setState("recording");
+
+      mediaRecorder.start(200);
 
       timerRef.current = setInterval(() => {
         const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
@@ -166,6 +124,7 @@ export function VoiceRecorder({
       if (name === "NotAllowedError" || name === "SecurityError") {
         setState("denied");
       } else {
+        console.error("[VoiceRecorder] start() error:", e);
         setState("idle");
         setError(
           e instanceof Error
@@ -178,57 +137,11 @@ export function VoiceRecorder({
   }
 
   function stop() {
-    // Disconnect audio graph
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
+    console.log("[VoiceRecorder] stop() called...");
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
     }
-    if (sourceRef.current) {
-      sourceRef.current.disconnect();
-      sourceRef.current = null;
-    }
-
-    const ctx = ctxRef.current;
-    const sampleRate = ctx?.sampleRate || 16000;
-
-    // Close AudioContext
-    if (ctx) {
-      ctx.close().catch(() => {});
-      ctxRef.current = null;
-    }
-
     stopTracks();
-
-    // Merge all chunks into one Float32Array
-    const chunks = samplesRef.current;
-    const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-
-    if (totalLength === 0) {
-      setError("No audio data was captured. Please check your microphone and try again.");
-      setState("idle");
-      return;
-    }
-
-    const merged = new Float32Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    // Encode to WAV — always has correct duration headers
-    const blob = encodeWav(merged, sampleRate);
-
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    const next = URL.createObjectURL(blob);
-    urlRef.current = next;
-    setUrl(next);
-
-    const finalSec = Math.round((Date.now() - startTimeRef.current) / 1000);
-    setSeconds(finalSec);
-    setDuration(finalSec);
-    setState("recorded");
-    onChange(blob, finalSec);
   }
 
   function discard() {
@@ -248,6 +161,7 @@ export function VoiceRecorder({
   }
 
   function togglePlay() {
+    console.log("[VoiceRecorder] togglePlay() called - isPlaying currently:", isPlaying);
     const audio = audioRef.current;
     if (!audio) return;
     setPlaybackError(null);
@@ -280,7 +194,6 @@ export function VoiceRecorder({
 
   return (
     <div className="in p-4">
-      {/* Hidden audio element for playback — WAV always has correct metadata */}
       {url && (
         <audio
           ref={audioRef}
@@ -380,7 +293,6 @@ export function VoiceRecorder({
         </div>
       )}
 
-      {/* Playback Controls and Waveform when recorded */}
       {state === "recorded" && url && (
         <div className="up-s mt-3.5 flex flex-col gap-2.5 p-3">
           <div className="flex items-center justify-between gap-3">
@@ -393,7 +305,6 @@ export function VoiceRecorder({
               <Icon name={isPlaying ? "pause" : "play"} size={14} />
             </button>
 
-            {/* Custom interactive scrubber track */}
             <div
               role="slider"
               aria-label="Playback progress"
@@ -429,14 +340,6 @@ export function VoiceRecorder({
             </span>
           </div>
 
-          {/* Native browser audio fallback */}
-          <audio
-            controls
-            src={url}
-            preload="auto"
-            className="w-full opacity-70 hover:opacity-100"
-            aria-label="Browser audio controls"
-          />
         </div>
       )}
 

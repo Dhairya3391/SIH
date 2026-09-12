@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 
 config({ path: ".env.local" });
+config();
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,6 +33,8 @@ const PROFILE: Record<string, { name: string; district: string; language: string
   coordinator: { name: "Demo district coordinator", district: "Ranchi", language: "en", org: "Jharkhand State Disaster Management Authority (demo data)" },
   university: { name: "Demo university team lead", district: "Ranchi", language: "en", org: "BIT Mesra, Department of Electronics and Communication" },
   industry: { name: "Demo CSR lead", district: "Ranchi", language: "en", org: "Damodar Steel Works (fictional)" },
+  // Needs migration 0013 (the ngo role). Before it is applied this one line fails and the rest succeed.
+  ngo: { name: "Demo NGO programme lead", district: "Palamu", language: "en", org: "Palamu Jan Kalyan Trust (fictional)" },
   admin: { name: "Demo administrator", district: "Ranchi", language: "en" },
 };
 

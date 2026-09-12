@@ -1,0 +1,593 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    body {
+      margin: 0;
+      background: #F7F9FC;
+      color: #14263A;
+      font-family: Mukta, system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    a { color: #164B7A; text-decoration: none; }
+    a:hover { color: #0B2A4A; text-decoration: underline; }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.06; }
+    p { margin: 0; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+    .eyebrow {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #7B8B9C;
+    }
+    .card {
+      background: #FFFFFF; border: 1px solid #D9E2EC; border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(11, 42, 74, 0.06);
+    }
+    .shell { width: 1200px; margin: 0 auto; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #F7F9FC;">
+
+  <div style="background: #0B2A4A; border-bottom: 1px solid #1D5D91;">
+    <div class="shell" style="display: flex; align-items: center; justify-content: space-between; height: 34px;">
+      <span class="mono" style="font-size: 11px; letter-spacing: 0.08em; color: #C7DDEC; text-transform: uppercase;">Government of Jharkhand &middot; Department of Disaster Management</span>
+      <span class="mono" style="font-size: 11px; letter-spacing: 0.08em; color: #8DB9D8;">SIH26043</span>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF; border-bottom: 1px solid #D9E2EC;">
+    <div class="shell" style="display: flex; align-items: center; justify-content: space-between; height: 72px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 40px; height: 40px; border-radius: 10px; background: #164B7A; display: flex; align-items: center; justify-content: center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18"></path><path d="M6 17V9a6 6 0 0 1 12 0v8"></path><path d="M12 3v2"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1px;">
+          <span style="font-size: 19px; font-weight: 800; color: #0B2A4A; letter-spacing: -0.02em;">JharSetu</span>
+          <span class="mono" style="font-size: 11px; color: #7B8B9C;">&#x091D;&#x093E;&#x0930;&#x0938;&#x0947;&#x0924;&#x0941;</span>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 28px;">
+        <a href="#" style="font-size: 15px; font-weight: 500; color: #526579;">Explore challenges</a>
+        <a href="#" style="font-size: 15px; font-weight: 500; color: #526579;">Silent zones</a>
+        <a href="#" style="font-size: 15px; font-weight: 500; color: #526579;">Impact</a>
+        <a href="#" style="font-size: 15px; font-weight: 500; color: #526579;">For partners</a>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #D9E2EC; border-radius: 8px; background: #FFFFFF;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#256FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          <span style="font-size: 13px; font-weight: 600; color: #164B7A;">Jharkhand</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7B8B9C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+        </div>
+        <div style="display: flex; height: 36px; border: 1px solid #D9E2EC; border-radius: 8px; overflow: hidden;">
+          <span style="display: flex; align-items: center; padding: 0 11px; font-size: 13px; font-weight: 600; background: #164B7A; color: #FFFFFF;">&#x0939;&#x093F;&#x0902;</span>
+          <span style="display: flex; align-items: center; padding: 0 11px; font-size: 13px; font-weight: 600; background: #FFFFFF; color: #526579;">EN</span>
+        </div>
+        <div style="display: flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid #164B7A; border-radius: 8px; font-size: 14px; font-weight: 600; color: #164B7A;">Sign in</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell" style="display: grid; grid-template-columns: 1fr 470px; gap: 64px; padding: 72px 0 64px;">
+
+    <div style="display: flex; flex-direction: column; gap: 26px; align-self: center;">
+      <span class="eyebrow">Societal Challenge Exchange</span>
+
+      <h1 style="font-size: 62px; font-weight: 800; color: #0B2A4A;">From local need<br>to collective action.</h1>
+
+      <p style="font-size: 19px; line-height: 1.6; color: #526579; max-width: 560px; text-wrap: pretty;">
+        A villager reports a problem in their own language. JharSetu turns it into a ranked, verified
+        brief &mdash; then puts a university, a company and a district officer on it before the next monsoon.
+      </p>
+
+      <div style="display: flex; align-items: center; gap: 14px; padding-top: 6px;">
+        <div style="display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 28px; background: #164B7A; border-radius: 10px; box-shadow: 0 2px 8px rgba(11, 42, 74, 0.18);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path></svg>
+          <span style="font-size: 17px; font-weight: 700; color: #FFFFFF;">Report a need</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 24px; background: #FFFFFF; border: 1px solid #B9C8D6; border-radius: 10px;">
+          <span style="font-size: 17px; font-weight: 600; color: #164B7A;">Explore challenges</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 22px; padding-top: 10px;">
+        <div style="display: flex; align-items: center; gap: 7px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B969B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13a10 10 0 0 1 14 0"></path><path d="M8.5 16.5a5 5 0 0 1 7 0"></path><path d="M2 8.8a15 15 0 0 1 20 0"></path><path d="M12 20h.01"></path></svg>
+          <span style="font-size: 14px; font-weight: 500; color: #526579;">Works over SMS</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B969B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"></rect><path d="M12 18h.01"></path></svg>
+          <span style="font-size: 14px; font-weight: 500; color: #526579;">Works on a basic phone</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B969B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>
+          <span style="font-size: 14px; font-weight: 500; color: #526579;">No account needed</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #0B2A4A;">
+          <span class="mono" style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #C7DDEC;">LIVE FROM THE QUEUE</span>
+          <span class="mono" style="font-size: 12px; font-weight: 600; color: #FFFFFF;">C-120</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px; padding: 22px 20px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; background: #F0EBF9; border: 1px solid #D9DAF7; border-radius: 6px; font-size: 12px; font-weight: 700; color: #57328E;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#57328E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7Z"></path></svg>
+              CRITICAL
+            </span>
+            <span style="padding: 5px 10px; background: #E8F3FC; border: 1px solid #CFE3F5; border-radius: 6px; font-size: 12px; font-weight: 600; color: #164B7A;">Gumla</span>
+            <span style="padding: 5px 10px; background: #F1F5F9; border: 1px solid #E8EEF4; border-radius: 6px; font-size: 12px; font-weight: 600; color: #526579;">Disaster safety</span>
+          </div>
+
+          <h3 style="font-size: 20px; font-weight: 700; color: #14263A; line-height: 1.28;">Last-mile lightning alerts and safe shelter for farm workers</h3>
+
+          <div style="display: flex; align-items: flex-end; justify-content: space-between; padding: 14px 16px; background: #F1F5F9; border-radius: 10px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="eyebrow" style="font-size: 11px;">Priority</span>
+              <span class="mono" style="font-size: 34px; font-weight: 600; line-height: 1; color: #0B2A4A;">88<span style="font-size: 16px; color: #7B8B9C;">/100</span></span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; text-align: right;">
+              <span class="eyebrow" style="font-size: 11px;">People affected</span>
+              <span class="mono" style="font-size: 22px; font-weight: 600; line-height: 1.35; color: #14263A;">4,800</span>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 9px;">
+            <span class="eyebrow" style="font-size: 11px;">Why it ranks here</span>
+            <div style="display: flex; flex-direction: column; gap: 7px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="width: 116px; font-size: 13px; color: #526579;">Severity</span>
+                <div style="flex-grow: 1; height: 7px; background: #E8EEF4; border-radius: 4px; overflow: hidden;"><div style="width: 100%; height: 7px; background: #164B7A;"></div></div>
+                <span class="mono" style="width: 42px; font-size: 12px; text-align: right; color: #526579;">25/25</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="width: 116px; font-size: 13px; color: #526579;">Hazard exposure</span>
+                <div style="flex-grow: 1; height: 7px; background: #E8EEF4; border-radius: 4px; overflow: hidden;"><div style="width: 95%; height: 7px; background: #256FA8;"></div></div>
+                <span class="mono" style="width: 42px; font-size: 12px; text-align: right; color: #526579;">19/20</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="width: 116px; font-size: 13px; color: #526579;">Vulnerability</span>
+                <div style="flex-grow: 1; height: 7px; background: #E8EEF4; border-radius: 4px; overflow: hidden;"><div style="width: 80%; height: 7px; background: #0B969B;"></div></div>
+                <span class="mono" style="width: 42px; font-size: 12px; text-align: right; color: #526579;">12/15</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="width: 116px; font-size: 13px; color: #526579;">Community signal</span>
+                <div style="flex-grow: 1; height: 7px; background: #E8EEF4; border-radius: 4px; overflow: hidden;"><div style="width: 100%; height: 7px; background: #4F5BC4;"></div></div>
+                <span class="mono" style="width: 42px; font-size: 12px; text-align: right; color: #526579;">5/5</span>
+              </div>
+            </div>
+            <p style="font-size: 13px; line-height: 1.55; color: #7B8B9C; padding-top: 2px;">31 distinct reporters. Capped at 5 points so loud areas cannot outrank remote ones.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 7px; padding-left: 2px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7B8B9C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span style="font-size: 12px; color: #7B8B9C;">Simulated scenario, authored from Jharkhand district data.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF; border-top: 1px solid #D9E2EC; border-bottom: 1px solid #D9E2EC;">
+    <div class="shell" style="display: flex; flex-direction: column; gap: 18px; padding: 36px 0 32px;">
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="mono" style="font-size: 40px; font-weight: 600; line-height: 1; color: #0B2A4A;">195</span>
+          <span style="font-size: 14px; font-weight: 600; color: #14263A;">Open challenges</span>
+          <span style="font-size: 13px; color: #7B8B9C;">Across 24 districts</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="mono" style="font-size: 40px; font-weight: 600; line-height: 1; color: #0B2A4A;">228</span>
+          <span style="font-size: 14px; font-weight: 600; color: #14263A;">Reports received</span>
+          <span style="font-size: 13px; color: #7B8B9C;">Voice, web and SMS</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="mono" style="font-size: 40px; font-weight: 600; line-height: 1; color: #087F86;">25</span>
+          <span style="font-size: 14px; font-weight: 600; color: #14263A;">Organisations contributing</span>
+          <span style="font-size: 13px; color: #7B8B9C;">Universities, industry, NGOs</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="mono" style="font-size: 40px; font-weight: 600; line-height: 1; color: #087F86;">21</span>
+          <span style="font-size: 14px; font-weight: 600; color: #14263A;">Closed with evidence</span>
+          <span style="font-size: 13px; color: #7B8B9C;">Community confirmed</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; border-top: 1px solid #E8EEF4; padding-top: 16px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7B8B9C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span style="font-size: 12px; color: #7B8B9C;">Demonstration data. Every seeded record is labelled as simulated in the database itself.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell" style="display: flex; flex-direction: column; gap: 36px; padding: 76px 0 68px;">
+    <div style="display: flex; flex-direction: column; gap: 14px; max-width: 720px;">
+      <span class="eyebrow">The loop</span>
+      <h2 style="font-size: 40px; font-weight: 800; color: #0B2A4A;">Six steps from a spoken sentence to a proven fix.</h2>
+      <p style="font-size: 17px; line-height: 1.6; color: #526579;">Most platforms stop at collecting reports. The hard part is everything after.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px;">
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 10px; padding: 20px 18px;">
+        <div style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 9px; background: #E8F2F9;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path></svg>
+        </div>
+        <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8DB9D8;">01</span>
+        <span style="font-size: 16px; font-weight: 700; color: #14263A;">Report</span>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">Speak in Hindi, Santali or Kurukh. No form, no account, no English.</p>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 10px; padding: 20px 18px;">
+        <div style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 9px; background: #E8F2F9;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"></path><path d="M6.6 6.6 8.7 8.7"></path><path d="M3 12h3"></path><circle cx="12" cy="13" r="5"></circle><path d="M17.4 6.6 15.3 8.7"></path><path d="M21 12h-3"></path></svg>
+        </div>
+        <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8DB9D8;">02</span>
+        <span style="font-size: 16px; font-weight: 700; color: #14263A;">Compile</span>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">Thirty similar reports become one clear brief, not thirty tickets.</p>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 10px; padding: 20px 18px;">
+        <div style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 9px; background: #E8F2F9;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        </div>
+        <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8DB9D8;">03</span>
+        <span style="font-size: 16px; font-weight: 700; color: #14263A;">Verify</span>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">A volunteer confirms it on the ground before anyone spends money.</p>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 10px; padding: 20px 18px;">
+        <div style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 9px; background: #E6F7F7;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="18" cy="18" r="3"></circle><path d="M9 6h6a3 3 0 0 1 3 3v6"></path></svg>
+        </div>
+        <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8BD6D5;">04</span>
+        <span style="font-size: 16px; font-weight: 700; color: #14263A;">Match</span>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">A university lab, a CSR budget and a district officer, with reasons shown.</p>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 10px; padding: 20px 18px;">
+        <div style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 9px; background: #E6F7F7;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9l-3.7 3.8Z"></path></svg>
+        </div>
+        <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8BD6D5;">05</span>
+        <span style="font-size: 16px; font-weight: 700; color: #14263A;">Build</span>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">Partners pledge equipment and people against a live, visible gap.</p>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 10px; padding: 20px 18px;">
+        <div style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 9px; background: #E6F7F7;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"></path><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"></path></svg>
+        </div>
+        <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8BD6D5;">06</span>
+        <span style="font-size: 16px; font-weight: 700; color: #14263A;">Prove</span>
+        <p style="font-size: 13.5px; line-height: 1.55; color: #526579;">Nothing closes without photographs and a community confirmation.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF; border-top: 1px solid #D9E2EC;">
+    <div class="shell" style="display: grid; grid-template-columns: 1fr 1fr; gap: 72px; padding: 76px 0; align-items: center;">
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <span class="eyebrow">Explainable ranking</span>
+        <h2 style="font-size: 38px; font-weight: 800; color: #0B2A4A;">The system shows its working.</h2>
+        <p style="font-size: 17px; line-height: 1.65; color: #526579;">
+          Every priority score opens into the eight factors that produced it, each with the reason it
+          scored that way. No black box, and no unexplainable number a district officer has to defend
+          in a meeting they did not attend.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 4px;">
+          <div style="display: flex; align-items: flex-start; gap: 11px;">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="m5 12 5 5L20 7"></path></svg>
+            <span style="font-size: 15.5px; line-height: 1.5; color: #14263A;">Weights are published, versioned and editable by an administrator.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 11px;">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="m5 12 5 5L20 7"></path></svg>
+            <span style="font-size: 15.5px; line-height: 1.5; color: #14263A;">Community signal is capped, so loud districts cannot outrank remote ones.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 11px;">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="m5 12 5 5L20 7"></path></svg>
+            <span style="font-size: 15.5px; line-height: 1.5; color: #14263A;">The brief states plainly what the model was unsure about.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="display: flex; flex-direction: column; gap: 18px; padding: 26px 24px; background: #F7F9FC;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="eyebrow" style="font-size: 11px;">What the AI is unsure about</span>
+          <span style="padding: 4px 9px; background: #FFF6D9; border: 1px solid #F0CE70; border-radius: 5px; font-size: 11px; font-weight: 700; color: #7A4D00;">2 NOTES</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; gap: 11px; padding: 14px 15px; background: #FFFFFF; border: 1px solid #E8EEF4; border-radius: 9px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C58A08" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 9v4"></path><path d="M10.3 3.9 2.5 17.4A1.7 1.7 0 0 0 4 20h16a1.7 1.7 0 0 0 1.5-2.6L13.7 3.9a1.7 1.7 0 0 0-3 0Z"></path><path d="M12 17h.01"></path></svg>
+            <p style="font-size: 14px; line-height: 1.55; color: #526579;">The number of workers affected was estimated from 31 reports and village sizes. A coordinator should confirm it.</p>
+          </div>
+          <div style="display: flex; gap: 11px; padding: 14px 15px; background: #FFFFFF; border: 1px solid #E8EEF4; border-radius: 9px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C58A08" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 9v4"></path><path d="M10.3 3.9 2.5 17.4A1.7 1.7 0 0 0 4 20h16a1.7 1.7 0 0 0 1.5-2.6L13.7 3.9a1.7 1.7 0 0 0-3 0Z"></path><path d="M12 17h.01"></path></svg>
+            <p style="font-size: 14px; line-height: 1.55; color: #526579;">Whether two of the twelve villages share a panchayat could not be determined from the reports.</p>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #E8EEF4; padding-top: 14px;">
+          <p style="font-size: 13px; line-height: 1.55; color: #7B8B9C;">This brief was drafted by an AI system from community reports. A district coordinator reviews and approves it before any action is taken.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #0B2A4A;">
+    <div class="shell" style="display: grid; grid-template-columns: 1fr 1fr; gap: 72px; padding: 76px 0; align-items: center;">
+
+      <div class="card" style="display: flex; flex-direction: column; padding: 0; background: #123B63; border-color: #1D5D91; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #1D5D91;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8DB9D8;">SILENT ZONES DETECTED</span>
+          <span class="mono" style="font-size: 12px; font-weight: 600; color: #FFFFFF;">3</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #1D5D91;">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 15px; font-weight: 700; color: #FFFFFF;">Dhanbad</span>
+              <span style="font-size: 13px; color: #8DB9D8;">Mining subsidence &middot; 61,000 people</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 18px;">
+              <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                <span class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; color: #8DB9D8;">HAZARD</span>
+                <span class="mono" style="font-size: 17px; font-weight: 600; color: #FFFFFF;">0.90</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                <span class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; color: #8DB9D8;">REPORTS</span>
+                <span class="mono" style="font-size: 17px; font-weight: 600; color: #F0CE70;">2</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #1D5D91;">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 15px; font-weight: 700; color: #FFFFFF;">Garhwa</span>
+              <span style="font-size: 13px; color: #8DB9D8;">Drought &middot; 38,000 people</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 18px;">
+              <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                <span class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; color: #8DB9D8;">HAZARD</span>
+                <span class="mono" style="font-size: 17px; font-weight: 600; color: #FFFFFF;">0.83</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                <span class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; color: #8DB9D8;">REPORTS</span>
+                <span class="mono" style="font-size: 17px; font-weight: 600; color: #F0CE70;">1</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 15px; font-weight: 700; color: #FFFFFF;">Pakur</span>
+              <span style="font-size: 13px; color: #8DB9D8;">Flood &middot; 33,000 people</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 18px;">
+              <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                <span class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; color: #8DB9D8;">HAZARD</span>
+                <span class="mono" style="font-size: 17px; font-weight: 600; color: #FFFFFF;">0.71</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                <span class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; color: #8DB9D8;">REPORTS</span>
+                <span class="mono" style="font-size: 17px; font-weight: 600; color: #F0CE70;">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 14px 20px; background: #0B2A4A; border-top: 1px solid #1D5D91;">
+          <span style="font-size: 13px; color: #C7DDEC;">Flagged for a field survey rather than left out of the queue.</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <span class="eyebrow" style="color: #8DB9D8;">Equity by design</span>
+        <h2 style="font-size: 38px; font-weight: 800; color: #FFFFFF;">The places that report nothing are not the places with no problems.</h2>
+        <p style="font-size: 17px; line-height: 1.65; color: #C7DDEC;">
+          A platform that only ranks what gets reported rewards whoever shouts loudest. JharSetu compares
+          hazard exposure and population against how many reports actually arrive, and flags the gap.
+        </p>
+        <p style="font-size: 17px; line-height: 1.65; color: #C7DDEC;">
+          A district with high mining risk, sixty thousand residents and two reports is not quiet. It is
+          unheard, and it belongs at the top of a survey list rather than the bottom of a queue.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF;">
+    <div class="shell" style="display: grid; grid-template-columns: 1fr 1fr; gap: 72px; padding: 76px 0; align-items: center;">
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <span class="eyebrow">Tamper-evident record</span>
+        <h2 style="font-size: 38px; font-weight: 800; color: #0B2A4A;">Nothing closes without evidence.</h2>
+        <p style="font-size: 17px; line-height: 1.65; color: #526579;">
+          Closing a challenge needs photographs from before and after, a count of people served, a named
+          verifier, and a confirmation from the community that reported it. Every action is written to an
+          append-only ledger where each entry is hashed against the one before it.
+        </p>
+        <p style="font-size: 17px; line-height: 1.65; color: #526579;">
+          Edit any past row and the chain stops matching. It is not a blockchain and does not pretend to
+          be one &mdash; it simply makes a quiet edit impossible to hide.
+        </p>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="card" style="display: flex; align-items: center; gap: 16px; padding: 22px 24px; background: #E6F7F7; border-color: #C5EAEA;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 11px; background: #087F86; flex-shrink: 0;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 16px; font-weight: 700; color: #07545B;">Ledger verified</span>
+            <span style="font-size: 14px; line-height: 1.5; color: #087F86;">All 214 entries recompute to their stored hashes. Nothing has been altered.</span>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+          <div style="padding: 13px 20px; border-bottom: 1px solid #E8EEF4;">
+            <span class="eyebrow" style="font-size: 11px;">Closure requirements &middot; C-118</span>
+          </div>
+          <div style="display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; gap: 11px; padding: 13px 20px; border-bottom: 1px solid #E8EEF4;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"></path></svg>
+              <span style="font-size: 14.5px; color: #14263A; flex-grow: 1;">Before and after photographs</span>
+              <span class="mono" style="font-size: 13px; color: #7B8B9C;">5 files</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 11px; padding: 13px 20px; border-bottom: 1px solid #E8EEF4;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"></path></svg>
+              <span style="font-size: 14.5px; color: #14263A; flex-grow: 1;">People served, recorded</span>
+              <span class="mono" style="font-size: 13px; color: #7B8B9C;">1,200</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 11px; padding: 13px 20px; border-bottom: 1px solid #E8EEF4;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"></path></svg>
+              <span style="font-size: 14.5px; color: #14263A; flex-grow: 1;">Verified by a named officer</span>
+              <span class="mono" style="font-size: 13px; color: #7B8B9C;">S. Minj</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 11px; padding: 13px 20px;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C58A08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+              <span style="font-size: 14.5px; color: #14263A; flex-grow: 1;">Community confirmation</span>
+              <span style="padding: 3px 9px; background: #FFF6D9; border: 1px solid #F0CE70; border-radius: 5px; font-size: 11.5px; font-weight: 700; color: #7A4D00;">AWAITING</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #F7F9FC; border-top: 1px solid #D9E2EC;">
+    <div class="shell" style="display: flex; flex-direction: column; gap: 32px; padding: 76px 0;">
+      <div style="display: flex; flex-direction: column; gap: 14px; max-width: 640px;">
+        <span class="eyebrow">Who it is for</span>
+        <h2 style="font-size: 38px; font-weight: 800; color: #0B2A4A;">Six consoles, one shared record.</h2>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px;">
+
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px; padding: 24px 22px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #E8F2F9;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; color: #14263A;">Citizen</span>
+          <p style="font-size: 14.5px; line-height: 1.55; color: #526579;">Report a need by voice or SMS, track what happened to it, and confirm when it is genuinely fixed.</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px; padding: 24px 22px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #E8F2F9;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0Z"></path><path d="m9 10 2 2 4-4"></path></svg>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; color: #14263A;">Field volunteer</span>
+          <p style="font-size: 14.5px; line-height: 1.55; color: #526579;">Visit the site, photograph what is there, and raise the confidence of a report that deserves it.</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px; padding: 24px 22px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #E8F2F9;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"></path><rect x="9" y="2" width="6" height="4" rx="1"></rect><path d="m9 14 2 2 4-4"></path></svg>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; color: #14263A;">District coordinator</span>
+          <p style="font-size: 14.5px; line-height: 1.55; color: #526579;">Work a ranked queue that explains itself, approve briefs, and score proposals on seven readiness factors.</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px; padding: 24px 22px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #E6F7F7;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 9 12 4 2 9l10 5 10-5Z"></path><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"></path></svg>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; color: #14263A;">University</span>
+          <p style="font-size: 14.5px; line-height: 1.55; color: #526579;">Find real problems that fit your lab, form a skill-gap team, and propose something that can actually deploy.</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px; padding: 24px 22px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #E6F7F7;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V7l7-4v18"></path><path d="M10 21V9l8 3v9"></path><path d="M2 21h20"></path></svg>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; color: #14263A;">Company or NGO</span>
+          <p style="font-size: 14.5px; line-height: 1.55; color: #526579;">See exactly what is still unfunded, pledge against a specific gap, and get evidence your CSR report can use.</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px; padding: 24px 22px;">
+          <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #EEEEFC;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4F5BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; color: #14263A;">State administrator</span>
+          <p style="font-size: 14.5px; line-height: 1.55; color: #526579;">Tune the scoring weights, audit every override, and verify the ledger has not been touched.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #164B7A;">
+    <div class="shell" style="display: flex; align-items: center; justify-content: space-between; padding: 58px 0;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <h2 style="font-size: 36px; font-weight: 800; color: #FFFFFF;">See a need. Form a team. Close the loop.</h2>
+        <p style="font-size: 17px; color: #C7DDEC;">It takes under a minute, and you do not need an account.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 32px; background: #FFFFFF; border-radius: 10px; flex-shrink: 0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path></svg>
+        <span style="font-size: 17px; font-weight: 700; color: #164B7A;">Report a need</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #0B2A4A;">
+    <div class="shell" style="display: flex; flex-direction: column; gap: 34px; padding: 52px 0 40px;">
+      <div style="display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 48px;">
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; align-items: center; gap: 11px;">
+            <div style="width: 34px; height: 34px; border-radius: 9px; background: #256FA8; display: flex; align-items: center; justify-content: center;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18"></path><path d="M6 17V9a6 6 0 0 1 12 0v8"></path><path d="M12 3v2"></path></svg>
+            </div>
+            <span style="font-size: 17px; font-weight: 800; color: #FFFFFF;">JharSetu</span>
+          </div>
+          <p style="font-size: 14px; line-height: 1.6; color: #8DB9D8; max-width: 300px;">A societal challenge exchange for the Government of Jharkhand, connecting community reports to university research and industry funding.</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; color: #C7DDEC; text-transform: uppercase;">Platform</span>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">Report a need</a>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">Explore challenges</a>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">Silent zones</a>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">Impact and analytics</a>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; color: #C7DDEC; text-transform: uppercase;">Partners</span>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">For universities</a>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">For industry CSR</a>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">For NGOs</a>
+          <a href="#" style="font-size: 14.5px; color: #8DB9D8;">Register an organisation</a>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 11px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: 0.12em; color: #C7DDEC; text-transform: uppercase;">Report by SMS</span>
+          <span class="mono" style="font-size: 17px; font-weight: 600; color: #FFFFFF;">[SMS NUMBER]</span>
+          <p style="font-size: 13.5px; line-height: 1.6; color: #8DB9D8;">Send a plain message in any language. No internet needed.</p>
+          <span style="font-size: 13.5px; color: #8DB9D8;">In an emergency, call 112 first.</span>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid #1D5D91;">
+        <span style="font-size: 13px; color: #8DB9D8;">Government of Jharkhand &middot; Department of Disaster Management &middot; Problem statement SIH26043</span>
+        <span style="font-size: 13px; color: #7B8B9C;">Demonstration deployment. Seeded records are labelled as simulated.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":4400}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

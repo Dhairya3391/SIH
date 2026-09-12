@@ -89,13 +89,22 @@ export async function rescoreChallenge(
     version,
   );
 
+  const pastApproval = [
+    "VERIFIED", "OPEN", "TEAM_FORMED", "SOLUTION_PROPOSED",
+    "PILOT", "DEPLOYED", "IMPACT_VERIFIED", "NEEDS_FOLLOW_UP",
+  ].includes(challenge.status);
+
   const confidence = computeConfidence({
     uniqueReporters: challenge.reporter_count ?? 1,
+    externallyVerified: verifications.ai > 0,
     hasFieldVerification: verifications.field > 0,
-    coordinatorApproved: [
-      "VERIFIED", "OPEN", "TEAM_FORMED", "SOLUTION_PROPOSED",
-      "PILOT", "DEPLOYED", "IMPACT_VERIFIED", "NEEDS_FOLLOW_UP",
-    ].includes(challenge.status),
+    // A coordinator's own sign-off. For challenges approved before verification
+    // methods were recorded, a status past approval with no AI or verifier check
+    // to explain it still reads as the coordinator's - otherwise an AI-verified
+    // problem would be relabelled "coordinator approved" the moment it moved on.
+    coordinatorApproved:
+      verifications.coordinator > 0 ||
+      (pastApproval && verifications.ai === 0 && verifications.field === 0),
     resolvedWithEvidence: challenge.status === "IMPACT_VERIFIED",
     openInaccurateFlags: verifications.inaccurate,
     fromUnknownSmsOnly: verifications.smsOnly,
@@ -202,16 +211,48 @@ async function gapFraction(supabase: SupabaseClient, challengeId: string): Promi
   return Math.min(Math.max(1 - pledged / needed, 0), 1);
 }
 
+/**
+ * What the verifications say, by who made them.
+ *
+ *   ai          the corroboration engine verified it with cited sources
+ *   field       a verifier or volunteer confirmed it with sources or photos
+ *   coordinator a coordinator signed it off
+ *   inaccurate  flags filed AFTER the most recent positive check - a rejection
+ *               that a later verification overturned no longer drags it down
+ */
 async function loadVerifications(supabase: SupabaseClient, challengeId: string) {
-  const { data } = await supabase
+  type Row = { kind: string; method?: string | null; created_at: string };
+  let rows: Row[] = [];
+  const withMethod = await supabase
     .from("verifications")
-    .select("kind")
+    .select("kind, method, created_at")
     .eq("challenge_id", challengeId);
+  if (withMethod.error) {
+    // Before migration 0010 there is no method column.
+    const plain = await supabase
+      .from("verifications")
+      .select("kind, created_at")
+      .eq("challenge_id", challengeId);
+    rows = (plain.data ?? []) as Row[];
+  } else {
+    rows = (withMethod.data ?? []) as Row[];
+  }
 
-  const rows = data ?? [];
+  const isAi = (r: Row) => r.method === "ai_external";
+  const isCoordinator = (r: Row) => r.method === "coordinator";
+  const isField = (r: Row) => r.kind === "field" && !isAi(r) && !isCoordinator(r);
+
+  const lastPositive = rows
+    .filter((r) => isAi(r) || isCoordinator(r) || isField(r))
+    .reduce((latest, r) => Math.max(latest, new Date(r.created_at).getTime()), 0);
+
   return {
-    field: rows.filter((r) => r.kind === "field").length,
-    inaccurate: rows.filter((r) => r.kind === "inaccurate").length,
+    ai: rows.filter(isAi).length,
+    field: rows.filter(isField).length,
+    coordinator: rows.filter(isCoordinator).length,
+    inaccurate: rows.filter(
+      (r) => r.kind === "inaccurate" && new Date(r.created_at).getTime() > lastPositive,
+    ).length,
     smsOnly: await isSmsOnly(supabase, challengeId),
   };
 }

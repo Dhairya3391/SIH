@@ -35,23 +35,23 @@ export default function HomePage() {
     },
     {
       icon: "shield",
-      title: "A person verifies it",
-      body: "Weather records, news and the open web are searched for independent proof, and then a verifier decides. The AI never decides.",
+      title: "It is verified",
+      body: "For a disaster-type report the AI checks the weather at that place and time, the news and the open web. Proof found: verified on the spot, with every source cited. Otherwise a verifier checks it with sources and photos.",
     },
     {
       icon: "grad",
       title: "A college proposes",
-      body: "The first proposal opens a window sized to the severity. The highest scoring document takes the work, judged on a rubric published in advance.",
+      body: "Colleges upload a proposal PDF against a verified problem. The AI analyses it on a published rubric and rejects what is not viable, with reasons. The highest viable proposal wins the work.",
     },
     {
       icon: "box",
-      title: "Organisations fund the parts",
-      body: "Needs are itemised and divisible, so six companies can close one line between them instead of one writing a large cheque.",
+      title: "Companies and NGOs fund the parts",
+      body: "The college publishes the money and materials it needs. Companies supply materials and NGOs fund money, each in parts: 5 kg from one, 5 kg from another. They can ask the college anything first.",
     },
     {
       icon: "check",
       title: "The work is tracked to done",
-      body: "Stage by stage, with the time between every step on the record, and the funders shown what their material unblocked.",
+      body: "Delivery stages drawn from the college's own document, receipts confirmed, progress posted with photos — and the time between every step on the record for the system owner.",
     },
   ];
 

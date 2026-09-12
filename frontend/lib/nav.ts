@@ -30,8 +30,8 @@ export const ROLE_NAV: Record<UserRole, NavItem[]> = {
   ],
   verifier: [
     { href: "/verify", label: "Queue", icon: "list" },
-    { href: "/silent-zones", label: "Silent zones", icon: "pin" },
     { href: "/challenges", label: "All challenges", icon: "eye" },
+    { href: "/silent-zones", label: "Silent zones", icon: "pin" },
   ],
   coordinator: [
     { href: "/queue", label: "Triage queue", icon: "list" },
@@ -43,11 +43,18 @@ export const ROLE_NAV: Record<UserRole, NavItem[]> = {
     { href: "/college", label: "Overview", icon: "gauge" },
     { href: "/college/problems", label: "Problems", icon: "list" },
     { href: "/college/proposals", label: "My proposals", icon: "file" },
+    { href: "/college/projects", label: "Projects", icon: "box" },
     { href: "/messages", label: "Messages", icon: "chat" },
   ],
   industry: [
-    { href: "/needs", label: "Needs", icon: "box" },
+    { href: "/needs", label: "Materials needed", icon: "box" },
     { href: "/contributions", label: "My contributions", icon: "wallet" },
+    { href: "/messages", label: "Messages", icon: "chat" },
+    { href: "/challenges", label: "All challenges", icon: "eye" },
+  ],
+  ngo: [
+    { href: "/needs", label: "Funding needed", icon: "wallet" },
+    { href: "/contributions", label: "My contributions", icon: "list" },
     { href: "/messages", label: "Messages", icon: "chat" },
     { href: "/challenges", label: "All challenges", icon: "eye" },
   ],
@@ -67,6 +74,7 @@ export const ROLE_HOME: Record<UserRole, string> = {
   coordinator: "/queue",
   university: "/college",
   industry: "/needs",
+  ngo: "/needs",
   admin: "/admin",
 };
 
@@ -77,18 +85,19 @@ export const ROLE_HOME: Record<UserRole, string> = {
 export const ROLE_PURPOSE: Record<UserRole, string> = {
   citizen: "File what you can see, in your own words, and follow what happens to it.",
   volunteer: "File on behalf of people without a phone, and corroborate reports nearby.",
-  verifier: "Weigh the evidence on a report and decide whether it stands.",
+  verifier: "Check the reports the AI could not verify, with sources and photos, and audit the ones it did.",
   coordinator: "Rank verified problems for your district and approve what gets acted on.",
-  university: "Take on a verified problem and compete on the quality of your proposal.",
-  industry: "Fund or supply a specific, itemised need and see what it delivered.",
+  university: "Propose solutions to verified problems, publish what you need, and report progress as you deliver.",
+  industry: "Supply the materials a college's project needs - a whole line or part of it - and follow what it built.",
+  ngo: "Fund the money a college's project needs - all of it or a share - and follow what it delivered.",
   admin: "Own the whole system: every role, every table, every timing.",
 };
 
 /** Which roles may open a given path. The first segment is what matters. */
 const ACCESS: { prefix: string; roles: UserRole[] }[] = [
-  // "/report" is deliberately absent: it is public. Someone reporting a
-  // collapsed culvert must not meet a login wall, so that page renders its own
-  // chrome and accepts anonymous submissions.
+  // "/report" and "/challenge/<ref>" are deliberately absent: they are public.
+  // Someone reporting a collapsed culvert must not meet a login wall, and the
+  // reference they were given must keep working without an account.
   { prefix: "/my-reports", roles: ["citizen", "volunteer", "admin"] },
   { prefix: "/verify", roles: ["verifier", "volunteer", "coordinator", "admin"] },
   { prefix: "/queue", roles: ["coordinator", "admin"] },
@@ -96,22 +105,19 @@ const ACCESS: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/silent-zones", roles: ["verifier", "coordinator", "admin"] },
   {
     prefix: "/challenges",
-    roles: ["verifier", "coordinator", "university", "industry", "admin"],
-  },
-  {
-    prefix: "/challenge",
-    roles: ["verifier", "coordinator", "university", "industry", "admin"],
+    roles: ["verifier", "coordinator", "university", "industry", "ngo", "admin"],
   },
   { prefix: "/college", roles: ["university", "admin"] },
-  { prefix: "/needs", roles: ["industry", "coordinator", "admin"] },
-  { prefix: "/contributions", roles: ["industry", "admin"] },
-  { prefix: "/messages", roles: ["university", "industry", "coordinator", "admin"] },
+  { prefix: "/projects", roles: ["university", "industry", "ngo", "coordinator", "admin"] },
+  { prefix: "/needs", roles: ["industry", "ngo", "coordinator", "admin"] },
+  { prefix: "/contributions", roles: ["industry", "ngo", "admin"] },
+  { prefix: "/messages", roles: ["university", "industry", "ngo", "coordinator", "admin"] },
   { prefix: "/admin", roles: ["admin"] },
 ];
 
 export function rolesFor(pathname: string): UserRole[] | null {
   const hit = ACCESS.filter((a) => pathname === a.prefix || pathname.startsWith(`${a.prefix}/`))
-    // "/challenges" and "/challenge" both match "/challenge"; take the longest.
+    // Longest prefix wins, so a nested rule can override its parent.
     .sort((a, b) => b.prefix.length - a.prefix.length)[0];
   return hit ? hit.roles : null;
 }
@@ -129,5 +135,6 @@ export const ALL_ROLES: UserRole[] = [
   "coordinator",
   "university",
   "industry",
+  "ngo",
   "admin",
 ];

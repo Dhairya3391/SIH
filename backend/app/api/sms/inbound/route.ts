@@ -1,5 +1,6 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { ok, fail, route, rateLimit, hashPhone } from "@/lib/http";
+import { runCorroboration, shouldCorroborateAfterIntake } from "@/lib/services/corroboration";
 import { smsInboundSchema } from "@/lib/validation/schemas";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { intakeReport } from "@/lib/services/intake";
@@ -86,6 +87,22 @@ export const POST = route(async (request: NextRequest) => {
 
   if (inboxRow) {
     await supabase.from("sms_inbox").update({ report_id: result.reportId }).eq("id", inboxRow.id);
+  }
+
+  // SMS reports get the same AI verification step as web reports, after the reply.
+  if (!result.duplicateSubmission && result.challengeId) {
+    const plan = await shouldCorroborateAfterIntake(supabase, result.challengeId, result.decision);
+    if (plan.run) {
+      const challengeId = result.challengeId;
+      after(() =>
+        runCorroboration(supabaseAdmin(), challengeId, {
+          trigger: result.decision === "merge" ? "merge" : "intake",
+        }).then(
+          () => undefined,
+          (err) => console.error("[sms] corroboration failed", err),
+        ),
+      );
+    }
   }
 
   // Acknowledge, and name 112 every single time. Anything life-threatening is

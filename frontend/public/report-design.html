@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JharSetu — Report a Need</title>
+  <meta name="description" content="Report a local problem in under a minute — no form, no English needed. JharSetu civic reporting for Jharkhand.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* RESET */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    /* TOKENS */
+    :root {
+      --bg:           #F4F6F5;
+      --ink:          #102027;
+      --ink-muted:    #5a7280;
+      --ink-faint:    #8fa3ad;
+      --red:          #D94F45;
+      --red-glow:     rgba(217, 79, 69, 0.22);
+      --red-light:    #fdecea;
+      --red-dark:     #b53d34;
+      --white:        #ffffff;
+      --border:       #e2e8eb;
+      --shadow:       0 2px 16px rgba(16,32,39,0.08);
+      --radius:       16px;
+      --radius-sm:    10px;
+      --radius-pill:  999px;
+      --nav-h:        68px;
+      --bar-h:        76px;
+      --strip-h:      36px;
+      --mono:         'JetBrains Mono', monospace;
+      --content-w:    1200px;
+      --gap:          28px;
+      --transition:   0.18s ease;
+    }
+
+    /* BASE */
+    body {
+      font-family: 'Mukta', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.55;
+      padding-top: calc(var(--nav-h) + var(--strip-h));
+      padding-bottom: var(--bar-h);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* FRAME SWITCHER */
+    #frame-switcher {
+      position: fixed;
+      bottom: calc(var(--bar-h) + 12px);
+      right: 16px;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 6px 12px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.14);
+    }
+    #frame-switcher label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-right: 2px;
+    }
+    .frame-btn {
+      padding: 5px 14px;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid var(--border);
+      background: var(--white);
+      color: var(--ink);
+      font-family: 'Mukta', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition), border-color var(--transition);
+      min-height: 34px;
+    }
+    .frame-btn.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+    .frame-btn:hover:not(.active) { border-color: var(--ink-muted); }
+    .frame-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+    /* NAVBAR */
+    #navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--nav-h);
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+    }
+    .nav-inner {
+      width: 100%;
+      max-width: var(--content-w);
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+    }
+    .wordmark {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .wm-mark {
+      width: 30px;
+      height: 30px;
+      background: var(--red);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wm-mark svg { width: 17px; height: 17px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .wm-text { font-size: 21px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; }
+    .wm-text em { color: var(--red); font-style: normal; }
+
+    .nav-links {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      gap: 2px;
+      list-style: none;
+    }
+    .nav-links a {
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      padding: 7px 15px;
+      border-radius: var(--radius-pill);
+      transition: color var(--transition), background var(--transition);
+    }
+    .nav-links a.active { color: var(--red); background: var(--red-light); }
+    .nav-links a:hover:not(.active) { color: var(--ink); background: var(--bg); }
+    .nav-links a:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .pill-btn {
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid var(--border);
+      background: var(--white);
+      font-family: 'Mukta', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 36px;
+      transition: border-color var(--transition);
+    }
+    .pill-btn:hover { border-color: var(--ink-muted); }
+    .pill-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+    .nav-signin {
+      padding: 7px 18px;
+      border: 2px solid var(--ink);
+      background: transparent;
+      border-radius: var(--radius-pill);
+      font-family: 'Mukta', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 40px;
+      transition: background var(--transition), color var(--transition);
+    }
+    .nav-signin:hover { background: var(--ink); color: var(--white); }
+    .nav-signin:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      width: 44px; height: 44px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 10px;
+    }
+    .hamburger span { display: block; height: 2px; background: var(--ink); border-radius: 2px; }
+
+    /* NETWORK STRIP */
+    #net-strip {
+      position: fixed;
+      top: var(--nav-h);
+      left: 0; right: 0;
+      height: var(--strip-h);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      z-index: 999;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background 0.3s, color 0.3s;
+    }
+    #net-strip.online  { background: rgba(52,168,83,0.10); color: #1a7035; }
+    #net-strip.offline { background: rgba(245,158,11,0.14); color: #92400e; }
+    .strip-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .online  .strip-dot { background: #34a853; }
+    .offline .strip-dot { background: #f59e0b; animation: blink 1.2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* LAYOUT */
+    .page-wrapper {
+      max-width: var(--content-w);
+      margin: 0 auto;
+      padding: 52px 32px 52px;
+    }
+    .page-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 12px;
+    }
+    .page-heading {
+      font-size: clamp(42px, 5.5vw, 70px);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: -0.025em;
+      line-height: 1.03;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+    .page-sub {
+      font-size: 18px;
+      color: var(--ink-muted);
+      margin-bottom: 52px;
+    }
+    .report-grid {
+      display: grid;
+      grid-template-columns: 8fr 4fr;
+      gap: var(--gap);
+      align-items: start;
+    }
+
+    /* CARDS */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 16px;
+    }
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      margin-bottom: var(--gap);
+    }
+    .card:last-child { margin-bottom: 0; }
+
+    /* TABS */
+    .tab-container {
+      background: var(--bg);
+      border-radius: var(--radius-pill);
+      padding: 5px;
+      display: flex;
+      gap: 3px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      border-radius: var(--radius-pill);
+      border: none;
+      font-family: 'Mukta', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+      min-height: 46px;
+      background: transparent;
+      color: var(--ink-muted);
+      position: relative;
+    }
+    .tab-btn.active { background: var(--red); color: var(--white); box-shadow: 0 2px 10px rgba(217,79,69,0.28); }
+    .tab-btn:hover:not(.active) { background: var(--white); color: var(--ink); }
+    .tab-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+    .tab-badge {
+      position: absolute;
+      top: 6px; right: 10px;
+      width: 8px; height: 8px;
+      background: var(--red);
+      border-radius: 50%;
+      border: 1.5px solid var(--white);
+      display: none;
+    }
+    body.offline-frame .tab-badge { display: block; }
+
+    /* VOICE CARD */
+    .voice-card {
+      text-align: center;
+      padding: 52px 28px 44px;
+    }
+    .record-btn-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    .record-glow {
+      position: absolute;
+      width: 152px; height: 152px;
+      border-radius: 50%;
+      background: var(--red-glow);
+      animation: glow-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes glow-pulse {
+      0%, 100% { transform: scale(1);    opacity: 0.8; }
+      50%       { transform: scale(1.22); opacity: 0.25; }
+    }
+    .record-btn {
+      position: relative;
+      width: 112px; height: 112px;
+      border-radius: 50%;
+      background: var(--red);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 8px 36px rgba(217,79,69,0.40);
+    }
+    .record-btn:hover  { transform: scale(1.06); box-shadow: 0 12px 48px rgba(217,79,69,0.52); }
+    .record-btn:active { transform: scale(0.96); }
+    .record-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+    .record-btn svg { width: 46px; height: 46px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .voice-heading {
+      font-size: 28px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+    .voice-sub {
+      font-size: 16px;
+      color: var(--ink-muted);
+      margin-bottom: 30px;
+    }
+    .waveform {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+      height: 44px;
+      margin-bottom: 12px;
+    }
+    .wave-bar { width: 5px; background: var(--border); border-radius: 3px; }
+    .wave-bar:nth-child(1)  { height: 10px; }
+    .wave-bar:nth-child(2)  { height: 18px; }
+    .wave-bar:nth-child(3)  { height: 8px; }
+    .wave-bar:nth-child(4)  { height: 24px; }
+    .wave-bar:nth-child(5)  { height: 12px; }
+    .wave-bar:nth-child(6)  { height: 30px; }
+    .wave-bar:nth-child(7)  { height: 14px; }
+    .wave-bar:nth-child(8)  { height: 22px; }
+    .wave-bar:nth-child(9)  { height: 7px; }
+    .wave-bar:nth-child(10) { height: 16px; }
+    .wave-bar:nth-child(11) { height: 28px; }
+    .wave-bar:nth-child(12) { height: 10px; }
+    .wave-bar:nth-child(13) { height: 20px; }
+    .wave-bar:nth-child(14) { height: 6px; }
+    .wave-bar:nth-child(15) { height: 14px; }
+    .wave-bar:nth-child(16) { height: 24px; }
+    .wave-bar:nth-child(17) { height: 9px; }
+    .wave-bar:nth-child(18) { height: 18px; }
+    .wave-bar:nth-child(19) { height: 12px; }
+    .wave-bar:nth-child(20) { height: 8px; }
+    .voice-timer {
+      font-family: var(--mono);
+      font-size: 15px;
+      color: var(--ink-faint);
+      letter-spacing: 0.10em;
+    }
+
+    /* LOCATION CARD */
+    .location-inner { display: flex; align-items: center; gap: 16px; }
+    .loc-icon {
+      width: 48px; height: 48px;
+      border-radius: var(--radius-sm);
+      background: var(--red-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .loc-icon svg { width: 24px; height: 24px; fill: none; stroke: var(--red); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .loc-text { flex: 1; }
+    .loc-name { font-size: 18px; font-weight: 700; color: var(--ink); }
+    .loc-coords { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+    .loc-edit {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color var(--transition), background var(--transition);
+      flex-shrink: 0;
+    }
+    .loc-edit svg { width: 17px; height: 17px; fill: none; stroke: var(--ink-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .loc-edit:hover { border-color: var(--ink); background: var(--bg); }
+    .loc-edit:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+    /* CATEGORY GRID */
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .cat-tile {
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--border);
+      background: var(--white);
+      padding: 18px 10px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      position: relative;
+      min-height: 104px;
+      transition: border-color var(--transition), background var(--transition);
+    }
+    .cat-tile:hover:not(.selected) { border-color: var(--ink-muted); background: var(--bg); }
+    .cat-tile:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+    .cat-tile.selected { border-color: var(--red); background: var(--red-light); }
+    .cat-icon-wrap {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 23px;
+    }
+    .cat-label { font-size: 13px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.2; }
+    .cat-check {
+      position: absolute;
+      top: -7px; right: -7px;
+      width: 22px; height: 22px;
+      background: var(--red);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--white);
+    }
+    .cat-check svg { width: 11px; height: 11px; fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+    .i-disaster { background: rgba(239,83,80,0.12); }
+    .i-water    { background: rgba(30,136,229,0.12); }
+    .i-health   { background: rgba(67,160,71,0.12);  }
+    .i-education{ background: rgba(251,140,0,0.12);  }
+    .i-farming  { background: rgba(102,187,106,0.12); }
+    .i-roads    { background: rgba(120,144,156,0.12); }
+    .i-power    { background: rgba(255,202,40,0.14);  }
+    .i-env      { background: rgba(38,166,154,0.12);  }
+
+    /* PEOPLE PILLS */
+    .pill-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .people-pill {
+      padding: 11px 22px;
+      border-radius: var(--radius-pill);
+      border: 2px solid var(--border);
+      background: var(--white);
+      font-family: 'Mukta', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 48px;
+      transition: border-color var(--transition), background var(--transition), color var(--transition);
+    }
+    .people-pill:hover:not(.selected) { border-color: var(--ink-muted); }
+    .people-pill.selected { background: var(--red); border-color: var(--red); color: var(--white); }
+    .people-pill:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+    /* URGENCY */
+    .urgency-row { display: flex; gap: 10px; }
+    .urgency-step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+    }
+    .urgency-num {
+      width: 54px; height: 54px;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--border);
+      background: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 21px;
+      font-weight: 800;
+      color: var(--ink-muted);
+      transition: border-color var(--transition), background var(--transition), color var(--transition);
+    }
+    .urgency-word {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-faint);
+      text-align: center;
+      line-height: 1.25;
+    }
+    .urgency-step:hover .urgency-num { border-color: var(--ink-muted); color: var(--ink); }
+    .urgency-step.selected .urgency-num { background: var(--red); border-color: var(--red); color: #fff; }
+    .urgency-step.selected .urgency-word { color: var(--red); font-weight: 700; }
+    .urgency-step:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 4px; }
+
+    /* VULNERABLE CHIPS */
+    .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 15px;
+      border-radius: var(--radius-pill);
+      border: 2px solid var(--border);
+      background: var(--white);
+      font-family: 'Mukta', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 44px;
+      transition: border-color var(--transition), background var(--transition), color var(--transition);
+    }
+    .chip:hover:not(.selected) { border-color: var(--ink-muted); }
+    .chip.selected { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .chip:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+    .chip-icon { font-size: 15px; }
+
+    /* CONSENT */
+    .consent-row { display: flex; align-items: flex-start; gap: 14px; }
+    .consent-check {
+      width: 24px; height: 24px;
+      min-width: 24px;
+      border-radius: 6px;
+      border: 2px solid var(--ink);
+      background: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .consent-check svg { width: 13px; height: 13px; fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .consent-text { font-size: 14px; color: var(--ink-muted); line-height: 1.55; }
+
+    /* RIGHT STICKY */
+    .sticky-col { position: sticky; top: calc(var(--nav-h) + var(--strip-h) + 24px); }
+    .next-card { padding: 30px; }
+    .next-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--ink);
+      margin-bottom: 24px;
+    }
+    .next-steps { list-style: none; display: flex; flex-direction: column; gap: 18px; }
+    .next-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      font-size: 15px;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    .step-num {
+      width: 27px; height: 27px;
+      min-width: 27px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--ink-muted);
+      margin-top: 1px;
+    }
+    .next-divider { border: none; border-top: 1px solid var(--border); margin: 24px 0 18px; }
+    .next-note { font-size: 12px; color: var(--ink-faint); line-height: 1.5; font-style: italic; }
+
+    /* ACTION BAR */
+    #action-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--bar-h);
+      background: var(--white);
+      border-top: 1px solid var(--border);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+    }
+    .bar-inner {
+      width: 100%;
+      max-width: var(--content-w);
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .btn-cancel {
+      padding: 13px 30px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--white);
+      font-family: 'Mukta', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink-muted);
+      cursor: pointer;
+      min-height: 52px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .btn-cancel:hover { border-color: var(--ink-muted); color: var(--ink); }
+    .btn-cancel:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+    .btn-submit {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 40px;
+      border-radius: var(--radius-pill);
+      border: none;
+      font-family: 'Mukta', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      min-height: 52px;
+      transition: background var(--transition), box-shadow var(--transition), transform 0.12s;
+    }
+    .btn-submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+
+    body:not(.offline-frame) .btn-submit {
+      background: var(--red);
+      color: var(--white);
+      box-shadow: 0 4px 22px rgba(217,79,69,0.38);
+    }
+    body:not(.offline-frame) .btn-submit:hover {
+      background: var(--red-dark);
+      box-shadow: 0 6px 30px rgba(217,79,69,0.48);
+    }
+    body.offline-frame .btn-submit {
+      background: var(--ink);
+      color: var(--white);
+      box-shadow: 0 4px 22px rgba(16,32,39,0.25);
+    }
+    body.offline-frame .btn-submit:hover { background: #1c3544; }
+
+    /* MOBILE */
+    @media (max-width: 640px) {
+      :root { --nav-h: 60px; --bar-h: 68px; --strip-h: 32px; }
+      .nav-links, .nav-right .pill-btn, .nav-right .nav-signin { display: none; }
+      .hamburger { display: flex; }
+      .nav-inner { padding: 0 20px; }
+      .page-wrapper { padding: 28px 20px 48px; }
+      .page-heading { font-size: 38px; }
+      .report-grid { grid-template-columns: 1fr; }
+      .sticky-col { position: static; }
+      .category-grid { grid-template-columns: repeat(2, 1fr); }
+      .urgency-row { gap: 6px; }
+      .urgency-num { width: 44px; height: 44px; font-size: 18px; }
+      .card { padding: 20px; }
+      .voice-card { padding: 40px 20px 32px; }
+      .bar-inner { padding: 0 20px; }
+      .btn-cancel { padding: 11px 20px; font-size: 15px; }
+      .btn-submit { padding: 11px 24px; font-size: 16px; }
+      #frame-switcher { right: 8px; padding: 5px 10px; }
+    }
+  </style>
+</head>
+<body id="page-body">
+
+  <!-- FRAME SWITCHER -->
+  <div id="frame-switcher" role="group" aria-label="Design frame switcher">
+    <label>Frame:</label>
+    <button class="frame-btn active" onclick="setFrame('online')"  id="btn-online">🟢 Online</button>
+    <button class="frame-btn"        onclick="setFrame('offline')" id="btn-offline">🟠 Offline</button>
+  </div>
+
+  <!-- NAVBAR -->
+  <header id="navbar" role="banner">
+    <nav class="nav-inner" aria-label="Primary navigation">
+      <a href="#" class="wordmark" aria-label="JharSetu — home">
+        <div class="wm-mark" aria-hidden="true">
+          <svg viewBox="0 0 18 18"><path d="M9 3v9M6 9l3 3 3-3"/></svg>
+        </div>
+        <span class="wm-text">Jhar<em>Setu</em></span>
+      </a>
+
+      <ul class="nav-links" role="list">
+        <li><a href="#" class="active" aria-current="page">Report</a></li>
+        <li><a href="#">Explore Challenges</a></li>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">Impact</a></li>
+      </ul>
+
+      <div class="nav-right">
+        <button class="pill-btn" aria-label="Region: Jharkhand. Click to switch region.">Jharkhand</button>
+        <button class="pill-btn" aria-label="Language: Hindi / English. Click to switch language.">हिं&nbsp;/&nbsp;EN</button>
+        <button class="nav-signin">Sign in</button>
+        <button class="hamburger" aria-label="Open navigation menu" aria-expanded="false">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- NETWORK STATUS STRIP -->
+  <div id="net-strip" class="online" role="status" aria-live="polite" aria-atomic="true">
+    <span class="strip-dot" aria-hidden="true"></span>
+    <span id="strip-text">Online. Your report will send immediately.</span>
+  </div>
+
+  <!-- MAIN -->
+  <main class="page-wrapper">
+
+    <header>
+      <p class="page-eyebrow">Step 1 of 1</p>
+      <h1 class="page-heading">Report a Need</h1>
+      <p class="page-sub">Tell us what is wrong. No form to fill in, no English needed.</p>
+    </header>
+
+    <div class="report-grid">
+
+      <!-- LEFT COLUMN -->
+      <div class="left-col">
+
+        <!-- TABS -->
+        <div class="card" style="margin-bottom: 20px; padding: 10px;">
+          <div class="tab-container" role="tablist" aria-label="How would you like to report?">
+            <button class="tab-btn active" role="tab" aria-selected="true"  tabindex="0"  id="tab-voice">Voice</button>
+            <button class="tab-btn"        role="tab" aria-selected="false" tabindex="-1" id="tab-photo">Photo</button>
+            <button class="tab-btn"        role="tab" aria-selected="false" tabindex="-1" id="tab-type">Type</button>
+            <button class="tab-btn"        role="tab" aria-selected="false" tabindex="-1" id="tab-sms" aria-label="SMS (recommended when offline)">
+              SMS
+              <span class="tab-badge" aria-label="Recommended: no internet detected"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- VOICE CARD -->
+        <div class="card voice-card" role="region" aria-labelledby="voice-heading">
+          <div class="record-btn-wrap">
+            <div class="record-glow" aria-hidden="true"></div>
+            <button class="record-btn" id="record-btn" aria-label="Tap to start recording your voice report in Hindi or your language">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                <path d="M5 10a7 7 0 0 0 14 0"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+                <line x1="9"  y1="22" x2="15" y2="22"/>
+              </svg>
+            </button>
+          </div>
+          <h2 class="voice-heading" id="voice-heading">Tap to Speak</h2>
+          <p class="voice-sub">Speak in Hindi or your own language.<br>हिंदी या अपनी भाषा में बोलें।</p>
+          <div class="waveform" aria-hidden="true" aria-label="Idle audio waveform">
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+          </div>
+          <p class="voice-timer" aria-label="Recording duration 0 minutes 0 seconds">0:00</p>
+        </div>
+
+        <!-- LOCATION -->
+        <div class="card">
+          <p class="section-label">Your location</p>
+          <div class="location-inner">
+            <div class="loc-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7z"/>
+                <circle cx="12" cy="9" r="2.5"/>
+              </svg>
+            </div>
+            <div class="loc-text">
+              <div class="loc-name">Karra Toli, Gumla</div>
+              <div class="loc-coords" aria-label="GPS coordinates: 23.0512 North, 84.5421 East, accurate to 8 metres">23.0512, 84.5421 — accurate to 8 m</div>
+            </div>
+            <button class="loc-edit" aria-label="Edit location manually">
+              <svg viewBox="0 0 24 24">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- CATEGORY -->
+        <div class="card">
+          <p class="section-label">What is the problem?</p>
+          <div class="category-grid" role="group" aria-label="Select problem category">
+            <button class="cat-tile" aria-pressed="false" id="c-disaster">
+              <div class="cat-icon-wrap i-disaster" aria-hidden="true">🌊</div>
+              <span class="cat-label">Disaster</span>
+            </button>
+            <button class="cat-tile selected" aria-pressed="true" id="c-water">
+              <div class="cat-icon-wrap i-water" aria-hidden="true">💧</div>
+              <span class="cat-label">Water</span>
+              <div class="cat-check" aria-hidden="true">
+                <svg viewBox="0 0 11 11"><path d="M2 5.5l2.5 2.5L9 3"/></svg>
+              </div>
+            </button>
+            <button class="cat-tile" aria-pressed="false" id="c-health">
+              <div class="cat-icon-wrap i-health" aria-hidden="true">🏥</div>
+              <span class="cat-label">Health</span>
+            </button>
+            <button class="cat-tile" aria-pressed="false" id="c-education">
+              <div class="cat-icon-wrap i-education" aria-hidden="true">📚</div>
+              <span class="cat-label">Education</span>
+            </button>
+            <button class="cat-tile" aria-pressed="false" id="c-farming">
+              <div class="cat-icon-wrap i-farming" aria-hidden="true">🌾</div>
+              <span class="cat-label">Farming</span>
+            </button>
+            <button class="cat-tile" aria-pressed="false" id="c-roads">
+              <div class="cat-icon-wrap i-roads" aria-hidden="true">🛣️</div>
+              <span class="cat-label">Roads</span>
+            </button>
+            <button class="cat-tile" aria-pressed="false" id="c-power">
+              <div class="cat-icon-wrap i-power" aria-hidden="true">⚡</div>
+              <span class="cat-label">Power</span>
+            </button>
+            <button class="cat-tile" aria-pressed="false" id="c-env">
+              <div class="cat-icon-wrap i-env" aria-hidden="true">🌿</div>
+              <span class="cat-label">Environment</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- PEOPLE -->
+        <div class="card">
+          <p class="section-label">How many people?</p>
+          <div class="pill-row" role="group" aria-label="How many people are affected?">
+            <button class="people-pill"          aria-pressed="false" id="ppl-1">Just me</button>
+            <button class="people-pill"          aria-pressed="false" id="ppl-2">A few</button>
+            <button class="people-pill selected" aria-pressed="true"  id="ppl-3">Whole village</button>
+            <button class="people-pill"          aria-pressed="false" id="ppl-4">Several villages</button>
+          </div>
+        </div>
+
+        <!-- URGENCY -->
+        <div class="card">
+          <p class="section-label">How urgent?</p>
+          <div class="urgency-row" role="radiogroup" aria-label="Urgency level from 1 Minor to 5 Life at risk">
+            <div class="urgency-step" role="radio" aria-checked="false" tabindex="0" aria-label="1 — Minor">
+              <div class="urgency-num" aria-hidden="true">1</div>
+              <div class="urgency-word">Minor</div>
+            </div>
+            <div class="urgency-step" role="radio" aria-checked="false" tabindex="0" aria-label="2 — Low">
+              <div class="urgency-num" aria-hidden="true">2</div>
+              <div class="urgency-word">Low</div>
+            </div>
+            <div class="urgency-step" role="radio" aria-checked="false" tabindex="0" aria-label="3 — Service down">
+              <div class="urgency-num" aria-hidden="true">3</div>
+              <div class="urgency-word">Service down</div>
+            </div>
+            <div class="urgency-step" role="radio" aria-checked="false" tabindex="0" aria-label="4 — Serious">
+              <div class="urgency-num" aria-hidden="true">4</div>
+              <div class="urgency-word">Serious</div>
+            </div>
+            <div class="urgency-step selected" role="radio" aria-checked="true" tabindex="0" aria-label="5 — Life at risk, currently selected">
+              <div class="urgency-num" aria-hidden="true">5</div>
+              <div class="urgency-word">Life at risk</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VULNERABLE -->
+        <div class="card">
+          <p class="section-label">Anyone at extra risk?</p>
+          <div class="chip-row" role="group" aria-label="Select vulnerable groups present">
+            <button class="chip selected" aria-pressed="true"  id="v-children">  <span class="chip-icon" aria-hidden="true">👶</span>Children</button>
+            <button class="chip selected" aria-pressed="true"  id="v-elderly">   <span class="chip-icon" aria-hidden="true">👴</span>Elderly</button>
+            <button class="chip"          aria-pressed="false" id="v-disability"> <span class="chip-icon" aria-hidden="true">♿</span>Disability</button>
+            <button class="chip"          aria-pressed="false" id="v-pregnant">   <span class="chip-icon" aria-hidden="true">🤰</span>Pregnant</button>
+            <button class="chip"          aria-pressed="false" id="v-medication"> <span class="chip-icon" aria-hidden="true">💊</span>On medication</button>
+            <button class="chip"          aria-pressed="false" id="v-cutoff">     <span class="chip-icon" aria-hidden="true">🚧</span>Cut off</button>
+            <button class="chip"          aria-pressed="false" id="v-signal">     <span class="chip-icon" aria-hidden="true">📵</span>No signal</button>
+          </div>
+        </div>
+
+        <!-- CONSENT -->
+        <div class="card">
+          <div class="consent-row">
+            <div class="consent-check"
+                 role="checkbox"
+                 aria-checked="true"
+                 tabindex="0"
+                 id="consent-box"
+                 aria-label="I agree my photo and location can be used to verify this report">
+              <svg viewBox="0 0 13 13" aria-hidden="true"><path d="M2 6.5l3 3 6-6"/></svg>
+            </div>
+            <p class="consent-text" id="consent-label">
+              I agree my photo and location can be used to verify this report.
+            </p>
+          </div>
+        </div>
+
+      </div><!-- /left-col -->
+
+      <!-- RIGHT COLUMN -->
+      <aside class="sticky-col" aria-label="What happens after you submit">
+        <div class="card next-card">
+          <h2 class="next-title">What Happens Next</h2>
+          <ol class="next-steps">
+            <li class="next-step">
+              <span class="step-num" aria-hidden="true">1</span>
+              <span>Your report is turned into a clear brief</span>
+            </li>
+            <li class="next-step">
+              <span class="step-num" aria-hidden="true">2</span>
+              <span>Similar reports from your area are joined together</span>
+            </li>
+            <li class="next-step">
+              <span class="step-num" aria-hidden="true">3</span>
+              <span>A coordinator checks and approves it</span>
+            </li>
+            <li class="next-step">
+              <span class="step-num" aria-hidden="true">4</span>
+              <span>A university or company is matched to solve it</span>
+            </li>
+          </ol>
+          <hr class="next-divider">
+          <p class="next-note">Simulated scenario. Demonstration data.</p>
+        </div>
+      </aside>
+
+    </div><!-- /report-grid -->
+  </main>
+
+  <!-- ACTION BAR -->
+  <div id="action-bar" role="region" aria-label="Form submission controls">
+    <div class="bar-inner">
+      <button class="btn-cancel" id="btn-cancel">Cancel</button>
+      <button class="btn-submit" id="btn-submit">
+        <span id="submit-label">Send Report</span>
+        <svg id="submit-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // FRAME SWITCHER
+    function setFrame(mode) {
+      const body  = document.getElementById('page-body');
+      const strip = document.getElementById('net-strip');
+      const text  = document.getElementById('strip-text');
+      const lbl   = document.getElementById('submit-label');
+      const ico   = document.getElementById('submit-icon');
+      const bOn   = document.getElementById('btn-online');
+      const bOff  = document.getElementById('btn-offline');
+
+      if (mode === 'offline') {
+        body.classList.add('offline-frame');
+        strip.className = 'offline';
+        text.textContent = 'No internet. This report is critical. Send by SMS.';
+        lbl.textContent = 'Send by SMS';
+        ico.innerHTML = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
+        bOn.classList.remove('active'); bOff.classList.add('active');
+      } else {
+        body.classList.remove('offline-frame');
+        strip.className = 'online';
+        text.textContent = 'Online. Your report will send immediately.';
+        lbl.textContent = 'Send Report';
+        ico.innerHTML = '<path d="M5 12h14M13 6l6 6-6 6"/>';
+        bOn.classList.add('active'); bOff.classList.remove('active');
+      }
+    }
+
+    // CATEGORY TILES
+    document.querySelectorAll('.cat-tile').forEach(tile => {
+      tile.addEventListener('click', () => {
+        document.querySelectorAll('.cat-tile').forEach(t => {
+          t.classList.remove('selected');
+          t.setAttribute('aria-pressed', 'false');
+          const chk = t.querySelector('.cat-check');
+          if (chk) chk.style.display = 'none';
+        });
+        tile.classList.add('selected');
+        tile.setAttribute('aria-pressed', 'true');
+        const chk = tile.querySelector('.cat-check');
+        if (chk) chk.style.display = 'flex';
+        else {
+          const c = document.createElement('div');
+          c.className = 'cat-check';
+          c.setAttribute('aria-hidden','true');
+          c.innerHTML = '<svg viewBox="0 0 11 11"><path d="M2 5.5l2.5 2.5L9 3" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          tile.appendChild(c);
+        }
+      });
+    });
+
+    // PEOPLE PILLS
+    document.querySelectorAll('.people-pill').forEach(p => {
+      p.addEventListener('click', () => {
+        document.querySelectorAll('.people-pill').forEach(x => {
+          x.classList.remove('selected'); x.setAttribute('aria-pressed','false');
+        });
+        p.classList.add('selected'); p.setAttribute('aria-pressed','true');
+      });
+    });
+
+    // URGENCY
+    document.querySelectorAll('.urgency-step').forEach(s => {
+      s.addEventListener('click', () => {
+        document.querySelectorAll('.urgency-step').forEach(x => {
+          x.classList.remove('selected'); x.setAttribute('aria-checked','false');
+        });
+        s.classList.add('selected'); s.setAttribute('aria-checked','true');
+      });
+      s.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); s.click(); }
+      });
+    });
+
+    // CHIPS
+    document.querySelectorAll('.chip').forEach(c => {
+      c.addEventListener('click', () => {
+        c.classList.toggle('selected');
+        c.setAttribute('aria-pressed', c.classList.contains('selected') ? 'true' : 'false');
+      });
+    });
+
+    // CONSENT
+    const consent = document.getElementById('consent-box');
+    let checked = true;
+    function toggleConsent() {
+      checked = !checked;
+      consent.setAttribute('aria-checked', String(checked));
+      consent.style.background = checked ? 'var(--ink)' : 'transparent';
+      consent.style.borderColor = checked ? 'var(--ink)' : 'var(--border)';
+      consent.innerHTML = checked
+        ? '<svg viewBox="0 0 13 13" aria-hidden="true"><path d="M2 6.5l3 3 6-6" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '';
+    }
+    consent.addEventListener('click', toggleConsent);
+    consent.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleConsent(); }
+    });
+  </script>
+</body>
+</html>

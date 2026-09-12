@@ -1,11 +1,15 @@
 import type {
   AdminMetrics,
+  AdminWindow,
+  AiVerifiedItem,
+  AssistantAnswer,
   Challenge,
   ChallengeDetail,
   ChallengeHistory,
   CollegeProblem,
   Contribution,
   ContributionTotals,
+  CorroborationOutcome,
   DashboardMetrics,
   FundedProject,
   HealthReport,
@@ -14,6 +18,8 @@ import type {
   MyReport,
   NeedLine,
   Organisation,
+  ProjectDetail,
+  ProjectSummary,
   Proposal,
   SilentZones,
   SlaReport,
@@ -49,13 +55,20 @@ export class ApiError extends Error {
 type Envelope<T> = {
   ok?: boolean;
   data?: T;
-  error?: { message?: string; code?: string } | string;
+  error?: { message?: string; code?: string; details?: unknown } | string;
 };
 
 function messageOf(json: Envelope<unknown>, fallback: string): string {
   const err = json?.error;
   if (typeof err === "string" && err) return err;
-  if (err && typeof err === "object" && err.message) return err.message;
+  if (err && typeof err === "object") {
+    // A validation failure names the field that failed, which is the useful part.
+    const issues = Array.isArray(err.details) ? (err.details as { message?: string; path?: unknown[] }[]) : [];
+    if (err.code === "validation" && issues.length) {
+      return issues.map((i) => i.message).filter(Boolean).join(" ") || err.message || fallback;
+    }
+    if (err.message) return err.message;
+  }
   return fallback;
 }
 
@@ -139,6 +152,22 @@ export function signOut(): Promise<unknown> {
 }
 
 // ---------------------------------------------------------------------------
+// Files
+// ---------------------------------------------------------------------------
+
+/** POST /api/uploads — stores one photo privately; GPS metadata is stripped first. */
+export function uploadPhoto(file: File, purpose: "verification" | "progress", challengeId?: string) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("purpose", purpose);
+  if (challengeId) form.append("challenge_id", challengeId);
+  return request<{ path: string; url: string; name: string; size: number }>("/api/uploads", {
+    method: "POST",
+    body: form,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Reports and challenges
 // ---------------------------------------------------------------------------
 
@@ -202,7 +231,8 @@ export async function submitReport(input: ReportInput): Promise<IntakeResult> {
   if (audio) {
     const form = new FormData();
     form.append("payload", payload);
-    form.append("audio", audio, "report.wav");
+    const ext = audio.type.includes("webm") ? "webm" : "wav";
+    form.append("audio", audio, `report.${ext}`);
     return request<IntakeResult>("/api/reports", { method: "POST", body: form });
   }
 
@@ -237,31 +267,37 @@ export function fetchReportTrace(reportId: string) {
 export async function fetchVerifyQueue(
   params: { district?: string; hazard?: string; limit?: number } = {},
 ) {
-  return request<{ queue: VerifyQueueItem[]; count: number }>(
+  return request<{ queue: VerifyQueueItem[]; count: number; recently_verified_by_ai: AiVerifiedItem[] }>(
     `/api/verify/queue${query({ limit: 40, ...params })}`,
   );
 }
 
 export function confirmVerification(
   challengeId: string,
-  body: { source_urls: string[]; photo_paths: string[]; note: string; granted?: string },
+  body: {
+    source_urls: string[];
+    photo_paths: string[];
+    note: string;
+    granted?: "field_verified" | "coordinator_approved";
+  },
 ) {
-  return post<{ confidence: string }>(`/api/verify/${challengeId}/confirm`, body);
-}
-
-export function rejectVerification(challengeId: string, reason: string) {
-  return post<unknown>(`/api/verify/${challengeId}/reject`, { reason });
-}
-
-/** Ask the AI to look for independent proof (weather, news, web). */
-export function runCorroboration(challengeId: string) {
-  return post<{ verdict: string; checks: unknown[] }>(
-    `/api/challenges/${challengeId}/corroborate`,
+  return post<{ confidence: string; status: string; now_visible_to_colleges: boolean }>(
+    `/api/verify/${challengeId}/confirm`,
+    body,
   );
 }
 
+export function rejectVerification(challengeId: string, reason: string) {
+  return post<{ status: string; reporters_told: number }>(`/api/verify/${challengeId}/reject`, { reason });
+}
+
+/** Ask the AI to look for independent proof again (weather, news, web). */
+export function runCorroboration(challengeId: string) {
+  return post<CorroborationOutcome>(`/api/challenges/${challengeId}/corroborate`);
+}
+
 // ---------------------------------------------------------------------------
-// College: problems, and the proposal competition
+// College: problems, proposals and projects
 // ---------------------------------------------------------------------------
 
 export async function fetchCollegeProblems(
@@ -276,36 +312,111 @@ export async function fetchMyProposals() {
   return request<{ proposals: Proposal[]; count: number }>("/api/college/proposals");
 }
 
+export type SubmittedProposal = {
+  proposal_id: string;
+  version: number;
+  first_in_window: boolean;
+  document_pages: number;
+  document_url: string | null;
+  window: { closes_at: string; window_days: number; leader_score: number | null };
+};
+
+/** Pasted text, for a college that cannot export a PDF. */
 export function submitProposal(body: {
   challenge_id: string;
   extracted_text: string;
   document_name?: string;
   document_pages?: number;
 }) {
-  return post<{
-    proposal_id: string;
-    window: { closes_at: string; window_days: number; leader_score: number | null };
-    first_in_window: boolean;
-  }>("/api/college/proposals", body);
+  return post<SubmittedProposal>("/api/college/proposals", body);
+}
+
+/** The PDF itself. The server extracts the text and the AI analyses it after replying. */
+export function submitProposalDocument(challengeId: string, file: File) {
+  const form = new FormData();
+  form.append("challenge_id", challengeId);
+  form.append("document", file);
+  return request<SubmittedProposal>("/api/college/proposals", { method: "POST", body: form });
+}
+
+export function fetchCollegeProjects() {
+  return request<{ projects: ProjectSummary[]; count: number }>("/api/college/projects");
+}
+
+export function fetchProject(idOrRef: string) {
+  return request<ProjectDetail>(`/api/college/projects/${encodeURIComponent(idOrRef)}`);
+}
+
+export function publishRequirements(
+  idOrRef: string,
+  body: { funding_amount?: number | null; materials: { item: string; qty: number; unit?: string }[]; note?: string },
+) {
+  return post<ProjectDetail>(`/api/college/projects/${encodeURIComponent(idOrRef)}/requirements`, body);
+}
+
+export function removeRequirement(idOrRef: string, needId: string) {
+  return del<ProjectDetail>(
+    `/api/college/projects/${encodeURIComponent(idOrRef)}/requirements/${encodeURIComponent(needId)}`,
+  );
+}
+
+export function updateStage(
+  idOrRef: string,
+  stageId: string,
+  body: { status: "pending" | "in_progress" | "done" | "blocked"; note?: string; photo_paths?: string[] },
+) {
+  return post<ProjectDetail>(
+    `/api/college/projects/${encodeURIComponent(idOrRef)}/stages/${encodeURIComponent(stageId)}`,
+    body,
+  );
+}
+
+export function postProgressUpdate(
+  idOrRef: string,
+  body: { note: string; stage_id?: string | null; photo_paths: string[] },
+) {
+  return post<ProjectDetail>(`/api/college/projects/${encodeURIComponent(idOrRef)}/updates`, body);
 }
 
 // ---------------------------------------------------------------------------
-// Sponsorship
+// Contributions
 // ---------------------------------------------------------------------------
 
 export async function fetchNeeds(
-  params: { district?: string; category?: string; kind?: string; limit?: number } = {},
+  params: {
+    district?: string;
+    category?: string;
+    kind?: string;
+    group?: "materials" | "funding" | "all";
+    limit?: number;
+  } = {},
 ) {
   return request<{ needs: NeedLine[]; count: number }>(
     `/api/needs${query({ limit: 60, ...params })}`,
   );
 }
 
+/** Contribute part or all of one published need, as your own organisation. */
 export function pledge(
   challengeId: string,
-  body: { need_id?: string; org_id: string; qty: number; kind: string; note?: string },
+  body: { need_id: string; qty: number; note?: string; expected_delivery_date?: string; org_id?: string },
 ) {
-  return post<unknown>(`/api/challenges/${challengeId}/pledges`, body);
+  return post<{ pledge_id: string; fully_pledged: boolean; thread_id: string | null }>(
+    `/api/challenges/${challengeId}/pledges`,
+    body,
+  );
+}
+
+export function dispatchPledge(pledgeId: string, body: { expected_delivery_date?: string; note?: string } = {}) {
+  return post<{ state: string }>(`/api/pledges/${pledgeId}/dispatch`, body);
+}
+
+export function receivePledge(pledgeId: string, body: { receipt_note?: string } = {}) {
+  return post<{ state: string; all_received: boolean }>(`/api/pledges/${pledgeId}/receive`, body);
+}
+
+export function withdrawPledge(pledgeId: string) {
+  return post<{ state: string }>(`/api/pledges/${pledgeId}/withdraw`);
 }
 
 export function fetchMyContributions() {
@@ -340,6 +451,22 @@ export function fetchChallengeHistory(refOrId: string) {
   );
 }
 
+export function fetchAdminWindows() {
+  return request<{ windows: AdminWindow[]; count: number }>("/api/admin/windows");
+}
+
+/** Close a proposal window now and award it to the highest viable proposal. */
+export function awardWindow(challengeIdOrRef: string) {
+  return post<{ outcome: "awarded" | "reopened"; winner_org_id: string | null; stages_created: number }>(
+    `/api/admin/windows/${encodeURIComponent(challengeIdOrRef)}/award`,
+  );
+}
+
+/** Ask the admin assistant what has been going on. Answers from the record only. */
+export function askAssistant(body: { question: string; challenge_ref?: string | null }) {
+  return post<AssistantAnswer>("/api/admin/assistant", body);
+}
+
 export function fetchSilentZones(regionId = "jharkhand") {
   return request<SilentZones>(`/api/map/silent-zones${query({ region_id: regionId })}`);
 }
@@ -371,12 +498,13 @@ export async function fetchThreads() {
   return request<{ threads: Thread[]; count: number }>("/api/threads");
 }
 
+/** Opens the one thread with the college for a challenge, or returns it. */
 export function openThread(body: {
   challenge_id: string;
   college_org_id?: string;
   contributor_org_id?: string;
 }) {
-  return post<{ thread_id: string }>("/api/threads", body);
+  return post<{ thread_id: string; created: boolean }>("/api/threads", body);
 }
 
 export function fetchMessages(threadId: string) {

@@ -1,0 +1,269 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    body {
+      margin: 0; background: #F7F9FC; color: #14263A;
+      font-family: Mukta, system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    a { color: #164B7A; text-decoration: none; }
+    a:hover { color: #0B2A4A; text-decoration: underline; }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.12; }
+    p { margin: 0; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+    .eyebrow {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #7B8B9C;
+    }
+    .card {
+      background: #FFFFFF; border: 1px solid #D9E2EC; border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(11, 42, 74, 0.06);
+    }
+    .pad { padding-left: 20px; padding-right: 20px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 9px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+  </style>
+</helmet>
+
+<div style="width: 390px; background: #F7F9FC;">
+
+  <div class="pad" style="background: #0B2A4A; display: flex; align-items: center; justify-content: space-between; height: 30px;">
+    <span class="mono" style="font-size: 9.5px; letter-spacing: 0.06em; color: #C7DDEC; text-transform: uppercase;">Government of Jharkhand</span>
+    <span class="mono" style="font-size: 9.5px; color: #8DB9D8;">SIH26043</span>
+  </div>
+
+  <div class="pad" style="background: #FFFFFF; border-bottom: 1px solid #D9E2EC; display: flex; align-items: center; justify-content: space-between; height: 62px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 34px; height: 34px; border-radius: 9px; background: #164B7A; display: flex; align-items: center; justify-content: center;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18"></path><path d="M6 17V9a6 6 0 0 1 12 0v8"></path><path d="M12 3v2"></path></svg>
+      </div>
+      <span style="font-size: 17px; font-weight: 800; color: #0B2A4A;">JharSetu</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <div style="display: flex; height: 34px; border: 1px solid #D9E2EC; border-radius: 8px; overflow: hidden;">
+        <span style="display: flex; align-items: center; padding: 0 9px; font-size: 12.5px; font-weight: 600; background: #164B7A; color: #FFFFFF;">&#x0939;&#x093F;&#x0902;</span>
+        <span style="display: flex; align-items: center; padding: 0 9px; font-size: 12.5px; font-weight: 600; color: #526579;">EN</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h16"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 12px; padding-top: 28px; padding-bottom: 18px;">
+    <span class="eyebrow">Public challenge board</span>
+    <h1 style="font-size: 32px; font-weight: 800; color: #0B2A4A;">Explore challenges</h1>
+    <p style="font-size: 15.5px; line-height: 1.55; color: #526579;">Every verified need in the state, ranked by a score that shows its working.</p>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px;">
+    <div style="display: flex; align-items: center; gap: 9px; height: 46px; padding: 0 14px; background: #FFFFFF; border: 1px solid #D9E2EC; border-radius: 10px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7B8B9C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <span style="font-size: 15px; color: #A8B4C0;">Search titles or villages</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 7px; flex-grow: 1; height: 44px; background: #FFFFFF; border: 1px solid #D9E2EC; border-radius: 10px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#526579" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18"></path><path d="M7 12h10"></path><path d="M10 19h4"></path></svg>
+        <span style="font-size: 14.5px; font-weight: 600; color: #526579;">Filters</span>
+        <span class="chip" style="background: #164B7A; color: #FFFFFF; padding: 2px 7px; font-size: 10.5px;">2</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 7px; flex-grow: 1; height: 44px; background: #FFFFFF; border: 1px solid #D9E2EC; border-radius: 10px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#526579" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"></path><path d="M9 3v15"></path><path d="M15 6v15"></path></svg>
+        <span style="font-size: 14.5px; font-weight: 600; color: #526579;">Map</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 9px; padding-bottom: 16px;">
+    <span class="eyebrow" style="font-size: 10px;">Priority band</span>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+      <span class="chip" style="background: #6842A6; color: #FFFFFF; border: 1px solid #6842A6;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #FFFFFF;"></span>Critical 52</span>
+      <span class="chip" style="background: #FFFFFF; color: #7A4D00; border: 1px solid #D9E2EC;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #D9A514;"></span>High 71</span>
+      <span class="chip" style="background: #FFFFFF; color: #164B7A; border: 1px solid #D9E2EC;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #256FA8;"></span>Moderate 48</span>
+      <span class="chip" style="background: #FFFFFF; color: #07545B; border: 1px solid #D9E2EC;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #42BCBC;"></span>Long term 24</span>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-bottom: 16px;">
+    <div style="display: flex; gap: 9px; padding: 12px 14px; background: #E8F3FC; border: 1px solid #CFE3F5; border-radius: 10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>
+      <span style="font-size: 13.5px; line-height: 1.5; color: #164B7A;">Locations are rounded to roughly 500 metres and reporter details are removed.</span>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px;">
+    <span class="mono" style="font-size: 13px; color: #526579;">195 challenges</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 13.5px; font-weight: 600; color: #164B7A;">Priority</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+    </div>
+  </div>
+
+  <div class="pad" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 28px;">
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 11px; padding: 18px 16px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span class="mono" style="font-size: 11.5px; font-weight: 600; color: #164B7A;">C-120</span>
+          <span class="chip" style="background: #F0EBF9; color: #57328E; border: 1px solid #D9DAF7;">CRITICAL</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+          <span class="mono" style="font-size: 26px; font-weight: 600; line-height: 1; color: #0B2A4A;">88</span>
+          <span style="width: 30px; height: 4px; border-radius: 2px; background: #6842A6;"></span>
+        </div>
+      </div>
+      <h3 style="font-size: 17px; font-weight: 700; color: #14263A; line-height: 1.32;">Last-mile lightning alerts and safe shelter for farm workers</h3>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Gumla</span>
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Disaster safety</span>
+        <span class="chip" style="background: #E8F3FC; color: #164B7A; border: 1px solid #CFE3F5;">SOLUTION PROPOSED</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px; padding-top: 2px;">
+        <span class="mono" style="font-size: 12.5px; color: #526579;">4,800 affected</span>
+        <span class="mono" style="font-size: 12.5px; color: #526579;">31 reports</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; padding-top: 2px; border-top: 1px solid #E8EEF4; padding-top: 11px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        <span style="font-size: 12.5px; font-weight: 600; color: #087F86;">Field verified</span>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 11px; padding: 18px 16px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span class="mono" style="font-size: 11.5px; font-weight: 600; color: #164B7A;">C-123</span>
+          <span class="chip" style="background: #F0EBF9; color: #57328E; border: 1px solid #D9DAF7;">CRITICAL</span>
+          <span class="chip" style="background: #FFF6D9; color: #7A4D00; border: 1px solid #F0CE70;">CRISIS</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+          <span class="mono" style="font-size: 26px; font-weight: 600; line-height: 1; color: #0B2A4A;">85</span>
+          <span style="width: 30px; height: 4px; border-radius: 2px; background: #6842A6;"></span>
+        </div>
+      </div>
+      <h3 style="font-size: 17px; font-weight: 700; color: #14263A; line-height: 1.32;">Last-mile medicine route for flood-isolated residents</h3>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Sahebganj</span>
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Health</span>
+        <span class="chip" style="background: #E8F3FC; color: #164B7A; border: 1px solid #CFE3F5;">OPEN</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <span class="mono" style="font-size: 12.5px; color: #526579;">350 affected</span>
+        <span class="mono" style="font-size: 12.5px; color: #526579;">4 reports</span>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 11px; padding: 18px 16px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span class="mono" style="font-size: 11.5px; font-weight: 600; color: #164B7A;">C-122</span>
+          <span class="chip" style="background: #F0EBF9; color: #57328E; border: 1px solid #D9DAF7;">CRITICAL</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+          <span class="mono" style="font-size: 26px; font-weight: 600; line-height: 1; color: #0B2A4A;">83</span>
+          <span style="width: 30px; height: 4px; border-radius: 2px; background: #6842A6;"></span>
+        </div>
+      </div>
+      <h3 style="font-size: 17px; font-weight: 700; color: #14263A; line-height: 1.32;">Safe drinking water for a cut-off village, Radhanagar</h3>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Sahebganj</span>
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Water</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #E8EEF4; padding-top: 11px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span class="mono" style="font-size: 11px; letter-spacing: 0.06em; color: #7B8B9C;">RESOURCE GAP</span>
+          <span class="mono" style="font-size: 12.5px; font-weight: 600; color: #07545B;">6 of 10 pledged</span>
+        </div>
+        <div style="height: 9px; background: #E8EEF4; border-radius: 5px; overflow: hidden;">
+          <div style="width: 60%; height: 9px; background: #087F86;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 11px; padding: 18px 16px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span class="mono" style="font-size: 11.5px; font-weight: 600; color: #164B7A;">C-141</span>
+          <span class="chip" style="background: #FFF6D9; color: #7A4D00; border: 1px solid #F0CE70;">HIGH</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+          <span class="mono" style="font-size: 26px; font-weight: 600; line-height: 1; color: #0B2A4A;">67</span>
+          <span style="width: 30px; height: 4px; border-radius: 2px; background: #D9A514;"></span>
+        </div>
+      </div>
+      <h3 style="font-size: 17px; font-weight: 700; color: #14263A; line-height: 1.32;">Mining dust settling on fields and homes near the haul road</h3>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Dhanbad</span>
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Environment</span>
+        <span class="chip" style="background: #E6F7F7; color: #07545B; border: 1px solid #C5EAEA;">TEAM FORMED</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; border-top: 1px solid #E8EEF4; padding-top: 11px;">
+        <span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: #E6F7F7; flex-shrink: 0;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 9 12 4 2 9l10 5 10-5Z"></path></svg>
+        </span>
+        <span style="font-size: 12.5px; color: #526579;">IIT (ISM) Dhanbad and one partner</span>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; gap: 11px; padding: 18px 16px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span class="mono" style="font-size: 11.5px; font-weight: 600; color: #164B7A;">C-192</span>
+          <span class="chip" style="background: #E6F7F7; color: #07545B; border: 1px solid #C5EAEA;">LONG TERM</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+          <span class="mono" style="font-size: 26px; font-weight: 600; line-height: 1; color: #0B2A4A;">22</span>
+          <span style="width: 30px; height: 4px; border-radius: 2px; background: #42BCBC;"></span>
+        </div>
+      </div>
+      <h3 style="font-size: 17px; font-weight: 700; color: #14263A; line-height: 1.32;">Shared cold storage for vegetable farmers</h3>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <span class="chip" style="background: #F1F5F9; color: #526579; border: 1px solid #E8EEF4; font-weight: 600;">Bokaro</span>
+        <span class="chip" style="background: #E6F7F7; color: #07545B; border: 1px solid #C5EAEA;">IMPACT VERIFIED</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; border-top: 1px solid #E8EEF4; padding-top: 11px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087F86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        <span style="font-size: 12.5px; font-weight: 600; color: #087F86;">760 people served</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; background: #FFFFFF; border: 1px solid #B9C8D6; border-radius: 10px;">
+      <span style="font-size: 15px; font-weight: 600; color: #164B7A;">Load more</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#164B7A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-bottom: 28px;">
+    <div class="card" style="display: flex; gap: 11px; padding: 16px; background: #FFF6D9; border-color: #F0CE70;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A86F00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 9v4"></path><path d="M10.3 3.9 2.5 17.4A1.7 1.7 0 0 0 4 20h16a1.7 1.7 0 0 0 1.5-2.6L13.7 3.9a1.7 1.7 0 0 0-3 0Z"></path><path d="M12 17h.01"></path></svg>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 14px; font-weight: 700; color: #7A4D00;">3 districts are reporting almost nothing</span>
+        <a href="#" style="font-size: 13.5px; color: #7A4D00; text-decoration: underline;">See the silent zones map &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad" style="background: #0B2A4A; display: flex; flex-direction: column; gap: 6px; padding-top: 26px; padding-bottom: 26px;">
+    <span style="font-size: 12.5px; line-height: 1.5; color: #8DB9D8;">Government of Jharkhand &middot; SIH26043</span>
+    <span style="font-size: 12.5px; color: #7B8B9C;">Demonstration deployment. Seeded records are labelled as simulated.</span>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":2560}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

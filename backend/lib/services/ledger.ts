@@ -21,7 +21,10 @@ export type LedgerEntity =
   | "impact"
   | "crisis"
   | "weights"
-  | "organization";
+  | "organization"
+  | "proposal"
+  | "project"
+  | "verification";
 
 export interface LedgerEntry {
   entity: LedgerEntity;

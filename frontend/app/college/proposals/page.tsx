@@ -122,9 +122,8 @@ function MyProposals() {
                   <strong className="text-ink">
                     {counts.awaiting} waiting to be scored.
                   </strong>{" "}
-                  Scoring runs as a job rather than in the request, so a twenty-page document does
-                  not hold your browser open — and a crash mid-score is recoverable because the job
-                  is idempotent. Reloading this page nudges the queue.
+                  The AI starts analysing a document the moment it is submitted, so a verdict
+                  usually appears within a minute. Reloading this page checks again.
                 </p>
               </Card>
             )}
@@ -194,8 +193,14 @@ function ProposalRow({ proposal: p }: { proposal: Proposal }) {
           </h3>
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <Chip tone={p.state === "awarded" ? "teal" : notViable ? "alert" : "neutral"}>
-              {humanise(p.state)}
+            <Chip tone={p.is_winner ? "teal" : notViable ? "alert" : "neutral"}>
+              {p.is_winner
+                ? "Won"
+                : p.state === "rejected_not_viable"
+                  ? "Rejected: not viable"
+                  : p.state === "scoring" || p.state === "submitted"
+                    ? "Being analysed"
+                    : humanise(p.state)}
             </Chip>
             {p.is_leading === true && <Chip tone="teal">Leading</Chip>}
             {p.is_leading === false && p.score_to_beat !== null && (
@@ -275,7 +280,18 @@ function ProposalRow({ proposal: p }: { proposal: Proposal }) {
         >
           Read the full verdict
         </ButtonLink>
-        {p.challenge && (
+        {p.is_winner && p.challenge && (
+          <ButtonLink href={`/college/projects/${p.challenge.ref}`} variant="primary" size="sm" icon="box">
+            Go to the project
+          </ButtonLink>
+        )}
+        {p.document_url && (
+          <a href={p.document_url} target="_blank" rel="noopener noreferrer" className="btn-2 btn-sm">
+            <Icon name="file" size={13} />
+            Open PDF
+          </a>
+        )}
+        {p.challenge && !p.is_winner && (
           <>
             <Link
               href={`/college/problems/${p.challenge.ref}`}

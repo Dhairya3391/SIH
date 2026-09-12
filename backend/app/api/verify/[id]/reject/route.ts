@@ -2,9 +2,11 @@ import { ok, fail, route, readJson } from "@/lib/http";
 import { z } from "zod";
 import { requireRole } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { appendLedger } from "@/lib/services/ledger";
+import { notifyReporters } from "@/lib/services/notify";
 
 const schema = z.object({
-  reason: z.string().min(15, "The reporter will read this. Say why, properly.").max(2000),
+  reason: z.string().trim().min(15, "The reporter will read this. Say why, properly.").max(2000),
 });
 
 /**
@@ -12,7 +14,8 @@ const schema = z.object({
  *
  * It leaves the queue and never becomes visible to colleges, but it is not
  * deleted: a report rejected today can be corroborated next week, and the
- * reporter is entitled to know what was decided and why.
+ * reporter is told what was decided and why. An AI verification can be
+ * overturned here too - that is the human check on the automatic one.
  */
 export const POST = route(async (request: Request, ctx: { params: Promise<{ id: string }> }) => {
   const actor = await requireRole("verifier", "volunteer", "coordinator", "admin");
@@ -22,10 +25,17 @@ export const POST = route(async (request: Request, ctx: { params: Promise<{ id: 
   const supabase = supabaseAdmin();
   const { data: challenge } = await supabase
     .from("challenges")
-    .select("id, ref")
+    .select("id, ref, region_id, status")
     .eq("id", id)
-    .single();
+    .maybeSingle();
   if (!challenge) return fail(404, "No such challenge.", "not_found");
+  if (["SOLUTION_PROPOSED", "PILOT", "DEPLOYED", "IMPACT_VERIFIED"].includes(challenge.status as string)) {
+    return fail(
+      409,
+      "A college has already been awarded this problem, so it can no longer be rejected from the verification desk.",
+      "in_delivery",
+    );
+  }
 
   const { error } = await supabase.from("verifications").insert({
     challenge_id: id,
@@ -37,10 +47,32 @@ export const POST = route(async (request: Request, ctx: { params: Promise<{ id: 
   });
   if (error) throw error;
 
+  const now = new Date().toISOString();
   await supabase
     .from("challenges")
-    .update({ status: "CLOSED_NOT_ACTIONABLE", closed_at: new Date().toISOString() })
+    .update({ status: "CLOSED_NOT_ACTIONABLE", closed_at: now, confidence: "unverified" })
     .eq("id", id);
 
-  return ok({ challenge_id: id, ref: challenge.ref, status: "CLOSED_NOT_ACTIONABLE", reason });
+  await appendLedger(supabase, {
+    entity: "challenge",
+    entityId: id,
+    action: "verification_rejected",
+    actor: actor.id,
+    actorRole: actor.role,
+    regionId: challenge.region_id as string,
+    payload: { reason, previous_status: challenge.status },
+  });
+
+  const told = await notifyReporters(supabase, id, "closed_not_actionable", {
+    ref: challenge.ref,
+    reason,
+  });
+
+  return ok({
+    challenge_id: id,
+    ref: challenge.ref,
+    status: "CLOSED_NOT_ACTIONABLE",
+    reason,
+    reporters_told: told,
+  });
 });

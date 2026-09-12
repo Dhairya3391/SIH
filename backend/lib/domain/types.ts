@@ -11,10 +11,15 @@ export const USER_ROLES = [
   "verifier",
   "coordinator",
   "university",
+  // Companies supply materials; NGOs fund money. Different consoles, different roles.
   "industry",
+  "ngo",
   "admin",
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Roles that contribute to a college's published requirements. */
+export const CONTRIBUTOR_ROLES: UserRole[] = ["industry", "ngo"];
 
 export const ORG_TYPES = ["univ", "company", "ngo", "govt", "volunteers"] as const;
 export type OrgType = (typeof ORG_TYPES)[number];
@@ -50,11 +55,25 @@ export type DmPhase = (typeof DM_PHASES)[number];
 export const CONFIDENCE_LEVELS = [
   "unverified",
   "community_corroborated",
+  // The AI found independent proof (weather, news or web) and cited it. This
+  // counts as verified: the problem opens to colleges with its sources attached.
+  "externally_corroborated",
   "field_verified",
   "coordinator_approved",
   "resolved_with_evidence",
 ] as const;
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
+
+/** The rungs a college may build against. Everything below is still being checked. */
+export const VERIFIED_CONFIDENCE: ConfidenceLevel[] = [
+  "externally_corroborated",
+  "field_verified",
+  "coordinator_approved",
+  "resolved_with_evidence",
+];
+
+/** The rungs that still belong on the verifier's desk. */
+export const UNVERIFIED_CONFIDENCE: ConfidenceLevel[] = ["unverified", "community_corroborated"];
 
 export const CHALLENGE_STATUSES = [
   "REPORTED",
@@ -71,6 +90,24 @@ export const CHALLENGE_STATUSES = [
   "CLOSED_NOT_ACTIONABLE",
 ] as const;
 export type ChallengeStatus = (typeof CHALLENGE_STATUSES)[number];
+
+/** Not yet verified by the AI or a person: these sit on the verifier's desk. */
+export const AWAITING_VERIFICATION: ChallengeStatus[] = ["REPORTED", "REFINED"];
+
+/** Verified and still open to college proposals. */
+export const OPEN_FOR_PROPOSALS: ChallengeStatus[] = ["VERIFIED", "OPEN", "TEAM_FORMED"];
+
+/**
+ * Awarded and beyond. A problem here has left the main lists; its funders and
+ * its college still track it.
+ *   SOLUTION_PROPOSED  a college won; requirements are being funded
+ *   PILOT              work is under way
+ *   DEPLOYED           every stage is done
+ *   IMPACT_VERIFIED    the community confirmed the fix
+ */
+export const IN_DELIVERY: ChallengeStatus[] = ["SOLUTION_PROPOSED", "PILOT", "DEPLOYED", "NEEDS_FOLLOW_UP"];
+
+export const CLOSED_STATUSES: ChallengeStatus[] = ["IMPACT_VERIFIED", "CLOSED_NOT_ACTIONABLE", "DUPLICATE"];
 
 export const VULNERABILITY_TAGS = [
   "children",

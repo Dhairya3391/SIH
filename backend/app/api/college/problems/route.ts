@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { opportunisticTick } from "@/lib/services/tick";
+import { OPEN_FOR_PROPOSALS } from "@/lib/domain/types";
 
 const query = z.object({
   district: z.string().optional(),
@@ -10,33 +11,35 @@ const query = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(60),
 });
 
+/** Verified by the AI with sources, by a verifier, or by a coordinator. */
+const LISTED_CONFIDENCE = ["externally_corroborated", "field_verified", "coordinator_approved"];
+
 /**
  * GET /api/college/problems - what a college may propose against.
  *
- * The filter IS the feature: verified only. A college must never see an
- * unverified report, because a proposal written against a report that turns
- * out to be wrong wastes a semester of student work.
+ * The filter IS the feature: verified only, and not yet awarded. A college
+ * never sees an unverified report, because a proposal written against a
+ * report that turns out to be wrong wastes a semester of student work. Once a
+ * problem is awarded it leaves this list.
  *
- * Each row carries the competition state - whether a window is open, when it
- * closes, the leading score, and whether this college already has something
- * in - because that is what a college actually decides on.
+ * Each row carries how it was verified, the competition state, and whether
+ * this college already has something in.
  */
 export const GET = route(async (request: Request) => {
   const actor = await requireRole("university", "coordinator", "admin");
   const { district, category, limit } = readQuery(request, query);
   const supabase = supabaseAdmin();
 
-  // Hobby plan allows one cron a day, so the timed work also runs here: this
-  // is the page that shows "closes in 4 hours", and it must not be lying.
+  // This is the page that shows "closes in 4 hours", so it must not be lying.
   await opportunisticTick(supabase);
 
   let q = supabase
     .from("challenges")
     .select(
-      "id, ref, title, district, block, category, dm_phase, severity, priority, confidence, status, people_est, report_count, brief, why_critical, capabilities, hazard_tags, created_at, verified_at",
+      "id, ref, title, district, block, category, dm_phase, severity, priority, confidence, status, people_est, report_count, reporter_count, brief, why_critical, capabilities, hazard_tags, created_at, verified_at",
     )
-    .in("confidence", ["field_verified", "coordinator_approved"])
-    .in("status", ["VERIFIED", "OPEN", "TEAM_FORMED"])
+    .in("confidence", LISTED_CONFIDENCE)
+    .in("status", OPEN_FOR_PROPOSALS)
     .order("priority", { ascending: false })
     .limit(limit);
 
@@ -49,15 +52,29 @@ export const GET = route(async (request: Request) => {
   const ids = (challenges ?? []).map((c) => c.id as string);
   const windows = new Map<string, Record<string, unknown>>();
   const mine = new Map<string, Record<string, unknown>>();
+  const verifiedBy = new Map<string, { method: string; sources: number; photos: number; at: string }>();
 
   if (ids.length > 0) {
-    // The competition view is tolerant of the migration not being applied yet:
-    // without it, every problem simply reads as "no window opened".
-    const { data: w } = await supabase
-      .from("proposal_competition_public")
-      .select("*")
-      .in("challenge_id", ids);
+    const [{ data: w }, { data: verifs }] = await Promise.all([
+      supabase.from("proposal_competition_public").select("*").in("challenge_id", ids),
+      supabase
+        .from("verifications")
+        .select("challenge_id, kind, method, source_urls, photo_paths, created_at")
+        .in("challenge_id", ids)
+        .order("created_at", { ascending: false }),
+    ]);
     for (const row of w ?? []) windows.set(row.challenge_id as string, row);
+    for (const v of verifs ?? []) {
+      const key = v.challenge_id as string;
+      const positive = v.method === "ai_external" || v.method === "coordinator" || v.kind === "field";
+      if (!positive || verifiedBy.has(key)) continue;
+      verifiedBy.set(key, {
+        method: v.method === "ai_external" ? "ai" : v.method === "coordinator" ? "coordinator" : "verifier",
+        sources: ((v.source_urls as string[]) ?? []).length,
+        photos: ((v.photo_paths as string[]) ?? []).length,
+        at: v.created_at as string,
+      });
+    }
 
     if (actor.orgId) {
       const { data: own } = await supabase
@@ -79,16 +96,17 @@ export const GET = route(async (request: Request) => {
     const myScore = typeof own?.ai_score === "number" ? (own.ai_score as number) : null;
     return {
       ...c,
+      verification: verifiedBy.get(c.id as string) ?? null,
       competition: w
         ? {
             state: w.state,
             opened_at: w.opened_at,
             closes_at: w.closes_at,
             window_days: w.window_days,
-            // The leading SCORE is public; the leading document and the leading
-            // college's name are not, until the window closes.
+            // The leading SCORE is public; the leading document and college are not, until award.
             leader_score: leaderScore,
             proposal_count: w.proposal_count,
+            reopen_count: w.reopen_count,
           }
         : { state: "not_opened" },
       my_proposal: own
@@ -98,7 +116,8 @@ export const GET = route(async (request: Request) => {
             state: own.state,
             score: myScore,
             verdict: own.ai_verdict,
-            is_leading: leaderScore !== null && myScore !== null ? myScore >= leaderScore : null,
+            is_leading:
+              leaderScore !== null && myScore !== null && own.ai_verdict === "viable" ? myScore >= leaderScore : null,
           }
         : null,
     };

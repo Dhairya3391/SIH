@@ -135,15 +135,42 @@ export const CATEGORY_LABEL: Record<string, string> = {
 
 export const STATUS_LABEL: Record<string, string> = {
   REPORTED: "Reported",
-  REFINED: "Compiled",
-  VERIFIED: "Verified",
+  REFINED: "Awaiting verification",
+  VERIFIED: "Verified · open to colleges",
   OPEN: "Open for proposals",
   TEAM_FORMED: "Team formed",
-  SOLUTION_PROPOSED: "Solution chosen",
-  PILOT: "In pilot",
-  DEPLOYED: "Deployed",
-  IMPACT_VERIFIED: "Impact verified",
+  SOLUTION_PROPOSED: "Awarded · being funded",
+  PILOT: "Work in progress",
+  DEPLOYED: "Work complete",
+  IMPACT_VERIFIED: "Confirmed fixed",
+  NEEDS_FOLLOW_UP: "Needs follow-up",
+  CLOSED_NOT_ACTIONABLE: "Rejected",
+  DUPLICATE: "Merged",
 };
+
+/** Statuses that are still on the main lists. Everything else has been awarded or closed. */
+export const ACTIVE_STATUSES = ["REPORTED", "REFINED", "VERIFIED", "OPEN", "TEAM_FORMED"];
+
+export const PLEDGE_STATE_LABEL: Record<string, string> = {
+  offered: "Pledged",
+  committed: "Committed",
+  dispatched: "Sent",
+  received: "Received",
+  withdrawn: "Withdrawn",
+};
+
+/** "₹2,00,000" — the full figure, for a line someone is about to commit to. */
+export function rupees(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return EMDASH;
+  return `₹${Math.round(v).toLocaleString("en-IN")}`;
+}
+
+/** A quantity in its unit: money as rupees, everything else as "5 kg". */
+export function quantity(qty: number | null | undefined, unit: string | null | undefined, kind?: string | null): string {
+  if (qty === null || qty === undefined || !Number.isFinite(qty)) return EMDASH;
+  if (kind === "money" || unit === "INR") return rupees(qty);
+  return `${qty.toLocaleString("en-IN")} ${unit ?? "units"}`;
+}
 
 /** The confidence ladder, in order, with what each rung actually means. */
 export const CONFIDENCE_RUNGS: { key: ConfidenceLevel; label: string; meaning: string }[] = [
@@ -159,8 +186,8 @@ export const CONFIDENCE_RUNGS: { key: ConfidenceLevel; label: string; meaning: s
   },
   {
     key: "externally_corroborated",
-    label: "Externally corroborated",
-    meaning: "Weather records, news or the web independently support it.",
+    label: "Verified by AI with sources",
+    meaning: "Weather records, news or the web confirmed it independently, and every source is cited.",
   },
   {
     key: "field_verified",
@@ -211,7 +238,8 @@ export const ROLE_LABEL: Record<string, string> = {
   verifier: "Verifier",
   coordinator: "District officer",
   university: "College",
-  industry: "Company / NGO",
+  industry: "Company",
+  ngo: "NGO",
   admin: "System owner",
 };
 

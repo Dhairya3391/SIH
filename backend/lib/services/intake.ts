@@ -162,7 +162,11 @@ export async function intakeReport(
     p_limit: 10,
   });
 
-  const candidates = (rawCandidates ?? []) as DedupCandidate[];
+  const candidates = await withDistricts(
+    supabase,
+    (rawCandidates ?? []) as DedupCandidate[],
+    input.district ?? compiled.brief.district ?? null,
+  );
   const dedup = decideDedup(candidates);
 
   let challengeId: string;
@@ -349,6 +353,33 @@ async function maybeRecompileCluster(
     action: "brief_recompiled",
     regionId,
     payload: { report_count: n, source: recompiled.brief.source },
+  });
+}
+
+/**
+ * Marks each merge candidate as in the same district or not.
+ *
+ * Only consulted when a side has no GPS - the usual case on the web form, which
+ * sends a district rather than a point. Without it, two reports of "no drinking
+ * water" from opposite ends of the state would merge on wording alone.
+ */
+async function withDistricts(
+  supabase: SupabaseClient,
+  candidates: DedupCandidate[],
+  district: string | null,
+): Promise<DedupCandidate[]> {
+  if (!candidates.length) return candidates;
+  const { data } = await supabase
+    .from("challenges")
+    .select("id, district")
+    .in("id", candidates.map((c) => c.challenge_id));
+  const theirs = new Map(
+    (data ?? []).map((r) => [r.id as string, ((r.district as string | null) ?? "").trim().toLowerCase() || null]),
+  );
+  const mine = (district ?? "").trim().toLowerCase() || null;
+  return candidates.map((c) => {
+    const other = theirs.get(c.challenge_id) ?? null;
+    return { ...c, same_district: mine && other ? mine === other : null };
   });
 }
 

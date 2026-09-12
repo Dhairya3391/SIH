@@ -373,7 +373,7 @@ function Compiled({
   signedIn: boolean;
 }) {
   const band = bandOf(result.priority);
-  const merged = result.decision === "merged";
+  const merged = result.decision === "merge" || result.decision === "merged";
   const review = result.decision === "review";
 
   return (
@@ -438,6 +438,33 @@ function Compiled({
           </div>
         </Card>
 
+        {!result.already_received && result.corroboration === "queued" && (
+          <Card depth="in" className="flex items-start gap-3 p-4">
+            <span className="mt-px text-navy">
+              <Icon name="cloud" size={16} />
+            </span>
+            <p className="text-[13px] leading-relaxed text-body">
+              <strong className="text-ink">Checking for independent proof now.</strong> This reads
+              as a disaster-type report, so the weather at that place and time, the news and the
+              open web are being searched. If they confirm it, it is verified straight away — with
+              the sources recorded — and opened to colleges, usually within a minute. If they do
+              not, a verifier checks it. Follow {result.challenge_ref} to see which.
+            </p>
+          </Card>
+        )}
+        {!result.already_received && result.corroboration === "not_disaster" && (
+          <Card depth="in" className="flex items-start gap-3 p-4">
+            <span className="mt-px text-navy">
+              <Icon name="shield" size={16} />
+            </span>
+            <p className="text-[13px] leading-relaxed text-body">
+              <strong className="text-ink">A verifier will check this.</strong> Weather records
+              and news cannot confirm this kind of problem, so it has gone straight to a person on
+              the verification desk. Once they confirm it, colleges can propose solutions.
+            </p>
+          </Card>
+        )}
+
         <Panel
           title="How it was ranked"
           lede="A number, and the reason behind it. Nothing here is hidden from you."
@@ -488,8 +515,8 @@ function Compiled({
               <div className="mt-3 flex flex-col gap-2">
                 {result.possible_duplicates.map((d) => (
                   <Link
-                    key={d.id}
-                    href={`/challenge/${d.ref}`}
+                    key={d.challenge_id}
+                    href={`/challenge/${d.ref ?? d.challenge_id}`}
                     className="up-s up-hit flex items-center justify-between gap-3 p-3"
                   >
                     <span className="min-w-0">

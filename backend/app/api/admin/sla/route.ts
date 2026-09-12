@@ -38,6 +38,27 @@ export const GET = route(async () => {
     .select("challenge_id, checked_at")
     .order("checked_at");
 
+  // Requirements published and fully funded are ledgered, with their dates.
+  const { data: milestones } = await supabase
+    .from("ledger")
+    .select("entity_id, action, created_at")
+    .in("action", ["requirements_published", "fully_funded"])
+    .order("id");
+  const { data: needRows } = await supabase
+    .from("resource_needs")
+    .select("challenge_id, created_at")
+    .order("created_at");
+  const firstLedger = new Map<string, string>();
+  for (const m of milestones ?? []) {
+    const k = `${m.entity_id as string}:${m.action as string}`;
+    if (!firstLedger.has(k)) firstLedger.set(k, m.created_at as string);
+  }
+  const firstNeed = new Map<string, string>();
+  for (const n of needRows ?? []) {
+    const k = n.challenge_id as string;
+    if (!firstNeed.has(k)) firstNeed.set(k, n.created_at as string);
+  }
+
   const byChallenge = new Map((challenges ?? []).map((c) => [c.id as string, c]));
   const windowBy = new Map((windows ?? []).map((w) => [w.challenge_id as string, w]));
   const firstUpdate = new Map<string, string>();
@@ -80,6 +101,8 @@ export const GET = route(async () => {
     push("to_verification", c, hours(c.created_at as string, c.verified_at as string));
     push("to_first_proposal", c, hours(c.verified_at as string, w?.opened_at as string));
     push("to_award", c, hours(w?.opened_at as string, w?.closed_at as string));
+    push("to_requirements", c, hours(w?.closed_at as string, firstLedger.get(`${id}:requirements_published`)));
+    push("to_fully_funded", c, hours(firstNeed.get(id), firstLedger.get(`${id}:fully_funded`)));
     push("to_first_update", c, hours(w?.closed_at as string, firstUpdate.get(id)));
     push("to_closure", c, hours(w?.closed_at as string, c.closed_at as string));
   }

@@ -4,6 +4,7 @@ import { requireRole, supabaseServer } from "@/lib/supabase/server";
 import { transition } from "@/lib/services/lifecycle";
 import { rescoreChallenge } from "@/lib/services/scoring";
 import { appendLedger } from "@/lib/services/ledger";
+import type { ChallengeStatus } from "@/lib/domain/types";
 
 /**
  * POST /api/challenges/:id/approve - the coordinator approves the brief.
@@ -61,41 +62,42 @@ export const POST = route(
     let fromStatus = current?.status ?? "REPORTED";
     let toStatus = current?.status ?? "OPEN";
 
-    if (current?.status === "REPORTED") {
+    // Every new report arrives as REFINED, so that is the usual starting point.
+    // Approving walks it through verification and opens it to partners in one go.
+    const path: ChallengeStatus[] =
+      current?.status === "REPORTED"
+        ? ["REFINED", "VERIFIED", "OPEN"]
+        : current?.status === "REFINED"
+          ? ["VERIFIED", "OPEN"]
+          : current?.status === "VERIFIED"
+            ? ["OPEN"]
+            : [];
+
+    for (const [i, to] of path.entries()) {
       const result = await transition(supabase, {
         challengeId: id,
-        to: "VERIFIED",
+        to,
         actorId: actor.id,
         actorRole: actor.role,
-        reason: body.note,
-        patch,
+        reason: i === 0 ? body.note : undefined,
+        patch: i === 0 ? patch : undefined,
       });
-      fromStatus = result.from;
+      if (i === 0) fromStatus = result.from;
+      toStatus = result.to;
+    }
 
-      // Approving opens it to partners straight away.
-      const opened = await transition(supabase, {
-        challengeId: id,
-        to: "OPEN",
-        actorId: actor.id,
-        actorRole: actor.role,
+    if (path.includes("VERIFIED")) {
+      // The approval is a verification in its own right, recorded as the coordinator's.
+      await supabase.from("verifications").insert({
+        challenge_id: id,
+        by_user: actor.id,
+        kind: "field",
+        method: "coordinator",
+        note: body.note ?? "Approved by a district coordinator.",
       });
-      toStatus = opened.to;
-    } else if (current?.status === "VERIFIED") {
-      const opened = await transition(supabase, {
-        challengeId: id,
-        to: "OPEN",
-        actorId: actor.id,
-        actorRole: actor.role,
-        reason: body.note,
-        patch,
-      });
-      fromStatus = "VERIFIED";
-      toStatus = opened.to;
-    } else {
-      // Already OPEN or further along: apply any coordinator overrides directly
-      if (Object.keys(patch).length > 0) {
-        await supabase.from("challenges").update(patch).eq("id", id);
-      }
+    } else if (!path.length && Object.keys(patch).length > 0) {
+      // Already OPEN or further along: apply any coordinator overrides directly.
+      await supabase.from("challenges").update(patch).eq("id", id);
     }
 
     const scored = await rescoreChallenge(supabase, id);

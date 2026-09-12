@@ -220,7 +220,7 @@ export const challengeListSchema = z.object({
   mode: z.enum(["peace", "crisis"]).optional(),
   org_id: z.string().uuid().optional(),
   q: z.string().max(200).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(1000).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
 

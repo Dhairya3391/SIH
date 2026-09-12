@@ -56,29 +56,45 @@ export async function seedDatabase(
   summary.regions = await seedRegions(supabase);
   const orgIds = await seedOrganizations(supabase);
   summary.organizations = orgIds.size;
-  summary.resources = await seedResources(supabase, orgIds);
-  summary.hazard_cells = await seedHazards(supabase);
-  if (!options.skipUsers) summary.users = await seedDemoUsers(supabase, orgIds);
 
-  summary.challenges += await seedSolvedLibrary(supabase);
+  const [
+    resourcesCount,
+    hazardsCount,
+    usersCount,
+    solvedLibraryChallenges,
+    scenarioA,
+    scenarioB,
+    background,
+    rajkot,
+  ] = await Promise.all([
+    seedResources(supabase, orgIds),
+    seedHazards(supabase),
+    options.skipUsers ? seedExistingDemoUsers(supabase, orgIds) : seedDemoUsers(supabase, orgIds),
+    seedSolvedLibrary(supabase),
+    seedGumlaLightning(supabase, orgIds),
+    seedSahebganjFlood(supabase, orgIds),
+    seedBackground(supabase),
+    seedRajkot(supabase),
+  ]);
 
-  const scenarioA = await seedGumlaLightning(supabase, orgIds);
+  summary.resources = resourcesCount;
+  summary.hazard_cells = hazardsCount;
+  summary.users = usersCount;
+  summary.challenges += solvedLibraryChallenges;
+
   summary.reports += scenarioA.reports;
   summary.challenges += scenarioA.challenges;
   summary.solutions += scenarioA.solutions;
   summary.pledges += scenarioA.pledges;
 
-  const scenarioB = await seedSahebganjFlood(supabase, orgIds);
   summary.reports += scenarioB.reports;
   summary.challenges += scenarioB.challenges;
   summary.crisis_events += scenarioB.crises;
   summary.pledges += scenarioB.pledges;
 
-  const background = await seedBackground(supabase);
   summary.reports += background.reports;
   summary.challenges += background.challenges;
 
-  const rajkot = await seedRajkot(supabase);
   summary.reports += rajkot.reports;
   summary.challenges += rajkot.challenges;
 
@@ -229,6 +245,28 @@ async function seedHazards(supabase: SupabaseClient): Promise<number> {
   const { error } = await supabase.from("hazard_cells").insert(payload);
   if (error) throw error;
   return payload.length;
+}
+
+async function seedExistingDemoUsers(
+  supabase: SupabaseClient,
+  orgIds: Map<string, string>,
+): Promise<number> {
+  const { data: existing } = await supabase.from("users").select("id, role");
+  if (existing && existing.length >= 6) {
+    const orgForRole: Record<string, string | null> = {
+      volunteer: orgIds.get("Gram Sahyog Samiti (fictional)") ?? null,
+      coordinator: orgIds.get("Jharkhand State Disaster Management Authority (demo data)") ?? null,
+      university: orgIds.get("BIT Mesra, Department of Electronics and Communication") ?? null,
+      industry: orgIds.get("Damodar Steel Works (fictional)") ?? null,
+    };
+    await Promise.all(
+      Object.entries(orgForRole).map(([role, org_id]) =>
+        supabase.from("users").update({ org_id, is_verified: true }).eq("role", role),
+      ),
+    );
+    return existing.length;
+  }
+  return seedDemoUsers(supabase, orgIds);
 }
 
 async function seedDemoUsers(
@@ -659,190 +697,196 @@ async function seedSahebganjFlood(supabase: SupabaseClient, orgIds: Map<string, 
   let reports = 0;
   let pledges = 0;
 
-  for (const need of SEED.SAHEBGANJ_FLOOD_NEEDS) {
-    const village = SEED.SAHEBGANJ_VILLAGES.find((v) => v.name === need.village)!;
-    const brief = {
-      ...compileWithRules({
-        text: need.text,
-        peopleEst: need.people,
+  const results = await Promise.all(
+    SEED.SAHEBGANJ_FLOOD_NEEDS.map(async (need) => {
+      let needPledges = 0;
+      const village = SEED.SAHEBGANJ_VILLAGES.find((v) => v.name === need.village)!;
+      const brief = {
+        ...compileWithRules({
+          text: need.text,
+          peopleEst: need.people,
+          urgency: need.urgency,
+          vulnerable: need.vulnerable as VulnerabilityTag[],
+          district: "Sahebganj",
+          village: need.village,
+          lang: "en",
+        }),
+        title: need.title,
+        capabilities: need.capabilities,
+      };
+
+      const priority = computePriority({
+        severity: need.severity,
         urgency: need.urgency,
+        peopleAffected: need.people,
         vulnerable: need.vulnerable as VulnerabilityTag[],
+        hazardExposure: 0.92,
+        resourceGap: 1,
+        recurrenceCount: 1,
+        uniqueReporters: 4,
+        crisisMode: true,
+      });
+
+      const { data: challenge } = await supabase
+        .from("challenges")
+        .insert({
+          region_id: JHARKHAND,
+          title: need.title,
+          brief,
+          category: need.category as Category,
+          dm_phase: "response",
+          district: "Sahebganj",
+          geom: point(village.lat, village.lng),
+          people_est: need.people,
+          severity: need.severity,
+          priority: priority.total,
+          score_breakdown: priority,
+          why_critical: explainPriority(priority, {
+            district: "Sahebganj",
+            peopleAffected: need.people,
+            hasPartner: false,
+          }),
+          confidence: "community_corroborated",
+          status: "OPEN",
+          mode: "crisis",
+          crisis_id: crisis.id,
+          capabilities: need.capabilities,
+          hazard_tags: ["flood"],
+          ai_uncertainties: brief.uncertainties,
+          embedding: toPgVector(localEmbed(`${need.title} ${need.text}`)),
+          is_simulated: true,
+          refined_at: hoursAgo(5),
+        })
+        .select("id")
+        .single();
+      if (!challenge) return { reports: 0, pledges: 0 };
+
+      await supabase.from("reports").insert({
+        client_id: `seed-flood-${need.village}`,
+        region_id: JHARKHAND,
+        channel: "web",
+        original_text: need.text,
+        translated_text: need.text,
+        lang: "en",
+        geom: point(village.lat + jitter(0.003), village.lng + jitter(0.003)),
+        location_source: "gps",
         district: "Sahebganj",
         village: need.village,
-        lang: "en",
-      }),
-      title: need.title,
-      capabilities: need.capabilities,
-    };
-
-    const priority = computePriority({
-      severity: need.severity,
-      urgency: need.urgency,
-      peopleAffected: need.people,
-      vulnerable: need.vulnerable as VulnerabilityTag[],
-      hazardExposure: 0.92,
-      resourceGap: 1,
-      recurrenceCount: 1,
-      uniqueReporters: 4,
-      crisisMode: true,
-    });
-
-    const { data: challenge } = await supabase
-      .from("challenges")
-      .insert({
-        region_id: JHARKHAND,
-        title: need.title,
-        brief,
-        category: need.category as Category,
-        dm_phase: "response",
-        district: "Sahebganj",
-        geom: point(village.lat, village.lng),
         people_est: need.people,
-        severity: need.severity,
-        priority: priority.total,
-        score_breakdown: priority,
-        why_critical: explainPriority(priority, {
-          district: "Sahebganj",
-          peopleAffected: need.people,
-          hasPartner: false,
-        }),
-        confidence: "community_corroborated",
-        status: "OPEN",
-        mode: "crisis",
-        crisis_id: crisis.id,
-        capabilities: need.capabilities,
-        hazard_tags: ["flood"],
-        ai_uncertainties: brief.uncertainties,
-        embedding: toPgVector(localEmbed(`${need.title} ${need.text}`)),
+        urgency: need.urgency,
+        vulnerable: need.vulnerable,
+        cluster_id: challenge.id,
+        consent: true,
         is_simulated: true,
-        refined_at: hoursAgo(5),
-      })
-      .select("id")
-      .single();
-    if (!challenge) continue;
+        embedding: toPgVector(localEmbed(need.text)),
+        created_at: hoursAgo(5),
+        processed_at: hoursAgo(5),
+      });
 
-    await supabase.from("reports").insert({
-      client_id: `seed-flood-${need.village}`,
-      region_id: JHARKHAND,
-      channel: "web",
-      original_text: need.text,
-      translated_text: need.text,
-      lang: "en",
-      geom: point(village.lat + jitter(0.003), village.lng + jitter(0.003)),
-      location_source: "gps",
-      district: "Sahebganj",
-      village: need.village,
-      people_est: need.people,
-      urgency: need.urgency,
-      vulnerable: need.vulnerable,
-      cluster_id: challenge.id,
-      consent: true,
-      is_simulated: true,
-      embedding: toPgVector(localEmbed(need.text)),
-      created_at: hoursAgo(5),
-      processed_at: hoursAgo(5),
-    });
-    reports++;
+      const { data: insertedNeeds } = await supabase
+        .from("resource_needs")
+        .insert(
+          need.needs.map((n) => ({
+            challenge_id: challenge.id,
+            item: n.item,
+            qty_needed: n.qty,
+            unit: n.unit,
+            kind: n.kind,
+            capability: n.capability,
+          })),
+        )
+        .select("id, item");
 
-    const { data: insertedNeeds } = await supabase
-      .from("resource_needs")
-      .insert(
-        need.needs.map((n) => ({
-          challenge_id: challenge.id,
-          item: n.item,
-          qty_needed: n.qty,
-          unit: n.unit,
-          kind: n.kind,
-          capability: n.capability,
-        })),
-      )
-      .select("id, item");
+      if (need.category === "water") {
+        const filters = (insertedNeeds ?? []).find((n) => n.item === "Water filtration units");
+        const boats = (insertedNeeds ?? []).find((n) => n.item.includes("boat"));
+        const testing = (insertedNeeds ?? []).find((n) => n.item.includes("testing"));
 
-    // The drinking-water need is the one that demonstrates Resource Swarm:
-    // six of ten filtration units pledged, four still open.
-    if (need.category === "water") {
-      const filters = (insertedNeeds ?? []).find((n) => n.item === "Water filtration units");
-      const boats = (insertedNeeds ?? []).find((n) => n.item.includes("boat"));
-      const testing = (insertedNeeds ?? []).find((n) => n.item.includes("testing"));
-
-      if (filters) {
-        await supabase.from("pledges").insert({
-          need_id: filters.id,
-          org_id: orgIds.get("Ganga Water Systems (fictional)")!,
-          qty: 6,
-          kind: "equipment",
-          status: "offered",
-          note: "Six units available from the Sahebganj warehouse today.",
-        });
-        pledges++;
+        if (filters) {
+          await supabase.from("pledges").insert({
+            need_id: filters.id,
+            org_id: orgIds.get("Ganga Water Systems (fictional)")!,
+            qty: 6,
+            kind: "equipment",
+            status: "offered",
+            note: "Six units available from the Sahebganj warehouse today.",
+          });
+          needPledges++;
+        }
+        if (boats) {
+          await supabase.from("pledges").insert({
+            need_id: boats.id,
+            org_id: orgIds.get("Ganga Tat Seva Sansthan (fictional)")!,
+            qty: 2,
+            kind: "people",
+            status: "confirmed",
+            note: "Both boats and crew confirmed for last-mile distribution.",
+          });
+          needPledges++;
+        }
+        if (testing) {
+          await supabase.from("assignments").insert({
+            challenge_id: challenge.id,
+            org_id: orgIds.get("Central University of Jharkhand, Environmental Sciences")!,
+            role: "builder",
+          });
+        }
       }
-      if (boats) {
-        await supabase.from("pledges").insert({
-          need_id: boats.id,
-          org_id: orgIds.get("Ganga Tat Seva Sansthan (fictional)")!,
-          qty: 2,
-          kind: "people",
-          status: "confirmed",
-          note: "Both boats and crew confirmed for last-mile distribution.",
-        });
-        pledges++;
-      }
-      if (testing) {
-        await supabase.from("assignments").insert({
-          challenge_id: challenge.id,
-          // Testing, mapping and planning. Universities do not deliver relief in
-          // twelve hours, and pretending otherwise is the first thing a judge
-          // would catch.
-          org_id: orgIds.get("Central University of Jharkhand, Environmental Sciences")!,
-          role: "builder",
-        });
-      }
-    }
+
+      return { reports: 1, pledges: needPledges };
+    }),
+  );
+
+  for (const r of results) {
+    reports += r.reports;
+    pledges += r.pledges;
   }
 
   // Two SMS reports already in the crisis room, so the live one on stage has a
   // backup sitting beside it.
-  for (const [i, sms] of SEED.SAHEBGANJ_SMS_REPORTS.entries()) {
-    const parsed = parseCodedSms(sms.raw);
-    const village = SEED.SAHEBGANJ_VILLAGES[0];
+  await Promise.all(
+    SEED.SAHEBGANJ_SMS_REPORTS.map(async (sms, i) => {
+      const parsed = parseCodedSms(sms.raw);
+      const village = SEED.SAHEBGANJ_VILLAGES[0];
 
-    const { data: report } = await supabase
-      .from("reports")
-      .insert({
-        client_id: `seed-sms-${i}`,
-        region_id: JHARKHAND,
-        channel: "sms",
-        sms_code: parsed?.code ?? `SMS${i}`,
+      const { data: report } = await supabase
+        .from("reports")
+        .insert({
+          client_id: `seed-sms-${i}`,
+          region_id: JHARKHAND,
+          channel: "sms",
+          sms_code: parsed?.code ?? `SMS${i}`,
+          phone_hash: `seed-phone-${i}`,
+          original_text: parsed ? parsed.text : sms.raw,
+          translated_text: parsed ? parsed.text : sms.raw,
+          lang: "hi",
+          geom: parsed?.lat != null ? point(parsed.lat, parsed.lng!) : null,
+          location_source: parsed?.lat != null ? "sms" : "none",
+          district: "Sahebganj",
+          village: parsed?.lat != null ? village.name : "Radhanagar",
+          people_est: parsed?.peopleEst ?? null,
+          urgency: parsed?.severity ?? 4,
+          vulnerable: parsed?.vulnerable ?? ["elderly", "children"],
+          consent: false,
+          is_simulated: true,
+          embedding: toPgVector(localEmbed(parsed ? parsed.text : sms.raw)),
+          created_at: hoursAgo(2 - i),
+          processed_at: hoursAgo(2 - i),
+        })
+        .select("id")
+        .single();
+
+      await supabase.from("sms_inbox").insert({
         phone_hash: `seed-phone-${i}`,
-        original_text: parsed ? parsed.text : sms.raw,
-        translated_text: parsed ? parsed.text : sms.raw,
-        lang: "hi",
-        geom: parsed?.lat != null ? point(parsed.lat, parsed.lng!) : null,
-        location_source: parsed?.lat != null ? "sms" : "none",
-        district: "Sahebganj",
-        village: parsed?.lat != null ? village.name : "Radhanagar",
-        people_est: parsed?.peopleEst ?? null,
-        urgency: parsed?.severity ?? 4,
-        vulnerable: parsed?.vulnerable ?? ["elderly", "children"],
-        consent: false,
-        is_simulated: true,
-        embedding: toPgVector(localEmbed(parsed ? parsed.text : sms.raw)),
-        created_at: hoursAgo(2 - i),
-        processed_at: hoursAgo(2 - i),
-      })
-      .select("id")
-      .single();
-
-    await supabase.from("sms_inbox").insert({
-      phone_hash: `seed-phone-${i}`,
-      raw_text: sms.raw,
-      parsed: parsed as unknown as Record<string, unknown> | null,
-      parse_ok: Boolean(parsed),
-      report_id: report?.id ?? null,
-      received_at: hoursAgo(2 - i),
-    });
-    reports++;
-  }
+        raw_text: sms.raw,
+        parsed: parsed as unknown as Record<string, unknown> | null,
+        parse_ok: Boolean(parsed),
+        report_id: report?.id ?? null,
+        received_at: hoursAgo(2 - i),
+      });
+    }),
+  );
+  reports += SEED.SAHEBGANJ_SMS_REPORTS.length;
 
   // An Impact Ledger entry from an earlier simulated flood, so the ledger is
   // not empty when a judge opens it.

@@ -32,12 +32,13 @@ import {
 } from '@/data/seedData';
 import { Category, Challenge, PriorityBand, UserRole } from '@/types/database';
 import { fetchChallenges } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 export default function HomePage() {
   const [challenges, setChallenges] = useState<Challenge[]>(SEED_CHALLENGES);
   const [isLive, setIsLive] = useState<boolean>(false);
   const [selectedRegionId, setSelectedRegionId] = useState<string>('jharkhand');
-  const [activeRole, setActiveRole] = useState<UserRole>('coordinator');
+  const { role: activeRole, updateRole } = useAuth();
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [districtFilter, setDistrictFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -174,10 +175,10 @@ export default function HomePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-1">
-            {(['citizen', 'volunteer', 'coordinator', 'university', 'company', 'admin'] as UserRole[]).map(role => (
+            {(['citizen', 'volunteer', 'coordinator', 'university', 'industry', 'admin'] as UserRole[]).map(role => (
               <button
                 key={role}
-                onClick={() => setActiveRole(role)}
+                onClick={() => updateRole(role)}
                 className={`px-2 py-1 rounded text-xs capitalize transition-all font-medium ${
                   activeRole === role
                     ? 'bg-[#2E7180] text-white shadow-sm ring-1 ring-white/30'

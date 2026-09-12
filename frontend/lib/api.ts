@@ -123,3 +123,78 @@ export async function submitReport(payload: {
     is_fallback: data.is_fallback ?? data.degraded ?? false,
   };
 }
+
+export async function fetchChallengeDetail(id: string) {
+  const res = await fetch(`/api/challenges/${id}`, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.error?.message || json?.error || 'Failed to fetch challenge detail';
+    throw new Error(typeof message === 'string' ? message : 'Failed to fetch challenge detail');
+  }
+  const data = unwrap(json);
+  
+  if (data.challenge) {
+    data.challenge = normaliseChallenge(data.challenge);
+  }
+  return data;
+}
+
+export async function fetchNearbyResources(id: string, radiusKm: number = 30) {
+  const res = await fetch(`/api/challenges/${id}/nearby?radius_km=${radiusKm}`, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.error?.message || json?.error || 'Failed to fetch nearby resources';
+    throw new Error(typeof message === 'string' ? message : 'Failed to fetch nearby resources');
+  }
+  return unwrap(json);
+}
+
+export async function adoptChallenge(id: string, payload: { org_id: string; role: string }) {
+  const res = await fetch(`/api/challenges/${id}/adopt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.error?.message || json?.error || 'Failed to adopt challenge';
+    throw new Error(typeof message === 'string' ? message : 'Failed to adopt challenge');
+  }
+  return unwrap(json);
+}
+
+export async function pledgeResource(id: string, payload: { need_id?: string; org_id: string; qty: number; kind: string; note?: string }) {
+  const res = await fetch(`/api/challenges/${id}/pledges`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.error?.message || json?.error || 'Failed to pledge resource';
+    throw new Error(typeof message === 'string' ? message : 'Failed to pledge resource');
+  }
+  return unwrap(json);
+}
+export async function demoLogin(role: string) {
+  const res = await fetch('/api/auth/demo-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.error?.message || json?.error || 'Failed to switch role';
+    throw new Error(typeof message === 'string' ? message : 'Failed to switch role');
+  }
+  return unwrap(json);
+}
+
+export async function fetchDemoUser() {
+  const res = await fetch('/api/auth/demo-login', { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return null;
+  }
+  return unwrap(json);
+}

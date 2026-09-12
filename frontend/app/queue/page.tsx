@@ -12,9 +12,10 @@ import {
   ChevronDown,
   ShieldQuestion,
   Wrench,
-  PlusCircle
+  PlusCircle,
+  Loader2
 } from 'lucide-react';
-import { fetchChallenges } from '@/lib/api';
+import { fetchChallenges, fetchChallengeDetail } from '@/lib/api';
 import { Challenge, ScoreBreakdown } from '@/types/database';
 
 export default function QueuePage() {
@@ -202,9 +203,11 @@ export default function QueuePage() {
                           <MapPin className="w-3 h-3" /> {challenge.district}
                         </span>
                       </div>
-                      <h4 className="text-sm font-bold text-[#102027]">
-                        {challenge.title}
-                      </h4>
+                      <Link href={`/challenge/${challenge.ref}`} className="hover:underline">
+                        <h4 className="text-sm font-bold text-[#102027]">
+                          {challenge.title}
+                        </h4>
+                      </Link>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                         <span className="flex items-center gap-1">
                           <Users className="w-3 h-3" /> {challenge.people_est} people
@@ -279,9 +282,31 @@ function readFactors(sb: any): Factor[] {
 }
 
 function ScoreBrief({ challenge }: { challenge: Challenge }) {
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetchChallengeDetail(challenge.ref || challenge.id)
+      .then((res) => {
+        if (active) {
+          setDetail(res);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load challenge detail:', err);
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [challenge.ref, challenge.id]);
+
   const sb = challenge.score_breakdown as any;
   const factors = readFactors(sb);
-  const c = challenge as any;
+  const c = detail?.challenge || challenge;
+
   return (
     <div className="px-4 pb-4 pt-1 bg-[#F4F6F5] border-t border-dashed border-[#CCD1C7]">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -337,10 +362,13 @@ function ScoreBrief({ challenge }: { challenge: Challenge }) {
         {/* Brief + honesty panel */}
         <div className="space-y-3">
           <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
-            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
-              Compiled brief · {c.ref ?? challenge.id}
+            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5 flex items-center justify-between">
+              <span>Compiled brief · {c.ref ?? challenge.id}</span>
+              {loading && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
             </h5>
-            <p className="text-[11px] leading-relaxed text-gray-700">{challenge.problem}</p>
+            <p className="text-[11px] leading-relaxed text-gray-700">
+              {loading ? <span className="text-gray-400">Loading brief...</span> : c.problem}
+            </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
               <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
                 confidence: {String(challenge.confidence || 'unverified').replace(/_/g, ' ')}
@@ -382,7 +410,7 @@ function ScoreBrief({ challenge }: { challenge: Challenge }) {
                 <Wrench className="w-3 h-3" /> Capabilities needed
               </h5>
               <div className="flex flex-wrap gap-1.5">
-                {challenge.capabilities_needed.map((c) => (
+                {challenge.capabilities_needed.map((c: string) => (
                   <span
                     key={c}
                     className="px-2 py-0.5 rounded-full bg-teal-50 border border-[#2E7180]/30 text-[10px] font-semibold text-[#2E7180]"

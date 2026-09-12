@@ -35,7 +35,7 @@ export type UserRole =
   | 'volunteer' 
   | 'coordinator' 
   | 'university' 
-  | 'company' 
+  | 'industry' 
   | 'admin';
 
 export type OrgType = 'univ' | 'company' | 'ngo' | 'govt' | 'volunteers';
@@ -149,6 +149,7 @@ export interface ResourceNeed {
 
 export interface Challenge {
   id: string;
+  ref?: string;
   region_id: string;
   title: string;
   problem: string;

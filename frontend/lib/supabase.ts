@@ -35,9 +35,10 @@ export const supabaseAdmin =
 
 // Fallback / Resilient Data Layer
 export async function getRegions(): Promise<Region[]> {
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && (supabaseAdmin ?? supabase)) {
     try {
-      const { data, error } = await supabase.from('regions').select('*');
+      const { data, error } = await (supabaseAdmin ?? supabase)!.from('regions').select('*');
+      if (error) console.error('[supabase] read error:', error.message);
       if (!error && data && data.length > 0) return data as Region[];
     } catch (e) {
       console.warn('Falling back to local regions data', e);
@@ -47,13 +48,14 @@ export async function getRegions(): Promise<Region[]> {
 }
 
 export async function getChallenges(regionId: string = 'jharkhand'): Promise<Challenge[]> {
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && (supabaseAdmin ?? supabase)) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabaseAdmin ?? supabase)!
         .from('challenges')
         .select('*')
         .eq('region_id', regionId)
         .order('priority', { ascending: false });
+      if (error) console.error('[supabase] read error:', error.message);
       if (!error && data && data.length > 0) return data as Challenge[];
     } catch (e) {
       console.warn('Falling back to local challenge data', e);
@@ -63,13 +65,14 @@ export async function getChallenges(regionId: string = 'jharkhand'): Promise<Cha
 }
 
 export async function getChallengeById(id: string): Promise<Challenge | null> {
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && (supabaseAdmin ?? supabase)) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabaseAdmin ?? supabase)!
         .from('challenges')
         .select('*')
         .eq('id', id)
         .single();
+      if (error) console.error('[supabase] read error:', error.message);
       if (!error && data) return data as Challenge;
     } catch (e) {
       console.warn('Falling back to local challenge item', e);
@@ -79,13 +82,14 @@ export async function getChallengeById(id: string): Promise<Challenge | null> {
 }
 
 export async function getReports(challengeId?: string): Promise<Report[]> {
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && (supabaseAdmin ?? supabase)) {
     try {
-      let query = supabase.from('reports').select('*');
+      let query = (supabaseAdmin ?? supabase)!.from("reports").select("*");
       if (challengeId) {
         query = query.eq('cluster_id', challengeId);
       }
       const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) console.error('[supabase] read error:', error.message);
       if (!error && data && data.length > 0) return data as Report[];
     } catch (e) {
       console.warn('Falling back to local reports data', e);
@@ -97,12 +101,13 @@ export async function getReports(challengeId?: string): Promise<Report[]> {
 }
 
 export async function getOrganizations(regionId: string = 'jharkhand'): Promise<Organization[]> {
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && (supabaseAdmin ?? supabase)) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabaseAdmin ?? supabase)!
         .from('organizations')
         .select('*')
         .eq('region_id', regionId);
+      if (error) console.error('[supabase] read error:', error.message);
       if (!error && data && data.length > 0) return data as Organization[];
     } catch (e) {
       console.warn('Falling back to local organizations data', e);
@@ -112,9 +117,10 @@ export async function getOrganizations(regionId: string = 'jharkhand'): Promise<
 }
 
 export async function getResources(): Promise<ResourceItem[]> {
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && (supabaseAdmin ?? supabase)) {
     try {
-      const { data, error } = await supabase.from('resources').select('*');
+      const { data, error } = await (supabaseAdmin ?? supabase)!.from('resources').select('*');
+      if (error) console.error('[supabase] read error:', error.message);
       if (!error && data && data.length > 0) return data as ResourceItem[];
     } catch (e) {
       console.warn('Falling back to local resources data', e);

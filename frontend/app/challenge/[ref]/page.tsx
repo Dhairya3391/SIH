@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Users, Flame, ChevronDown, CheckCircle2, ShieldQuestion, Wrench, Building2, PackagePlus, Loader2, ArrowRight } from 'lucide-react';
-import { fetchChallengeDetail, fetchNearbyResources, adoptChallenge, pledgeResource } from '@/lib/api';
+import { fetchChallengeDetail, fetchNearbyResources, fetchMatches, adoptChallenge, pledgeResource } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
 export default function ChallengeDetailPage({ params }: { params: Promise<{ ref: string }> }) {
@@ -16,6 +16,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
   
   // For Adopt and Pledge
   const [adopting, setAdopting] = useState(false);
+  const [computedMatches, setComputedMatches] = useState<any[]>([]);
   const [pledging, setPledging] = useState<string | null>(null);
   const [pledgeQty, setPledgeQty] = useState<{ [key: string]: number }>({});
 
@@ -23,8 +24,12 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
     try {
       const res = await fetchChallengeDetail(resolvedParams.ref);
       setData(res);
-      const nearbyRes = await fetchNearbyResources(res.challenge.id, 30);
-      setNearby(nearbyRes);
+      const [nearbyRes, matchRes] = await Promise.allSettled([
+        fetchNearbyResources(res.challenge.id, 30),
+        fetchMatches(res.challenge.id, 5),
+      ]);
+      if (nearbyRes.status === 'fulfilled') setNearby(nearbyRes.value);
+      if (matchRes.status === 'fulfilled') setComputedMatches(matchRes.value);
     } catch (err: any) {
       setError(err.message || 'Failed to load details');
     } finally {
@@ -39,7 +44,10 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading challenge...</div>;
   if (error || !data) return <div className="min-h-screen flex items-center justify-center text-red-500">{error || 'Challenge not found'}</div>;
 
-  const { challenge, gap, matches, cluster, assignments } = data;
+  const { challenge, gap, cluster, assignments } = data;
+  // The detail response's `matches` is the (deliberately empty) persisted
+  // table; the computed endpoint is the real recommendation set.
+  const matches = computedMatches;
 
   const handleAdopt = async () => {
     if (!user?.org_id) return alert('No organisation associated with this user.');
@@ -192,15 +200,27 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
             <div className="p-4 space-y-4">
               {matches && matches.length > 0 ? (
                 matches.map((m: any, idx: number) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-3 bg-[#F4F6F5]">
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-bold text-sm text-[#102027]">{m.organizations.name}</h4>
-                      <span className="text-[10px] font-mono font-bold bg-[#E5A83B]/20 text-[#8A5A00] px-2 py-0.5 rounded">
-                        FIT {Math.round(m.score)}%
+                  <div key={m.org_id ?? idx} className="border border-gray-200 rounded-lg p-3 bg-[#F4F6F5]">
+                    <div className="flex justify-between items-start gap-2 mb-1">
+                      <h4 className="font-bold text-sm text-[#102027]">{m.name}</h4>
+                      <span className="text-[10px] font-mono font-bold bg-[#E5A83B]/20 text-[#8A5A00] px-2 py-0.5 rounded shrink-0">
+                        FIT {Math.round(m.score)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-600 mb-1">{m.organizations.type} · {m.organizations.district}</p>
-                    <p className="text-[11px] font-medium text-[#2E7180]">Reason: {m.reasons?.text || 'Strong capability match'}</p>
+                    <p className="text-[11px] text-gray-600 mb-1.5">
+                      {String(m.type || '').replace(/_/g, ' ')}
+                      {m.district ? ` · ${m.district}` : ''}
+                      {typeof m.distance_km === 'number' ? ` · ${Math.round(m.distance_km)} km away` : ''}
+                    </p>
+                    {Array.isArray(m.reasons) && m.reasons.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {m.reasons.slice(0, 2).map((r: string) => (
+                          <li key={r} className="text-[11px] text-[#2E7180] flex gap-1.5">
+                            <span aria-hidden="true">·</span>{r}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))
               ) : (

@@ -6,6 +6,7 @@ import { supabaseServer, currentActor } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { intakeReport } from "@/lib/services/intake";
 import { traceTotalMs } from "@/lib/ai/compiler";
+import { isSttEnabled } from "@/lib/ai/stt";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,6 +46,19 @@ export const POST = route(async (request: NextRequest) => {
   }
 
   const input = submitReportSchema.parse(payload);
+
+  // A voice note with no transcriber is the one case worth refusing outright.
+  // The pipeline would otherwise compile a content-free brief from the form
+  // fields alone ("Unclassified local need in ..."), score it, and push it into
+  // the ranked queue - junk that a coordinator then has to clear. Say so
+  // instead. Once GROQ_API_KEY is set this branch never runs.
+  if (audio && !String(input.text ?? "").trim() && !isSttEnabled()) {
+    return fail(
+      503,
+      "Speech to text is not configured, so the voice note cannot be turned into a report yet. Type a line describing what happened, or try again once transcription is back.",
+      "stt_unavailable",
+    );
+  }
 
   // Rate limit per account, or per IP for anonymous reports. A speed bump, not
   // a defence: the real limit for SMS is per number, enforced on that route.

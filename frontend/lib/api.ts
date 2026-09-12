@@ -139,6 +139,22 @@ export async function fetchChallengeDetail(id: string) {
   return data;
 }
 
+/**
+ * Recommended partners are computed on demand by the backend; the `matches`
+ * array on the detail response is the persisted table, which the team decided
+ * to leave empty (docs/DECISIONS.md). Read the computed endpoint instead, or
+ * the panel is permanently empty while ten real partners sit one call away.
+ */
+export async function fetchMatches(id: string, limit: number = 5) {
+  const res = await fetch(`/api/challenges/${id}/matches?limit=${limit}`, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error('Failed to fetch recommended partners');
+  }
+  const payload = unwrap(json);
+  return Array.isArray(payload) ? payload : payload?.matches ?? [];
+}
+
 export async function fetchNearbyResources(id: string, radiusKm: number = 30) {
   const res = await fetch(`/api/challenges/${id}/nearby?radius_km=${radiusKm}`, { cache: 'no-store' });
   const json = await res.json().catch(() => ({}));

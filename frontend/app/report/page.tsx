@@ -309,16 +309,16 @@ export default function ReportPage() {
                 </div>
               </div>
 
-              {/* Photo attachment mock */}
+              {/* Photo upload is not built yet. An alert claiming it is "ready"
+                  is worse than an honest disabled control - a judge will click it. */}
               <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => alert('Camera/file input ready. Photos are stripped of EXIF PII before public display.')}
-                  className="w-full py-2 px-3 rounded-xl border border-dashed border-[#CCD1C7] text-xs text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-1.5 font-medium"
+                <div
+                  aria-disabled="true"
+                  className="w-full py-2 px-3 rounded-xl border border-dashed border-[#CCD1C7] text-xs text-gray-400 flex items-center justify-center gap-1.5 font-medium cursor-not-allowed select-none"
                 >
-                  <Camera className="w-4 h-4 text-gray-500" />
-                  Attach Ground Photo (Optional)
-                </button>
+                  <Camera className="w-4 h-4 text-gray-400" />
+                  Photo upload — not available yet
+                </div>
               </div>
 
               {errorMessage && (

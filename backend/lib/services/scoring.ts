@@ -145,9 +145,31 @@ async function hazardExposure(supabase: SupabaseClient, challengeId: string): Pr
   return typeof exposure === "number" ? exposure : 0;
 }
 
+/**
+ * Share of the stated need that is still unpledged, 1 when nothing is covered.
+ *
+ * This reads challenge_gap() and sums in code rather than calling
+ * challenge_gap_fraction(). That SQL function returns 0 - not 1 - for a
+ * challenge with no needs listed, because Postgres `least()` ignores NULLs:
+ * with no rows, `least(NULL, 1)` is 1 and `1 - 1` is 0, so its `coalesce(.., 1)`
+ * never fires. The effect was that every brand-new challenge scored zero on
+ * resource gap, which is the exact opposite of the intent. The SQL is fixed in
+ * migration 0009; this does not depend on that migration having been applied.
+ */
 async function gapFraction(supabase: SupabaseClient, challengeId: string): Promise<number> {
-  const { data } = await supabase.rpc("challenge_gap_fraction", { p_challenge: challengeId });
-  return typeof data === "number" ? data : 1;
+  const { data, error } = await supabase.rpc("challenge_gap", { p_challenge: challengeId });
+  if (error) {
+    console.warn("[scoring] challenge_gap failed, assuming nothing is pledged:", error.message);
+    return 1;
+  }
+
+  const rows = (data ?? []) as Array<{ qty_needed: number | null; qty_pledged: number | null }>;
+  const needed = rows.reduce((sum, r) => sum + Number(r.qty_needed ?? 0), 0);
+  // Nothing listed yet means nothing is covered yet.
+  if (needed <= 0) return 1;
+
+  const pledged = rows.reduce((sum, r) => sum + Number(r.qty_pledged ?? 0), 0);
+  return Math.min(Math.max(1 - pledged / needed, 0), 1);
 }
 
 async function loadVerifications(supabase: SupabaseClient, challengeId: string) {
@@ -203,23 +225,80 @@ async function activeAssignments(supabase: SupabaseClient, challengeId: string):
 }
 
 /** PostGIS geography arrives as GeoJSON or as WKB hex, depending on the query. */
+/**
+ * PostgREST hands a `geometry` column back as EWKB hex, not GeoJSON - that is
+ * what `select geom` returns, which is the query hazardExposure() runs. The
+ * previous version only understood GeoJSON, so every lookup silently returned
+ * null and every challenge scored zero on hazard exposure. Both shapes are
+ * handled now, and an unrecognised one is logged instead of swallowed.
+ */
 export function extractPoint(geom: unknown): { lat: number; lng: number } | null {
   if (!geom) return null;
+
+  // GeoJSON object, e.g. from ST_AsGeoJSON or a PostgREST GeoJSON response.
   if (typeof geom === "object" && geom !== null && "coordinates" in geom) {
     const coords = (geom as { coordinates?: unknown }).coordinates;
     if (Array.isArray(coords) && coords.length >= 2) {
       return { lng: Number(coords[0]), lat: Number(coords[1]) };
     }
   }
+
   if (typeof geom === "string") {
-    try {
-      const parsed = JSON.parse(geom) as { coordinates?: number[] };
-      if (parsed.coordinates?.length) {
-        return { lng: parsed.coordinates[0], lat: parsed.coordinates[1] };
+    const text = geom.trim();
+
+    // GeoJSON that arrived as a string.
+    if (text.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(text) as { coordinates?: number[] };
+        if (parsed.coordinates?.length) {
+          return { lng: parsed.coordinates[0], lat: parsed.coordinates[1] };
+        }
+      } catch {
+        // fall through to the hex reader
       }
-    } catch {
-      // Not GeoJSON. WKB hex is only produced by queries we do not use here.
     }
+
+    const point = readEwkbPoint(text);
+    if (point) return point;
   }
+
+  console.warn("[scoring] could not read a point out of geom:", typeof geom);
   return null;
 }
+
+/**
+ * Reads a POINT out of PostGIS EWKB hex, e.g.
+ *   0101000020E6100000 5839B4C876225540 41F163CC5D0B3740
+ *   ^^ byte order      ^^ x (lng)         ^^ y (lat)
+ * Byte 0 is the endianness, the next 4 the geometry type (with PostGIS's SRID
+ * flag 0x20000000), then the 4-byte SRID when that flag is set, then two
+ * little- or big-endian float64s. Anything that is not a point is refused
+ * rather than guessed at.
+ */
+function readEwkbPoint(hex: string): { lat: number; lng: number } | null {
+  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length < 42) return null;
+
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) {
+    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+
+  const view = new DataView(bytes.buffer);
+  const littleEndian = bytes[0] === 1;
+  const typeWord = view.getUint32(1, littleEndian);
+  const hasSrid = (typeWord & 0x20000000) !== 0;
+  // Low 16 bits carry the geometry type; 1 is POINT.
+  if ((typeWord & 0xffff) !== 1) return null;
+
+  let offset = 5 + (hasSrid ? 4 : 0);
+  if (offset + 16 > bytes.length) return null;
+
+  const lng = view.getFloat64(offset, littleEndian);
+  offset += 8;
+  const lat = view.getFloat64(offset, littleEndian);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+

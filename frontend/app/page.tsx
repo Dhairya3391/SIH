@@ -51,6 +51,15 @@ export default function HomePage() {
   const [metricsData, setMetricsData] = useState<any>(null);
   const [ledgerStatus, setLedgerStatus] = useState<{ ok: boolean; entries_checked?: number; explanation?: string } | null>(null);
   const [silentZonesData, setSilentZonesData] = useState<any>(null);
+
+  // The worst three silent cells: highest hazard first, then most-missing reports.
+  const silentZones = useMemo(() => {
+    const zones = silentZonesData?.silent_zones;
+    if (!Array.isArray(zones)) return [];
+    return [...zones]
+      .sort((a, b) => (b.intensity - a.intensity) || (b.expected_reports - a.expected_reports))
+      .slice(0, 3);
+  }, [silentZonesData]);
   const [showSilentZones, setShowSilentZones] = useState<boolean>(false);
   const [surveyTriggered, setSurveyTriggered] = useState<Record<string, boolean>>({});
 
@@ -373,7 +382,8 @@ export default function HomePage() {
               </div>
               <div className="text-2xl font-extrabold text-[#102027] font-mono">{stats.total}</div>
               <div className="text-[11px] text-gray-500 mt-1">
-                <strong className="text-[#A8332A] font-semibold">{stats.critical} critical</strong> · {metricsData?.outcome?.unmet_challenges ?? 184} unmet
+                <strong className="text-[#A8332A] font-semibold">{stats.critical} critical</strong>
+                {metricsData?.outcome?.unmet_challenges != null ? ` · ${metricsData.outcome.unmet_challenges} unmet` : ''}
               </div>
             </div>
 
@@ -383,10 +393,14 @@ export default function HomePage() {
                 <Clock className="w-4 h-4 text-[#2E7180]" />
               </div>
               <div className="text-2xl font-extrabold text-[#102027] font-mono">
-                {metricsData?.headline?.median_hours_to_team_formed != null ? `${metricsData.headline.median_hours_to_team_formed}h` : '48h'}
+                {metricsData?.headline?.median_hours_to_team_formed != null
+                  ? `${metricsData.headline.median_hours_to_team_formed}h`
+                  : <span className="text-gray-400">&mdash;</span>}
               </div>
               <div className="text-[11px] text-gray-500 mt-1">
-                Median speed to team formed ({metricsData?.headline?.sample_size ?? 3} squads)
+                {metricsData?.headline?.median_hours_to_team_formed != null
+                  ? `Median speed to team formed (${metricsData.headline.sample_size} squads)`
+                  : 'Not enough closed squads yet to state a median'}
               </div>
             </div>
 
@@ -516,92 +530,59 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Hazard & Silent Zone Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Card 1: Dhanbad */}
-              <div className="bg-[#F4F6F5] p-4 rounded-xl border border-[#CCD1C7] flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-xs text-[#102027]">Dhanbad · Jharia Mining Belt</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold">
-                      HAZARD: 0.90 / 1.0
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-600 mb-3">
-                    Underground fire & subsidence risk zone. 42,000 residents, 0 smartphone reports submitted.
-                  </div>
-                </div>
-                <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500 font-mono">Status: 0 Reports Filed</span>
-                  <button 
-                    onClick={() => setSurveyTriggered(prev => ({ ...prev, dhanbad: true }))}
-                    className={`text-xs px-2.5 py-1 rounded font-semibold transition ${
-                      surveyTriggered.dhanbad 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'bg-[#2E7180] text-white hover:bg-[#245A66]'
-                    }`}
-                  >
-                    {surveyTriggered.dhanbad ? 'Survey Dispatched ✓' : 'Dispatch Aapda Mitra'}
-                  </button>
-                </div>
+            {/* Hazard & Silent Zone Cards - rendered from /api/map/silent-zones */}
+            {silentZones.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {silentZones.map((z: any) => {
+                  const band =
+                    z.intensity >= 0.85
+                      ? 'bg-red-100 text-red-800'
+                      : z.intensity >= 0.7
+                        ? 'bg-orange-100 text-orange-800'
+                        : 'bg-amber-100 text-amber-800';
+                  const key = String(z.cell_id);
+                  return (
+                    <div key={key} className="bg-[#F4F6F5] p-4 rounded-xl border border-[#CCD1C7] flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="font-bold text-xs text-[#102027]">
+                            {z.district} · {String(z.hazard || '').replace(/_/g, ' ')}
+                          </span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold shrink-0 ${band}`}>
+                            HAZARD: {Number(z.intensity).toFixed(2)} / 1.0
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-600 mb-3 leading-relaxed">
+                          {Number(z.population).toLocaleString('en-IN')} residents inside the mapped cell.
+                          {' '}
+                          {z.expected_reports} reports expected in 90 days,{' '}
+                          <strong className="text-[#A8332A]">{z.actual_reports} received</strong>.
+                        </div>
+                      </div>
+                      <div className="pt-3 border-t border-gray-200 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-gray-500 font-mono">
+                          {z.actual_reports === 0 ? 'Status: 0 Reports Filed' : `Status: ${z.actual_reports} Reports`}
+                        </span>
+                        <button
+                          onClick={() => setSurveyTriggered(prev => ({ ...prev, [key]: true }))}
+                          className={`text-xs px-2.5 py-1 rounded font-semibold transition shrink-0 ${
+                            surveyTriggered[key]
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-[#2E7180] text-white hover:bg-[#245A66]'
+                          }`}
+                        >
+                          {surveyTriggered[key] ? 'Survey Dispatched ✓' : 'Dispatch Aapda Mitra'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
-              {/* Card 2: Sahebganj */}
-              <div className="bg-[#F4F6F5] p-4 rounded-xl border border-[#CCD1C7] flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-xs text-[#102027]">Sahebganj · Diara Lowlands</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-orange-100 text-orange-800 font-bold">
-                      HAZARD: 0.85 / 1.0
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-600 mb-3">
-                    Riverine Ganga flood plain. 28,000 residents, connectivity blackout during monsoon.
-                  </div>
-                </div>
-                <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500 font-mono">Status: Offline Pocket</span>
-                  <button 
-                    onClick={() => setSurveyTriggered(prev => ({ ...prev, sahebganj: true }))}
-                    className={`text-xs px-2.5 py-1 rounded font-semibold transition ${
-                      surveyTriggered.sahebganj 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'bg-[#2E7180] text-white hover:bg-[#245A66]'
-                    }`}
-                  >
-                    {surveyTriggered.sahebganj ? 'Survey Dispatched ✓' : 'Dispatch NSS Squad'}
-                  </button>
-                </div>
+            ) : (
+              <div className="text-xs text-gray-500 py-6 text-center">
+                No silent zones in this region for the last 90 days — every mapped hazard cell has filed at least the reports we would expect.
               </div>
-
-              {/* Card 3: Palamu */}
-              <div className="bg-[#F4F6F5] p-4 rounded-xl border border-[#CCD1C7] flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-xs text-[#102027]">Palamu · Chhatarpur Block</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
-                      HAZARD: 0.75 / 1.0
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-600 mb-3">
-                    Severe drought & aquifer depletion. High vulnerability, sporadic feature phone coverage.
-                  </div>
-                </div>
-                <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500 font-mono">Status: 1 SMS Report</span>
-                  <button 
-                    onClick={() => setSurveyTriggered(prev => ({ ...prev, palamu: true }))}
-                    className={`text-xs px-2.5 py-1 rounded font-semibold transition ${
-                      surveyTriggered.palamu 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'bg-[#2E7180] text-white hover:bg-[#245A66]'
-                    }`}
-                  >
-                    {surveyTriggered.palamu ? 'Survey Dispatched ✓' : 'Dispatch Field Team'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </section>
       )}

@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { compile, type TraceStep } from "@/lib/ai/compiler";
 import { toPgVector } from "@/lib/ai/embeddings";
 import { decideDedup, DEDUP_THRESHOLDS, type DedupCandidate } from "@/lib/domain/dedup";
@@ -54,22 +55,27 @@ export async function intakeReport(
   // --- idempotency --------------------------------------------------------
   // An offline queue retries until it succeeds. The server has to be able to
   // absorb that without counting the same problem five times.
-  const { data: existing } = await supabase
+  const admin = supabaseAdmin();
+  const { data: existing } = await admin
     .from("reports")
     .select("id, cluster_id")
     .eq("region_id", input.region_id)
     .eq("client_id", input.client_id)
     .maybeSingle();
 
-  if (existing?.cluster_id) {
-    const { data: challenge } = await supabase
-      .from("challenges")
-      .select("id, ref, priority, confidence")
-      .eq("id", existing.cluster_id)
-      .single();
+  if (existing) {
+    let challenge: { id: string; ref: string | null; priority: number; confidence: string } | null = null;
+    if (existing.cluster_id) {
+      const { data: c } = await admin
+        .from("challenges")
+        .select("id, ref, priority, confidence")
+        .eq("id", existing.cluster_id)
+        .single();
+      challenge = c;
+    }
     return {
       reportId: existing.id,
-      challengeId: existing.cluster_id,
+      challengeId: existing.cluster_id ?? "",
       challengeRef: challenge?.ref ?? null,
       decision: "merge",
       dedupReason: "This report had already been received, so nothing was duplicated.",

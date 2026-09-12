@@ -17,12 +17,15 @@ import type { UserRole } from "@/lib/domain/types";
  * have SameSite=Lax and the Secure flag, which prevents them from being
  * replayed by a Node.js script calling the deployed API directly.
  */
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
 export async function supabaseServer(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+  const authHeader = headerStore.get("authorization") ?? "";
   const client = createServerClient(url, key, {
     cookies: {
       getAll: () => cookieStore.getAll(),
@@ -35,18 +38,8 @@ export async function supabaseServer(): Promise<SupabaseClient> {
         }
       },
     },
+    global: authHeader ? { headers: { Authorization: authHeader } } : undefined,
   });
-
-  // If there is no cookie session, check for a Bearer token. This handles the
-  // smoke test and any direct API call that authenticates with a JWT rather than
-  // a browser cookie.
-  const authHeader = headerStore.get("authorization") ?? "";
-  if (authHeader.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
-    // setSession validates the token and populates the client's auth state.
-    // Errors here just mean no session — we don't throw.
-    await client.auth.setSession({ access_token: token, refresh_token: "" }).catch(() => null);
-  }
 
   return client;
 }
@@ -64,11 +57,19 @@ export interface Actor {
 
 /** The signed-in person and their platform role, or null when anonymous. */
 export async function currentActor(): Promise<Actor | null> {
-  const supabase = await supabaseServer();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return null;
+  const headerStore = await headers();
+  const authHeader = headerStore.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
-  const { data, error } = await supabase
+  const supabase = await supabaseServer();
+  const { data: auth, error: authError } = await (token
+    ? supabase.auth.getUser(token)
+    : supabase.auth.getUser());
+
+  if (authError || !auth?.user) return null;
+
+  const admin = supabaseAdmin();
+  const { data, error } = await admin
     .from("users")
     .select("id, role, org_id, region_id, district, language, full_name")
     .eq("id", auth.user.id)

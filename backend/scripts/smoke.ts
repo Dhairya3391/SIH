@@ -12,7 +12,9 @@
  * throwaway project.
  */
 
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 
 const BASE = process.argv[2] ?? process.env.SMOKE_BASE_URL ?? "http://localhost:3001";
 

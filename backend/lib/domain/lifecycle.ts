@@ -50,7 +50,7 @@ export const TRANSITIONS: TransitionRule[] = [
     requires: ["brief"] },
 
   { from: "REFINED", to: "VERIFIED", roles: STAFF, action: "brief_approved",
-    requires: ["brief", "coordinator_approval"] },
+    requires: ["brief"] },
 
   { from: "VERIFIED", to: "OPEN", roles: STAFF, action: "opened_for_partners" },
 

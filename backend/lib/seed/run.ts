@@ -300,34 +300,49 @@ async function seedDemoUsers(
   };
 
   let created = 0;
+  const { data: authList } = await supabase.auth.admin.listUsers();
+  const existingByEmail = new Map((authList?.users ?? []).map((u) => [u.email, u.id]));
+
   for (const role of USER_ROLES) {
     const email = `${role}@${domain}`;
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
+    let userId = existingByEmail.get(email);
+
+    if (!userId) {
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          role,
+          full_name: names[role],
+          region_id: JHARKHAND,
+          language: role === "citizen" ? "hi" : "en",
+          district: role === "citizen" ? "Gumla" : "Ranchi",
+        },
+      });
+
+      if (error) {
+        if (!/already|exists|registered/i.test(error.message)) {
+          console.warn(`[seed] could not create ${email}: ${error.message}`);
+        }
+        continue;
+      }
+      userId = data.user.id;
+    }
+
+    if (userId) {
+      await supabase.from("users").upsert({
+        id: userId,
         role,
         full_name: names[role],
         region_id: JHARKHAND,
         language: role === "citizen" ? "hi" : "en",
         district: role === "citizen" ? "Gumla" : "Ranchi",
-      },
-    });
-
-    if (error) {
-      // Already existing accounts are fine; a reset should not have to delete them.
-      if (!/already|exists|registered/i.test(error.message)) {
-        console.warn(`[seed] could not create ${email}: ${error.message}`);
-      }
-      continue;
+        org_id: orgForRole[role],
+        is_verified: true,
+      });
+      created++;
     }
-
-    await supabase
-      .from("users")
-      .update({ org_id: orgForRole[role], is_verified: true })
-      .eq("id", data.user.id);
-    created++;
   }
   return created;
 }

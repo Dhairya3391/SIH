@@ -1,6 +1,7 @@
 import { ok, fail, route, readJson } from "@/lib/http";
 import { z } from "zod";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseServer, currentActor } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { USER_ROLES, type UserRole } from "@/lib/domain/types";
 
 const schema = z.object({ role: z.enum(USER_ROLES) });
@@ -44,7 +45,7 @@ export const POST = route(async (request: Request) => {
     );
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await supabaseAdmin()
     .from("users")
     .select("id, role, full_name, org_id, region_id, district, language")
     .eq("id", data.user.id)
@@ -64,17 +65,21 @@ export const POST = route(async (request: Request) => {
 
 /** GET /api/auth/demo-login - who am I right now? */
 export const GET = route(async () => {
-  const supabase = await supabaseServer();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return ok({ user: null, signed_in: false });
+  const actor = await currentActor();
+  if (!actor) return ok({ user: null, signed_in: false });
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("id, role, full_name, org_id, region_id, district, language")
-    .eq("id", auth.user.id)
-    .single();
-
-  return ok({ user: profile, signed_in: true });
+  return ok({
+    user: {
+      id: actor.id,
+      role: actor.role,
+      full_name: actor.fullName,
+      org_id: actor.orgId,
+      region_id: actor.regionId,
+      district: actor.district,
+      language: actor.language,
+    },
+    signed_in: true,
+  });
 });
 
 export function demoEmail(role: UserRole): string {

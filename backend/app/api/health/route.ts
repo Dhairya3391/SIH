@@ -1,6 +1,6 @@
 import { ok, route } from "@/lib/http";
 import { supabaseServer } from "@/lib/supabase/server";
-import { isAiEnabled, MODEL_FAST, MODEL_DRAFT } from "@/lib/ai/llm";
+import { isAiEnabled, getGeminiApiKeys, GEMINI_MODEL_CASCADE, MODEL_FAST, MODEL_DRAFT } from "@/lib/ai/llm";
 import { isSttEnabled } from "@/lib/ai/stt";
 import { isRemoteEmbeddingEnabled } from "@/lib/ai/embeddings";
 import { isSmsOutboundConfigured } from "@/lib/services/notify";
@@ -36,16 +36,17 @@ export const GET = route(async () => {
     dbError = error instanceof Error ? error.message : String(error);
   }
 
+  const geminiKeys = getGeminiApiKeys();
+
   return ok({
     ok: database,
     ms: Date.now() - started,
     database: { connected: database, regions, challenges, error: dbError },
     ai: {
-      // False here means every brief comes from the rule-based compiler. The
-      // golden path still runs end to end.
       enabled: isAiEnabled(),
-      model_fast: MODEL_FAST,
-      model_draft: MODEL_DRAFT,
+      provider: geminiKeys.length > 0 ? "gemini" : Boolean(process.env.ANTHROPIC_API_KEY) ? "anthropic" : "none",
+      gemini_keys_count: geminiKeys.length,
+      model_cascade: GEMINI_MODEL_CASCADE,
       speech_to_text: isSttEnabled(),
       remote_embeddings: isRemoteEmbeddingEnabled(),
     },

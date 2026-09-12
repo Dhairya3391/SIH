@@ -30,15 +30,20 @@ export class AiUnavailableError extends Error {
 /** Extracts all available Gemini API keys from the environment. */
 export function getGeminiApiKeys(): string[] {
   const keys: string[] = [];
+  const clean = (s: string) => s.trim().replace(/^["']|["']$/g, "");
   if (process.env.GEMINI_API_KEYS) {
-    keys.push(...process.env.GEMINI_API_KEYS.split(",").map((k) => k.trim()).filter(Boolean));
+    keys.push(...process.env.GEMINI_API_KEYS.split(",").map(clean).filter(Boolean));
   }
   for (let i = 1; i <= 10; i++) {
-    const k = process.env[`GEMINI_API_KEY_${i}`]?.trim();
-    if (k && !keys.includes(k)) keys.push(k);
+    const raw = process.env[`GEMINI_API_KEY_${i}`];
+    if (raw) {
+      const k = clean(raw);
+      if (k && !keys.includes(k)) keys.push(k);
+    }
   }
-  if (process.env.GEMINI_API_KEY?.trim() && !keys.includes(process.env.GEMINI_API_KEY.trim())) {
-    keys.push(process.env.GEMINI_API_KEY.trim());
+  if (process.env.GEMINI_API_KEY) {
+    const k = clean(process.env.GEMINI_API_KEY);
+    if (k && !keys.includes(k)) keys.push(k);
   }
   return keys;
 }

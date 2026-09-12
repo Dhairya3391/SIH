@@ -157,12 +157,72 @@ export async function POST(request: Request) {
       created_at: new Date().toISOString(),
     };
 
+    // Find or create the matching challenge in the in-memory store, so the
+    // coordinator queue reflects a new report even without a live database.
+    const existingLocal = SEED_CHALLENGES.find(
+      (c) => c.district === district && c.category === compiled.category
+    );
+
+    let localChallenge: Challenge;
+
+    if (existingLocal) {
+      existingLocal.report_count = (existingLocal.report_count || 1) + 1;
+      existingLocal.updated_at = new Date().toISOString();
+      SEED_CHALLENGES.splice(SEED_CHALLENGES.indexOf(existingLocal), 1);
+      SEED_CHALLENGES.unshift(existingLocal);
+      localChallenge = existingLocal;
+    } else {
+      const band: Challenge['priority_band'] =
+        compiled.priority >= 75 ? 'critical'
+        : compiled.priority >= 50 ? 'high'
+        : compiled.priority >= 25 ? 'moderate'
+        : 'long-term';
+
+      localChallenge = {
+        id: `CH-${district.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+        region_id: 'jharkhand',
+        title: compiled.title,
+        problem: text,
+        category: compiled.category,
+        dm_phase: compiled.dm_phase,
+        district,
+        block: village,
+        lat: 23.3441,
+        lng: 85.3096,
+        people_est: compiled.people_est,
+        severity: compiled.severity,
+        priority: compiled.priority,
+        priority_band: band,
+        score_breakdown: {
+          severity: Math.round((compiled.severity / 5) * 25),
+          urgency: 12,
+          people_affected: 10,
+          vulnerability: 12,
+          hazard_exposure: 8,
+          resource_gap: 5,
+          recurrence: 4,
+          community_signal: 1,
+          why_critical: compiled.ai_unsure_about || 'Newly compiled citizen report',
+        },
+        confidence: 'unverified',
+        status: 'REFINED',
+        report_count: 1,
+        capabilities_needed: compiled.capabilities,
+        ai_unsure_about: compiled.ai_unsure_about,
+        mode: 'peace',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      SEED_CHALLENGES.unshift(localChallenge);
+    }
+
+    newReport.cluster_id = localChallenge.id;
     SEED_REPORTS.unshift(newReport);
 
     return NextResponse.json({
       success: true,
       report: newReport,
-      challenge: SEED_CHALLENGES[0],
+      challenge: localChallenge,
       compiled: compiled,
       is_fallback: true
     });

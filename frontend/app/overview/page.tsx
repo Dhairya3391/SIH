@@ -111,10 +111,17 @@ export default function OverviewPage() {
           verifyLedger(),
           fetchSilentZones(selectedRegionId),
         ]);
-        if (cancelled) return;
+        let customList: any[] = [];
+        try {
+          const saved = localStorage.getItem('jharsetu_custom_challenges');
+          if (saved) customList = JSON.parse(saved);
+        } catch {}
+
         if (res.status === 'fulfilled' && res.value.data && res.value.data.length > 0) {
-          setChallenges(res.value.data);
+          setChallenges([...customList, ...res.value.data]);
           setIsLive(true);
+        } else if (customList.length > 0) {
+          setChallenges([...customList, ...SEED_CHALLENGES]);
         }
         if (metricsRes.status === 'fulfilled' && metricsRes.value) {
           setMetricsData(metricsRes.value);

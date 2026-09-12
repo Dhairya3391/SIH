@@ -53,8 +53,50 @@ export default function VerifyDetailPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
+
+    try {
+      // 1. Mark report ID as verified
+      const verifiedIds: string[] = JSON.parse(localStorage.getItem('jharsetu_verified_report_ids') || '[]');
+      if (!verifiedIds.includes(report.id)) {
+        localStorage.setItem('jharsetu_verified_report_ids', JSON.stringify([...verifiedIds, report.id]));
+      }
+
+      // 2. Synthesize/promote into a verified societal challenge in the public feed
+      const customChallenges: any[] = JSON.parse(localStorage.getItem('jharsetu_custom_challenges') || '[]');
+      const newChalId = `CHAL-${(report.category || 'CIVIL').toUpperCase()}-${(report.id || 'NEW').replace(/[^a-zA-Z0-9]/g, '')}`;
+      
+      const verifiedChallenge = {
+        id: newChalId,
+        ref: `CHAL-${(report.id || 'VERIFIED').toUpperCase()}`,
+        region_id: 'jharkhand',
+        title: report.original_text?.length > 60 ? `${report.original_text.slice(0, 60)}...` : report.original_text || 'Verified Citizen Issue',
+        problem: report.original_text || 'Field-verified report submitted by citizen and corroborated on site with GPS proof.',
+        category: report.category || 'water',
+        dm_phase: 'response',
+        district: report.district || 'Gumla',
+        lat: report.lat || 23.3441,
+        lng: report.lng || 85.3096,
+        people_est: peopleEst,
+        severity: severityConfirmed,
+        priority: Math.min(95, severityConfirmed * 18 + 10),
+        priority_band: severityConfirmed >= 4 ? 'critical' : severityConfirmed >= 3 ? 'high' : 'moderate',
+        confidence: 'field_verified',
+        status: 'VERIFIED',
+        report_count: 1,
+        capabilities_needed: ['Field Engineering', 'Equipment Deployment'],
+        mode: 'peace',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const filtered = customChallenges.filter(c => c.id !== newChalId);
+      localStorage.setItem('jharsetu_custom_challenges', JSON.stringify([verifiedChallenge, ...filtered]));
+    } catch (err) {
+      console.error('Failed to save verification state', err);
+    }
+
     setTimeout(() => {
-      router.push('/verify');
+      router.push('/');
     }, 2000);
   };
 

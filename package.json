@@ -1,42 +1,21 @@
 {
-  "name": "jharsetu",
+  "name": "jharsetu-workspace",
   "version": "0.1.0",
   "private": true,
-  "description": "JharSetu - AI-assisted, low-bandwidth challenge exchange for the Government of Jharkhand (SIH26043)",
+  "description": "JharSetu (SIH26043). frontend/ is the citizen and coordinator UI, backend/ is the API, Compiler and database.",
   "scripts": {
-    "dev": "next dev",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "build": "next build",
-    "build:frontend": "npm --prefix frontend run build",
-    "start": "next start",
-    "start:frontend": "npm --prefix frontend run start",
+    "dev": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "start": "npm --prefix frontend run start",
+    "start:backend": "npm --prefix backend run start",
     "lint": "npm --prefix frontend run lint",
-    "typecheck": "tsc --noEmit",
-    "db:push": "tsx scripts/db-push.ts",
-    "db:seed": "tsx scripts/seed.ts",
-    "db:reset": "tsx scripts/db-push.ts --reset && tsx scripts/seed.ts",
-    "seed": "tsx scripts/seed.ts",
-    "seed:backend": "npx tsx backend/scripts/seed.ts",
-    "smoke": "tsx scripts/smoke.ts"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.125.0",
-    "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.58.0",
-    "next": "^15.5.4",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "server-only": "^0.0.1",
-    "zod": "^4.1.11"
-  },
-  "devDependencies": {
-    "@types/node": "^22.18.6",
-    "@types/pg": "^8.15.5",
-    "@types/react": "^19.1.13",
-    "@types/react-dom": "^19.1.9",
-    "dotenv": "^17.2.2",
-    "pg": "^8.16.3",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.2"
+    "typecheck:backend": "npm --prefix backend run typecheck",
+    "install:all": "npm --prefix frontend install && npm --prefix backend install",
+    "db:push": "npm --prefix backend run db:push",
+    "db:seed": "npm --prefix backend run db:seed",
+    "db:reset": "npm --prefix backend run db:reset",
+    "smoke": "npm --prefix backend run smoke"
   }
 }

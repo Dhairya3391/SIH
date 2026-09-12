@@ -55,7 +55,12 @@ async function main() {
     );
     const done = new Set(applied.map((r) => r.name));
 
-    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith(".sql")).sort();
+    // Only the four-digit JharSetu migrations. The team's earlier skeleton file,
+    // 001_initial_schema.sql, uses three digits and is deliberately left alone:
+    // it describes the same tables and applying both would collide.
+    const files = (await readdir(MIGRATIONS_DIR))
+      .filter((f) => /^\d{4}_.*\.sql$/.test(f))
+      .sort();
 
     let ran = 0;
     for (const file of files) {

@@ -198,3 +198,31 @@ export async function fetchDemoUser() {
   }
   return unwrap(json);
 }
+
+export async function fetchSilentZones(regionId: string = 'jharkhand') {
+  const res = await fetch(`/api/map/silent-zones?region_id=${regionId}`, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error('Failed to fetch silent zones');
+  }
+  return unwrap(json);
+}
+
+export async function verifyLedger() {
+  const res = await fetch('/api/ledger/verify', { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error('Failed to verify ledger');
+  }
+  return unwrap(json);
+}
+
+export async function fetchDashboardMetrics(regionId: string = 'jharkhand') {
+  const res = await fetch(`/api/dashboard/metrics?region_id=${regionId}`, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error('Failed to fetch dashboard metrics');
+  }
+  return unwrap(json);
+}
+

@@ -53,10 +53,10 @@ export const POST = route(async (request: NextRequest) => {
     return fail(429, "Too many reports from here in the last minute. Please wait.", "rate_limit");
   }
 
-  // Anonymous reports need the service-role client, because there is no session
-  // for row-level security to evaluate. Signed-in reports go through the user's
-  // own client so their policies apply.
-  const supabase = actor ? await supabaseServer() : supabaseAdmin();
+  // The intake pipeline compiles, embeds, merges clusters, and updates challenges.
+  // These internal pipeline steps run via the service role, while reporter_id is attributed
+  // to the authenticated actor.
+  const supabase = supabaseAdmin();
 
   const result = await intakeReport(supabase, {
     ...input,

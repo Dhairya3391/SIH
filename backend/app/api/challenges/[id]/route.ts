@@ -21,52 +21,55 @@ export const GET = route(
     const supabase = await supabaseServer();
     const isStaff = actor?.role === "coordinator" || actor?.role === "admin";
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     const { data: challenge, error } = await supabase
       .from(isStaff ? "challenges" : "challenges_public")
       .select("*")
-      .eq("id", id)
+      .eq(isUuid ? "id" : "ref", id)
       .maybeSingle();
     if (error) throw error;
     if (!challenge) return fail(404, "No such challenge.", "not_found");
+
+    const challengeId = challenge.id;
 
     const [reports, verifications, matches, assignments, team, solutions, evidence, impact, gap, entries] =
       await Promise.all([
         supabase
           .from("reports_public")
           .select("id, channel, district, village, lang, people_est, urgency, vulnerable, photo_urls, original_text, translated_text, created_at")
-          .eq("cluster_id", id)
+          .eq("cluster_id", challengeId)
           .order("created_at", { ascending: false })
           .limit(50),
         supabase
           .from("verifications")
           .select("id, kind, note, evidence_url, created_at")
-          .eq("challenge_id", id)
+          .eq("challenge_id", challengeId)
           .order("created_at", { ascending: false }),
         supabase
           .from("matches")
           .select("org_id, score, reasons, status, organizations(name, type, district, verified)")
-          .eq("challenge_id", id)
+          .eq("challenge_id", challengeId)
           .order("score", { ascending: false })
           .limit(10),
         supabase
           .from("assignments")
           .select("org_id, role, accepted_at, organizations(name, type, district)")
-          .eq("challenge_id", id)
+          .eq("challenge_id", challengeId)
           .is("released_at", null),
-        supabase.from("team_members").select("seat, filled, user_id, org_id").eq("challenge_id", id),
+        supabase.from("team_members").select("seat, filled, user_id, org_id").eq("challenge_id", challengeId),
         supabase
           .from("solutions")
           .select("id, title, approach, cost_estimate, deploy_days, risks, ratings, readiness, readiness_notes, status, created_at, organizations(name, type)")
-          .eq("challenge_id", id)
+          .eq("challenge_id", challengeId)
           .order("readiness", { ascending: false, nullsFirst: false }),
         supabase
           .from("evidence_files")
           .select("id, url, phase, caption, created_at")
-          .eq("challenge_id", id)
+          .eq("challenge_id", challengeId)
           .order("created_at", { ascending: true }),
-        supabase.from("impact_records").select("*").eq("challenge_id", id).maybeSingle(),
-        challengeGap(supabase, id),
-        timeline(supabase, "challenge", id, 60),
+        supabase.from("impact_records").select("*").eq("challenge_id", challengeId).maybeSingle(),
+        challengeGap(supabase, challengeId),
+        timeline(supabase, "challenge", challengeId, 60),
       ]);
 
     const row = challenge as Record<string, unknown>;
@@ -96,7 +99,7 @@ export const GET = route(
       impact: impact.data ?? null,
       gap,
       timeline: entries,
-      next_actions: actor ? (await availableActions(supabase, id, actor.role)).actions : [],
+      next_actions: actor ? (await availableActions(supabase, challengeId, actor.role)).actions : [],
       redacted: !isStaff,
     });
   },

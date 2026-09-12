@@ -27,14 +27,43 @@ export class AiUnavailableError extends Error {
   }
 }
 
+/** Extracts all available Gemini API keys from the environment. */
+export function getGeminiApiKeys(): string[] {
+  const keys: string[] = [];
+  if (process.env.GEMINI_API_KEYS) {
+    keys.push(...process.env.GEMINI_API_KEYS.split(",").map((k) => k.trim()).filter(Boolean));
+  }
+  for (let i = 1; i <= 10; i++) {
+    const k = process.env[`GEMINI_API_KEY_${i}`]?.trim();
+    if (k && !keys.includes(k)) keys.push(k);
+  }
+  if (process.env.GEMINI_API_KEY?.trim() && !keys.includes(process.env.GEMINI_API_KEY.trim())) {
+    keys.push(process.env.GEMINI_API_KEY.trim());
+  }
+  return keys;
+}
+
+/**
+ * Model cascade: primary flash (3.8 flash / 2.0 flash) -> 3.7 / 2.5 pro -> 3.6 / 2.0 exp ->
+ * 3.5 / 1.5 flash -> 3.5 flash lite / 1.5 flash 8b.
+ */
+export const GEMINI_MODEL_CASCADE = process.env.GEMINI_MODELS
+  ? process.env.GEMINI_MODELS.split(",").map((m) => m.trim()).filter(Boolean)
+  : [
+      "gemini-2.0-flash",
+      "gemini-2.5-pro",
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+    ];
+
 /**
  * The kill switch. Setting AI_ENABLED=false makes every call throw
  * AiUnavailableError, so the whole platform drops to its rule-based path.
- * This is what we flip on stage when a judge asks what happens if the AI dies.
  */
 export function isAiEnabled(): boolean {
   if (process.env.AI_ENABLED === "false") return false;
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return getGeminiApiKeys().length > 0 || Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
 let client: Anthropic | null = null;
@@ -109,6 +138,144 @@ export interface LlmResult<T> {
  * `tool_choice` forces the model to call it. That is far more reliable than
  * asking for JSON in prose and parsing whatever comes back.
  */
+async function callGeminiJson<T>(opts: LlmJsonOptions<T>, started: number): Promise<LlmResult<T>> {
+  const apiKeys = getGeminiApiKeys();
+  if (!apiKeys.length) {
+    throw new AiUnavailableError("No Gemini API keys configured.");
+  }
+
+  const models = GEMINI_MODEL_CASCADE;
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    for (const key of apiKeys) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: `${opts.system}\n\nTask: ${opts.task}\n\nRespond ONLY with a valid JSON object matching this schema: ${JSON.stringify(opts.schema)}\n\nInput:\n${opts.prompt}`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              maxOutputTokens: opts.maxTokens ?? 4096,
+            },
+          }),
+        });
+
+        if (res.status === 429 || res.status === 403 || res.status === 503) {
+          const errBody = await res.text().catch(() => "");
+          console.warn(`[gemini] model ${model} with key ${key.slice(0, 6)}... returned ${res.status}: ${errBody.slice(0, 100)}`);
+          lastError = new AiUnavailableError(`Gemini model ${model} returned ${res.status}`);
+          continue; // try next key or next model
+        }
+
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => "");
+          lastError = new AiUnavailableError(`Gemini model ${model} error ${res.status}: ${errBody.slice(0, 100)}`);
+          continue;
+        }
+
+        const data = await res.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) {
+          lastError = new AiUnavailableError(`Gemini model ${model} returned empty candidate`);
+          continue;
+        }
+
+        const value = JSON.parse(rawText) as T;
+        if (opts.validate && !opts.validate(value)) {
+          lastError = new AiUnavailableError(`Gemini model ${model} output failed schema validation`);
+          continue;
+        }
+
+        return {
+          value,
+          model,
+          fromCache: false,
+          ms: Date.now() - started,
+          usage: {
+            input: data.usageMetadata?.promptTokenCount ?? 0,
+            output: data.usageMetadata?.candidatesTokenCount ?? 0,
+          },
+        };
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        continue;
+      }
+    }
+  }
+
+  throw lastError ?? new AiUnavailableError("All Gemini models and keys exhausted.");
+}
+
+async function callGeminiText(
+  opts: { system: string; prompt: string; maxTokens?: number },
+  started: number,
+): Promise<{ text: string; ms: number; model: string }> {
+  const apiKeys = getGeminiApiKeys();
+  if (!apiKeys.length) {
+    throw new AiUnavailableError("No Gemini API keys configured.");
+  }
+
+  const models = GEMINI_MODEL_CASCADE;
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    for (const key of apiKeys) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: `${opts.system}\n\n${opts.prompt}` }],
+              },
+            ],
+            generationConfig: {
+              maxOutputTokens: opts.maxTokens ?? 2048,
+            },
+          }),
+        });
+
+        if (res.status === 429 || res.status === 403 || res.status === 503) {
+          lastError = new AiUnavailableError(`Gemini model ${model} returned ${res.status}`);
+          continue;
+        }
+
+        if (!res.ok) {
+          lastError = new AiUnavailableError(`Gemini model ${model} error ${res.status}`);
+          continue;
+        }
+
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        return { text, ms: Date.now() - started, model };
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        continue;
+      }
+    }
+  }
+
+  throw lastError ?? new AiUnavailableError("All Gemini models and keys exhausted.");
+}
+
+/**
+ * Asks the model for one structured object.
+ */
 export async function llmJson<T>(opts: LlmJsonOptions<T>): Promise<LlmResult<T>> {
   const model = opts.model ?? MODEL_FAST;
   const cacheMode = opts.cache ?? "prefer";
@@ -127,8 +294,29 @@ export async function llmJson<T>(opts: LlmJsonOptions<T>): Promise<LlmResult<T>>
 
   if (!isAiEnabled()) {
     throw new AiUnavailableError(
-      "AI is switched off or ANTHROPIC_API_KEY is missing. The caller should use its deterministic fallback.",
+      "AI is switched off or no API keys are available. The caller should use its deterministic fallback.",
     );
+  }
+
+  // 1. Try Gemini first if keys exist
+  if (getGeminiApiKeys().length > 0) {
+    try {
+      const result = await callGeminiJson<T>(opts, started);
+      if (cacheMode === "prefer") {
+        const cache = await loadCache();
+        cache[key] = result.value;
+        cacheMemo = cache;
+        await saveCache(cache).catch(() => {});
+      }
+      return result;
+    } catch (err) {
+      console.warn("[llm] Gemini cascade failed, checking Anthropic fallback...", err);
+      if (!process.env.ANTHROPIC_API_KEY) throw err;
+    }
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new AiUnavailableError("No AI provider available.");
   }
 
   const toolName = opts.task.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
@@ -198,8 +386,17 @@ export async function llmText(opts: {
   maxTokens?: number;
 }): Promise<{ text: string; ms: number; model: string }> {
   if (!isAiEnabled()) throw new AiUnavailableError("AI is switched off.");
-  const model = opts.model ?? MODEL_FAST;
   const started = Date.now();
+
+  if (getGeminiApiKeys().length > 0) {
+    try {
+      return await callGeminiText(opts, started);
+    } catch {
+      if (!process.env.ANTHROPIC_API_KEY) throw new AiUnavailableError("Gemini failed and no Anthropic key.");
+    }
+  }
+
+  const model = opts.model ?? MODEL_FAST;
   try {
     const response = await anthropic().messages.create({
       model,

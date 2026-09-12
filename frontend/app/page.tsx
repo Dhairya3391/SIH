@@ -363,6 +363,139 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* ROLE-AWARE CONSOLE LAUNCHPAD */}
+          <div className="bg-white rounded-2xl border-2 border-[#2E7180]/30 shadow-md p-5 sm:p-6 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-[#2E7180]">
+                  <span className="w-2 h-2 rounded-full bg-[#2E7180] animate-ping" />
+                  <span>Active Persona Console · {activeRole.toUpperCase()}</span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-[#102027]">
+                  {activeRole === 'citizen' && 'Citizen Report Intake & Tracking'}
+                  {activeRole === 'volunteer' && 'Field Verification & Ground Truth Queue'}
+                  {activeRole === 'university' && 'University R&D Node & Capstone Hub'}
+                  {activeRole === 'industry' && 'CSR Co-Funding & Supply-Chain Matcher'}
+                  {activeRole === 'coordinator' && 'District Operations & Challenge Triage'}
+                  {activeRole === 'admin' && 'State Administration & SLA Command'}
+                </h2>
+                <p className="text-xs text-gray-600">
+                  {activeRole === 'citizen' && 'Report a community grievance in Hindi/Santhali or track status of your past submissions.'}
+                  {activeRole === 'volunteer' && 'Verify uncorroborated community reports on site with GPS-tagged evidence.'}
+                  {activeRole === 'university' && 'Adopt district problems for student capstones, lab prototypes, and CSR co-funding.'}
+                  {activeRole === 'industry' && 'Pledge CSR funds, materials, and equipment to active societal challenges.'}
+                  {activeRole === 'coordinator' && 'Triage inbound signals, review AI briefs, and orchestrate district response.'}
+                  {activeRole === 'admin' && 'Monitor cross-district pipeline latency, SLA breaches, and emergency overrides.'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                {activeRole === 'citizen' && (
+                  <>
+                    <Link
+                      href="/report"
+                      className="px-4 py-2.5 rounded-xl bg-[#2E7180] hover:bg-[#245A66] text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Report Issue</span>
+                    </Link>
+                    <Link
+                      href="/my-reports"
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 transition"
+                    >
+                      <span>My Reports</span>
+                    </Link>
+                  </>
+                )}
+                {activeRole === 'volunteer' && (
+                  <>
+                    <Link
+                      href="/verify"
+                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Start Field Checks</span>
+                    </Link>
+                    <Link
+                      href="/queue"
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 transition"
+                    >
+                      <span>View Queue</span>
+                    </Link>
+                  </>
+                )}
+                {activeRole === 'university' && (
+                  <>
+                    <Link
+                      href="/college"
+                      className="px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>Campus Dashboard</span>
+                    </Link>
+                    <Link
+                      href="/college/problems"
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 transition"
+                    >
+                      <span>Problem Statements</span>
+                    </Link>
+                  </>
+                )}
+                {activeRole === 'industry' && (
+                  <>
+                    <Link
+                      href="/needs"
+                      className="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                    >
+                      <HeartHandshake className="w-3.5 h-3.5" />
+                      <span>Resource Swarm</span>
+                    </Link>
+                    <Link
+                      href="/contributions"
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 transition"
+                    >
+                      <span>My Pledges</span>
+                    </Link>
+                  </>
+                )}
+                {activeRole === 'coordinator' && (
+                  <>
+                    <Link
+                      href="/queue"
+                      className="px-4 py-2.5 rounded-xl bg-[#2E7180] hover:bg-[#245A66] text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                    >
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>Operations Queue</span>
+                    </Link>
+                    <Link
+                      href="/verify"
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 transition"
+                    >
+                      <span>Verifications</span>
+                    </Link>
+                  </>
+                )}
+                {activeRole === 'admin' && (
+                  <>
+                    <Link
+                      href="/admin"
+                      className="px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition"
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>Admin Command</span>
+                    </Link>
+                    <Link
+                      href="/admin/sla"
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs border border-gray-200 transition"
+                    >
+                      <span>SLA Telemetry</span>
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* 3 LIVE NUMBERS (TASK 5.3 - HEADLINE KPIS WIRED TO METRICS API) */}
           <div className="flex items-center gap-2 -mb-1 text-[11px] font-mono">
             <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />

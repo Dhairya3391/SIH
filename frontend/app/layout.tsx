@@ -26,6 +26,7 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from "@/lib/auth";
+import { AppShell } from "@/components/AppShell";
 
 export default function RootLayout({
   children,
@@ -36,7 +37,9 @@ export default function RootLayout({
     <html lang="en" className={`${mukta.variable} ${ibmPlexMono.variable}`}>
       <body className="min-h-screen flex flex-col bg-[#F4F6F5] text-[#102027]">
         <AuthProvider>
-          {children}
+          <AppShell>
+            {children}
+          </AppShell>
         </AuthProvider>
       </body>
     </html>

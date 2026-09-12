@@ -21,6 +21,16 @@ export interface TranscriptResult {
   language: string;
   ms: number;
   model: string;
+  /**
+   * Mean no_speech_prob across segments, 0-1. Whisper fabricates text from
+   * silence - a genuinely silent clip comes back as a movie disclaimer or
+   * "Thanks for watching", scored with a high no_speech_prob. Verified on a
+   * silent file: it returned "The following video is a work of fiction. Any
+   * resemblance to actual persons, living or dead, is coincidental."
+   */
+  noSpeechProb: number;
+  /** True when the transcript looks fabricated rather than spoken. */
+  likelyHallucination: boolean;
 }
 
 export function isSttEnabled(): boolean {
@@ -63,14 +73,58 @@ export async function transcribe(
     throw new AiUnavailableError(`Speech to text returned ${res.status}: ${await res.text()}`);
   }
 
-  const body = (await res.json()) as { text?: string; language?: string };
+  const body = (await res.json()) as {
+    text?: string;
+    language?: string;
+    segments?: Array<{ no_speech_prob?: number }>;
+  };
+
+  const text = (body.text ?? "").trim();
+  const segments = body.segments ?? [];
+  const noSpeechProb =
+    segments.length > 0
+      ? segments.reduce((sum, seg) => sum + (seg.no_speech_prob ?? 0), 0) / segments.length
+      : 0;
+
   return {
-    text: (body.text ?? "").trim(),
+    text,
     // Whisper reports language names ("hindi"), not ISO codes.
     language: normaliseLanguage(body.language),
     ms: Date.now() - started,
     model: MODEL,
+    noSpeechProb,
+    likelyHallucination: isLikelyHallucination(text, noSpeechProb),
   };
+}
+
+/**
+ * Whisper's canned outputs for silence. It has been trained on a lot of
+ * subtitled video, so with nothing to transcribe it reaches for the phrases
+ * that end them. Matching these is crude but it is the difference between a
+ * villager being told "say that again" and a fabricated report being filed
+ * in their name.
+ */
+const HALLUCINATION_PATTERNS = [
+  /work of fiction/i,
+  /resemblance to actual persons/i,
+  /thanks?\s+(you\s+)?for watching/i,
+  /please subscribe/i,
+  /subtitles? by/i,
+  /amara\.org/i,
+  /transcription by/i,
+  /^\s*(thank you|thanks)[.!]?\s*$/i,
+  /^\s*bye[.!]?\s*$/i,
+  /copyright \d{4}/i,
+];
+
+export function isLikelyHallucination(text: string, noSpeechProb: number): boolean {
+  if (!text) return false;
+  // Whisper is confident there was no speech, yet returned words.
+  if (noSpeechProb >= 0.6) return true;
+  if (HALLUCINATION_PATTERNS.some((re) => re.test(text))) return true;
+  // A real report is more than one or two words, in any of our languages.
+  if (text.split(/\s+/).filter(Boolean).length < 3) return true;
+  return false;
 }
 
 const LANGUAGE_CODES: Record<string, string> = {

@@ -63,8 +63,9 @@ export const POST = route(async (request: NextRequest) => {
         "stt_unavailable",
       );
     }
+    let spoken: Awaited<ReturnType<typeof transcribe>>;
     try {
-      const spoken = await transcribe(audio, { languageHint: input.lang ?? undefined });
+      spoken = await transcribe(audio, { languageHint: input.lang ?? undefined });
       transcribedText = (spoken.text ?? "").trim();
     } catch (err) {
       return fail(
@@ -75,11 +76,15 @@ export const POST = route(async (request: NextRequest) => {
         "transcription_failed",
       );
     }
-    if (!transcribedText) {
+    if (!transcribedText || spoken.likelyHallucination) {
+      // Whisper fabricates text from silence rather than returning nothing, so
+      // "empty" is not the only way a recording can carry no report. Filing
+      // one of its canned disclaimers as a citizen's words would be a
+      // fabricated record in their name.
       return fail(
         422,
-        "The recording came back empty - nothing was said, or it was too quiet to hear. Try again closer to the microphone, or type a line instead.",
-        "empty_transcript",
+        "No speech could be made out in that recording - it may have been too quiet, or the microphone may not have picked anything up. Try again closer to the microphone, or type a line instead.",
+        "no_speech_detected",
       );
     }
   }

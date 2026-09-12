@@ -145,6 +145,31 @@ export default function ReportPage() {
       });
 
       setResult(res);
+      try {
+        const newReport = {
+          id: res.report_id || `rep-${Date.now().toString(36)}`,
+          client_id: `cli-${Date.now()}`,
+          region_id: 'jharkhand',
+          district: district || 'Gumla',
+          village: village || 'Sadar',
+          original_text: text || 'Voice grievance note',
+          lang: 'hi',
+          photo_urls: [],
+          lat: 23.3441,
+          lng: 85.3096,
+          people_est: parseInt(peopleEst, 10) || 100,
+          urgency: 4,
+          vulnerable: [],
+          category: (res.compiled?.category && typeof res.compiled.category === 'string' && !res.compiled.category.includes(' ')) ? res.compiled.category : 'water',
+          consent: true,
+          created_at: new Date().toISOString(),
+          reporter_name: 'Sunita Soren',
+        };
+        const existing = JSON.parse(localStorage.getItem('jharsetu_custom_reports') || '[]');
+        localStorage.setItem('jharsetu_custom_reports', JSON.stringify([newReport, ...existing]));
+      } catch (e) {
+        console.error('Failed to cache report locally', e);
+      }
       setTimeout(() => {
         router.push('/my-reports');
       }, 2500);

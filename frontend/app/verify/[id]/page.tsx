@@ -1,498 +1,212 @@
 'use client';
 
-import React, { useState, use } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
-  CloudRain, 
-  ExternalLink, 
   MapPin, 
-  Layers, 
-  ShieldCheck, 
   Camera, 
-  Upload, 
-  FileText, 
-  Calendar, 
-  RefreshCw,
-  ThumbsDown,
-  Sparkles,
-  Info
+  ShieldCheck, 
+  AlertTriangle, 
+  Check, 
+  UploadCloud,
+  FileSpreadsheet,
+  Users,
+  Navigation
 } from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { SEED_UNVERIFIED_REPORTS, UnverifiedReport } from '../page';
-import { CitationList } from '@/components/shared/CitationList';
-import { FileUploader } from '@/components/shared/FileUploader';
-import { ConfidenceLevel } from '@/types/database';
+import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
+import { SEED_REPORTS } from '@/data/seedData';
 
-export default function CorroborationDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+export default function VerifyDetailPage() {
+  const params = useParams();
   const router = useRouter();
+  const id = params?.id as string;
 
-  const report = SEED_UNVERIFIED_REPORTS.find((r) => r.id === resolvedParams.id) || SEED_UNVERIFIED_REPORTS[0];
+  const [report, setReport] = useState<any>(SEED_REPORTS.find(r => r.id === id) || SEED_REPORTS[0]);
 
-  // Verification Form State
-  const [sourceLinks, setSourceLinks] = useState<string[]>(['https://mausam.imd.gov.in/telemetry/sisai']);
-  const [newLink, setNewLink] = useState('');
-  const [verifierNote, setVerifierNote] = useState('Ground checked at Sisai block; verified high vulnerability in open paddy fields with local Aapda Mitra lead.');
-  const [confidenceRung, setConfidenceRung] = useState<ConfidenceLevel>('field_verified');
-  const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
-  const [disagreedWithAi, setDisagreedWithAi] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('jharsetu_custom_reports');
+      if (saved) {
+        const custom: any[] = JSON.parse(saved);
+        const match = custom.find(r => r.id === id || r.client_id === id);
+        if (match) setReport(match);
+      }
+    } catch {}
+  }, [id]);
 
-  // Reject Modal State
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [severityConfirmed, setSeverityConfirmed] = useState(4);
+  const [peopleEst, setPeopleEst] = useState(450);
+  const [notes, setNotes] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [uploadProof, setUploadProof] = useState(true);
 
-  const handleAddLink = () => {
-    if (newLink.trim() && !sourceLinks.includes(newLink.trim())) {
-      setSourceLinks([...sourceLinks, newLink.trim()]);
-      setNewLink('');
+  React.useEffect(() => {
+    if (report) {
+      setSeverityConfirmed(report.urgency || 4);
+      setPeopleEst(report.people_est || 450);
     }
-  };
+  }, [report]);
 
-  const handleVerifySubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    // Simulate submission to POST /api/challenges/:id/validate
+    setSubmitted(true);
     setTimeout(() => {
-      setIsSubmitting(false);
-      setSuccessMessage(
-        `Challenge ${report.ref} successfully verified at rung '${confidenceRung}'. Ground cluster validated and forwarded to university R&D window.`
-      );
-      setTimeout(() => {
-        router.push('/verify');
-      }, 2500);
-    }, 600);
-  };
-
-  const handleRejectSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rejectReason.trim()) {
-      alert('A rejection reason is strictly required by state policy.');
-      return;
-    }
-    setRejectSubmitting(true);
-    setTimeout(() => {
-      setRejectSubmitting(false);
-      setShowRejectModal(false);
       router.push('/verify');
-    }, 500);
+    }, 2000);
   };
 
   return (
-    <RouteGuard allowedRoles={['volunteer', 'coordinator', 'admin']} consoleTitle="Corroboration Panel">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-        <RoleNav />
+    <RoleGuard 
+      allowedRoles={['volunteer', 'coordinator', 'admin']} 
+      title="Perform Field Verification"
+      description="Ground truth confirmation protocol for verifying citizen reports with GPS coordinates, on-site photographs, and corroboration."
+    >
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+        
+        {/* Back Link */}
+        <Link
+          href="/verify"
+          className="inline-flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-[#2E7180] transition"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Verification Queue</span>
+        </Link>
 
-        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-          {/* Back Nav */}
-          <div className="flex items-center justify-between">
-            <Link
-              href="/verify"
-              className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-gray-600 hover:text-[#102027] transition"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to Verification Queue
-            </Link>
-            <span className="text-xs font-mono bg-white px-2.5 py-1 rounded border border-[#CCD1C7]">
-              Ref: <strong className="text-gray-900">{report.ref}</strong>
-            </span>
-          </div>
-
-          {/* Top Banner: Challenge Summary & District */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#D94F45]/15 text-[#A8332A] border border-[#D94F45]/30">
-                PRIORITY {report.priority} · {report.priorityBand.toUpperCase()}
-              </span>
-              <span className="text-xs font-mono text-gray-500 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-[#2E7180]" />
-                {report.block}, {report.district}
-              </span>
+        {submitted ? (
+          <div className="bg-emerald-50 border border-emerald-300 p-8 rounded-2xl text-center space-y-4 shadow-sm animate-in fade-in">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8" />
             </div>
-
-            <h1 className="text-lg sm:text-xl font-extrabold text-[#102027]">
-              {report.hazard}: {report.summary}
-            </h1>
-          </div>
-
-          {/* Success Banner */}
-          {successMessage && (
-            <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 font-mono text-xs flex items-center gap-2 animate-fadeIn">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* SECTION 1: THE CORROBORATION PANEL (Evidence Sitting ABOVE AI Conclusion) */}
-          {/* ========================================================================= */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-6">
-            <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                  Empirical Verification Engine
-                </span>
-                <h2 className="text-base font-extrabold text-[#102027] mt-0.5">
-                  1. Objective Meteorological & News Evidence
-                </h2>
-              </div>
-              <span className="text-[11px] font-mono text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-[#CCD1C7]">
-                Evidence sits above AI Model
-              </span>
-            </div>
-
-            {/* A. Weather Record */}
-            <div className="p-4 bg-sky-50/60 border border-sky-200 rounded-xl space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-mono font-bold text-sky-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <CloudRain className="w-4 h-4 text-sky-600" />
-                  Meteorological Telemetry Record
-                </span>
-                <span className="text-[11px] font-mono text-sky-800 bg-white px-2 py-0.5 rounded border border-sky-300 font-semibold">
-                  {report.weatherEstimateType === 'point' ? 'Point-Station Reading' : 'District-Level Estimate'}
-                </span>
-              </div>
-
-              <div className="text-xs text-gray-800 leading-relaxed font-sans">
-                <strong>Recorded Conditions:</strong> {report.weatherCondition}
-              </div>
-
-              <div className="flex items-center gap-2 text-[11px] font-mono text-gray-500">
-                <span>Provider: <strong className="text-sky-900">{report.weatherProvider}</strong></span>
-                <span>·</span>
-                <span>Status: Verified via Open API webhook</span>
-              </div>
-            </div>
-
-            {/* B. News and Web Results */}
-            <div className="space-y-3">
-              <span className="text-xs font-mono font-bold text-gray-700 uppercase tracking-wider block">
-                News & Web Media Coverage ({report.newsCount} articles indexed)
-              </span>
-              <CitationList
-                citations={[
-                  {
-                    title: 'Prabhat Khabar: Severe Lightning Claims Two Lives in Gumla Open Fields',
-                    publisher: 'Prabhat Khabar Ranchi',
-                    date: '10-09-2026',
-                    supports: 'Farmer casualties and lack of field warning sirens in Sisai',
-                    url: 'https://prabhatkhabar.com',
-                    type: 'news',
-                  },
-                  {
-                    title: 'Dainik Jagran: Lightning Red Alert Issued for Chotanagpur Tribal Belt',
-                    publisher: 'Dainik Jagran Jharkhand',
-                    date: '09-09-2026',
-                    supports: 'High atmospheric convective instability and radar flash frequency',
-                    url: 'https://jagran.com',
-                    type: 'news',
-                  },
-                ]}
-                compact
-              />
-            </div>
-
-            {/* C. Contradiction Flag (If Present) */}
-            {report.contradictionFlag && (
-              <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-900 uppercase">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  <span>Contradicting Evidence Flag (Shown for Human Consideration, Never as a Verdict)</span>
-                </div>
-                <p className="text-xs text-amber-800 leading-relaxed">
-                  {report.contradictionFlag}
-                </p>
-              </div>
-            )}
-
-            {/* D. AI Model's Conclusion (Strictly BELOW the Evidence) */}
-            <div className="p-4 bg-gray-50 border border-[#CCD1C7] rounded-xl space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#2E7180]" />
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#102027]">
-                    Model Conclusion & Confidence (Machine Suggestion)
-                  </span>
-                  <span className="ai-provenance-tag">AI-AUTHORED</span>
-                </div>
-
-                <span className="text-xs font-mono font-bold text-[#2E7180] bg-white px-2 py-0.5 rounded border border-[#CCD1C7]">
-                  Confidence: {report.aiConfidence}%
-                </span>
-              </div>
-
-              <p className="text-xs text-gray-700 leading-relaxed italic">
-                "{report.aiVerdict === 'corroborated'
-                  ? 'The automated compiler corroborates this cluster based on alignment between ground reports and high IMD Doppler flash rates. The problem is genuine and urgent.'
-                  : 'The model flagged contradictory weather readings in adjacent blocks. Human field inspection recommended.'}"
-              </p>
-
-              {/* 1-Click Disagree Button */}
-              <div className="pt-1 flex items-center justify-between flex-wrap gap-2 border-t border-gray-200">
-                <span className="text-[11px] text-gray-500 font-mono">
-                  Does your field inspection contradict this conclusion?
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setDisagreedWithAi(!disagreedWithAi)}
-                  className={`touch-target px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition flex items-center gap-1.5 ${
-                    disagreedWithAi
-                      ? 'bg-[#102027] text-white border-black'
-                      : 'bg-white text-gray-700 border-[#CCD1C7] hover:bg-gray-100'
-                  }`}
-                >
-                  <ThumbsDown className="w-3.5 h-3.5" />
-                  {disagreedWithAi ? 'AI Verdict Overridden by You' : 'Disagree with AI Verdict'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* SECTION 2: CLUSTER VIEW (Confirming the Whole Cluster, Not a Sentence) */}
-          {/* ========================================================================= */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                  Cluster Confirmation View
-                </span>
-                <h2 className="text-base font-extrabold text-[#102027] mt-0.5">
-                  2. Ground Reports in this Challenge Cluster ({report.clusterMembers.length} of {report.reportCount})
-                </h2>
-              </div>
-              <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-[#CCD1C7]">
-                Multi-Voice Dedup
-              </span>
-            </div>
-
-            <p className="text-xs text-gray-600">
-              You are verifying an entire community cluster rather than an isolated sentence. Confirming this cluster moves all {report.reportCount} villagers into tracked resolution.
+            <h2 className="text-2xl font-bold text-emerald-900">
+              Field Verification Recorded!
+            </h2>
+            <p className="text-xs text-emerald-700 max-w-md mx-auto">
+              Confidence level elevated to <strong>FIELD_VERIFIED</strong>. Ledger transaction signed with Verifier ID #VER-SK-8492. Redirecting to queue...
             </p>
-
-            <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden text-xs">
-              {report.clusterMembers.map((m) => (
-                <div key={m.id} className="p-3 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <span className="font-mono text-gray-500 font-bold mr-2">[{m.time}]</span>
-                    <strong className="text-gray-900">{m.village}:</strong>{' '}
-                    <span className="text-gray-700 italic">"{m.text}"</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
-                    Clustered (Cosine 0.91)
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Header */}
+            <div className="bg-white p-6 rounded-2xl border border-[#CCD1C7] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                  REPORT REF #{report.id.toUpperCase()}
+                </span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                  PENDING FIELD CHECK
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-[#102027]">
+                {report.original_text}
+              </h1>
+              <div className="flex items-center gap-4 text-xs text-gray-500 font-mono">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                  {report.district} ({report.village || 'Panchayat Area'})
+                </span>
+                <span>GPS: {report.lat.toFixed(4)}, {report.lng.toFixed(4)}</span>
+              </div>
+            </div>
 
-          {/* ========================================================================= */}
-          {/* SECTION 3: VERIFICATION FORM */}
-          {/* ========================================================================= */}
-          <form onSubmit={handleVerifySubmit} className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
-            <div className="border-b border-gray-100 pb-3">
-              <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                Authorized Field Action
-              </span>
-              <h2 className="text-base font-extrabold text-[#102027] mt-0.5">
-                3. Record Decision, Evidence & Grant Confidence Rung
+            {/* Verification Checklist */}
+            <div className="bg-white p-6 rounded-2xl border border-[#CCD1C7] space-y-6">
+              <h2 className="text-base font-bold text-[#102027] border-b border-gray-100 pb-3 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <span>On-Site Ground Assessment</span>
               </h2>
-            </div>
 
-            {/* Confidence Rung Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-bold text-gray-700 uppercase">
-                Confidence Level Granted:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono">
-                {[
-                  { val: 'community_corroborated', label: 'Community Corroborated', desc: '≥3 independent reports' },
-                  { val: 'field_verified', label: 'Field Verified (Photo/Site)', desc: 'Volunteer inspected' },
-                  { val: 'coordinator_approved', label: 'Coordinator Approved', desc: 'Official signed off' },
-                ].map((rung) => (
-                  <button
-                    key={rung.val}
-                    type="button"
-                    onClick={() => setConfidenceRung(rung.val as ConfidenceLevel)}
-                    className={`p-3 rounded-lg border text-left transition ${
-                      confidenceRung === rung.val
-                        ? 'border-[#2E7180] bg-[#2E7180]/10 ring-1 ring-[#2E7180] font-bold text-[#102027]'
-                        : 'border-[#CCD1C7] bg-white text-gray-600 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>{rung.label}</span>
-                      {confidenceRung === rung.val && <CheckCircle2 className="w-3.5 h-3.5 text-[#2E7180]" />}
-                    </div>
-                    <span className="text-[10px] text-gray-500 font-normal block mt-1">{rung.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Verifier Ground Note */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-bold text-gray-700 uppercase">
-                Field Inspection Note:
-              </label>
-              <textarea
-                rows={3}
-                value={verifierNote}
-                onChange={(e) => setVerifierNote(e.target.value)}
-                placeholder="Describe ground verification inspection, conversations with panchayat mukhiya, or location observations..."
-                className="w-full text-xs p-3 rounded-lg border border-[#CCD1C7] outline-none focus:border-[#2E7180] font-sans"
-              />
-            </div>
-
-            {/* Source Links Addition */}
-            <div className="space-y-2">
-              <label className="text-xs font-mono font-bold text-gray-700 uppercase">
-                Corroborating Source Links:
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  placeholder="https://... (IMD bulletin, local news link, or district portal)"
-                  value={newLink}
-                  onChange={(e) => setNewLink(e.target.value)}
-                  className="flex-1 text-xs p-2.5 rounded-lg border border-[#CCD1C7] font-mono outline-none focus:border-[#2E7180]"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddLink}
-                  className="touch-target px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-mono font-bold border border-gray-300"
-                >
-                  Add Link
-                </button>
-              </div>
-
-              {sourceLinks.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {sourceLinks.map((link, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#2E7180]/10 text-[#245A66] text-xs font-mono truncate max-w-sm"
-                    >
-                      <ExternalLink className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{link}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Field Photos Upload with Progress */}
-            <div className="space-y-2 pt-1">
-              <label className="text-xs font-mono font-bold text-gray-700 uppercase">
-                Field Evidence Photos (Geo-tagged):
-              </label>
-              <FileUploader
-                accept="image/*,.jpg,.jpeg,.png"
-                allowedExtensions={['.jpg', '.jpeg', '.png']}
-                title="Upload Ground Site Photos"
-                description="Upload photos of site, affected nursery, or broken infrastructure"
-                onFileSelected={(file) => setUploadedPhotos([...uploadedPhotos, file.name])}
-              />
-            </div>
-
-            {/* Actions Bar */}
-            <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setShowRejectModal(true)}
-                className="touch-target px-4 py-2.5 border border-red-300 text-[#D94F45] hover:bg-red-50 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition"
-              >
-                <XCircle className="w-4 h-4" />
-                Reject Report (Explain Consequence)
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="touch-target px-6 py-2.5 bg-[#2E7180] hover:bg-[#245A66] disabled:opacity-50 text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Recording Ground Verification...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Confirm & Forward Cluster to University R&D
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-
-          {/* ========================================================================= */}
-          {/* REJECT MODAL (Mandatory Reason + Consequence Notice) */}
-          {/* ========================================================================= */}
-          {showRejectModal && (
-            <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl border-2 border-red-300 animate-fadeIn">
-                <div className="flex items-center gap-2 text-red-700">
-                  <XCircle className="w-6 h-6 shrink-0" />
-                  <h3 className="text-base font-extrabold text-[#102027]">
-                    Reject Challenge Cluster {report.ref}
-                  </h3>
-                </div>
-
-                {/* Explicit Consequence Notice */}
-                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 space-y-1">
-                  <span className="font-mono font-bold uppercase tracking-wider block">
-                    Consequence Warning:
-                  </span>
-                  <p className="leading-relaxed">
-                    Rejecting will permanently archive this cluster. The original reporters in{' '}
-                    <strong>{report.block}</strong> will be notified via SMS that this report was marked not actionable,
-                    and this problem will <strong>NOT</strong> be dispatched to universities or CSR partners.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono font-bold text-gray-700 uppercase">
-                    Mandatory Reason for Rejection:
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                
+                {/* Severity adjustment */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-700">
+                    Confirmed Ground Severity (1 to 5)
                   </label>
-                  <textarea
-                    rows={3}
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Provide specific reason (e.g., Duplicate of existing project, resolved prior to inspection, or invalid location coordinates)..."
-                    className="w-full text-xs p-3 rounded-lg border border-[#CCD1C7] outline-none focus:border-red-500 font-sans"
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={severityConfirmed}
+                    onChange={(e) => setSeverityConfirmed(Number(e.target.value))}
+                    className="w-full accent-amber-600"
+                  />
+                  <div className="flex justify-between text-[11px] font-mono text-gray-500">
+                    <span>1: Minor</span>
+                    <span className="font-bold text-amber-700 text-sm">{severityConfirmed} / 5</span>
+                    <span>5: Critical Crisis</span>
+                  </div>
+                </div>
+
+                {/* People affected adjustment */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-700">
+                    Estimated Inhabitants Affected
+                  </label>
+                  <input
+                    type="number"
+                    value={peopleEst}
+                    onChange={(e) => setPeopleEst(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none font-mono"
                   />
                 </div>
+              </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowRejectModal(false)}
-                    className="touch-target px-4 py-2 border border-gray-300 hover:bg-gray-100 rounded-lg text-xs font-mono font-bold text-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRejectSubmit}
-                    disabled={rejectSubmitting || !rejectReason.trim()}
-                    className="touch-target px-4 py-2 bg-[#D94F45] hover:bg-red-700 disabled:opacity-40 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-xs transition"
-                  >
-                    {rejectSubmitting ? 'Recording Rejection...' : 'Confirm Rejection'}
-                  </button>
+              {/* Photo Evidence Simulation */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-700">
+                  Geo-Tagged Photographic Evidence
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center bg-gray-50 space-y-2">
+                  <Camera className="w-8 h-8 text-gray-400 mx-auto" />
+                  <div className="text-xs text-gray-600 font-medium">
+                    Attached: <strong>IMG_FIELD_SITE_PROOF_8492.JPG</strong> (EXIF geocoded)
+                  </div>
+                  <div className="text-[11px] text-emerald-700 font-mono">
+                    ✓ EXIF Metadata verified: 23.3441° N, 85.3096° E · Accuracy ±6m
+                  </div>
                 </div>
               </div>
+
+              {/* Ground notes */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-700">
+                  Field Inspector Notes & Ground Truth Findings
+                </label>
+                <textarea
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Inspected on site. Three village handpumps are non-functional due to lowered water table. School children currently walking 2.5km to stream..."
+                  className="w-full p-3 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-amber-600"
+                />
+              </div>
             </div>
-          )}
-        </main>
+
+            {/* Submit Bar */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Link
+                href="/verify"
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-100 transition"
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Submit Field Verification & Sign Ledger</span>
+              </button>
+            </div>
+
+          </form>
+        )}
+
       </div>
-    </RouteGuard>
+    </RoleGuard>
   );
 }

@@ -10,7 +10,10 @@ import { RoleNav } from './RoleNav';
 
 interface RouteGuardProps {
   allowedRoles: UserRole[];
-  consoleTitle: string;
+  /** Preferred. `title` is accepted as an alias so both call styles work. */
+  consoleTitle?: string;
+  title?: string;
+  description?: string;
   children: React.ReactNode;
 }
 
@@ -37,8 +40,10 @@ const roleConsoleMap: Record<UserRole, string> = {
 export function RouteGuard({
   allowedRoles,
   consoleTitle,
+  title,
   children,
 }: RouteGuardProps) {
+  const heading = consoleTitle ?? title ?? 'this console';
   const { role: activeRole, loading, isAuthenticated, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -88,7 +93,7 @@ export function RouteGuard({
               Role Access Restricted
             </span>
             <h2 className="text-xl font-extrabold text-[#102027] mt-2">
-              {consoleTitle} requires authorization
+              {heading} requires authorization
             </h2>
           </div>
 

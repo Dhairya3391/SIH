@@ -1,551 +1,507 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  FileText,
-  Loader2,
-  Send,
-  Trophy,
-  Upload,
-  XCircle,
-} from 'lucide-react';
-import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import { RubricBreakdown, RubricCriterion } from '@/components/shared/RubricBreakdown';
-import { CountdownToClose } from '@/components/shared/CountdownToClose';
-import { fetchCollegeProblems, fetchMyProposals, submitProposal } from '@/lib/api';
-import { formatIndianCurrency } from '@/components/shared/ContributionSplitter';
+import React, { useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { BackLink, Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Panel, Stat, Well } from "@/components/ui/Surface";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { BandChip, Chip, ConfidenceChip, Tag } from "@/components/ui/Chip";
+import { Caveat, ErrorNote, Skeleton } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import { WindowState } from "@/components/domain/Competition";
+import { ScoreFactors } from "@/components/domain/ScoreFactors";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { countdown, dateTime, humanise, num } from "@/lib/format";
 
 /**
- * Read the problem, submit a proposal, and read the verdict.
+ * Read the brief, then submit against it.
  *
- * The verdict screen is the most consequential in the product: a college's
- * work is being judged by a model, so every criterion shows its own points,
- * its reason and the page it read them from, and a rejection arrives as
- * actionable changes rather than a number to argue with.
+ * The document is taken as TEXT, not as a PDF, and the page says why rather
+ * than hiding it: there is no storage bucket yet, and the scorer reads text in
+ * either case. A college can paste or extract today instead of waiting on
+ * infrastructure — and when the bucket lands, the field becomes an upload with
+ * no change to what gets scored.
  */
-
-interface Problem {
-  id: string;
-  ref: string;
-  title: string;
-  district: string;
-  block: string | null;
-  category: string;
-  priority: number;
-  people_est: number;
-  report_count: number;
-  brief: { problem?: string; needs?: string[]; outcome?: string } | null;
-  capabilities: string[] | null;
-  competition: {
-    state: string;
-    closes_at?: string;
-    window_days?: number;
-    leader_score?: number | null;
-    proposal_count?: number;
-  };
+export default function ProposeePage() {
+  return (
+    <RouteGuard>
+      <Propose />
+    </RouteGuard>
+  );
 }
 
-interface Proposal {
-  id: string;
-  challenge_id: string;
-  version: number;
-  state: string;
-  ai_score: number | null;
-  ai_verdict: string | null;
-  ai_rubric: {
-    total?: number;
-    criteria?: { key: string; label: string; max: number; points: number; reason: string; pages: number[] }[];
-    summary?: string;
-    required_changes?: string[];
-  } | null;
-  ai_error: string | null;
-  funding_required: number | null;
-  duration_days: number | null;
-  document_name: string | null;
-  submitted_at: string;
-  is_leading: boolean | null;
-  score_to_beat: number | null;
-}
+const MIN_TEXT = 200;
 
-const VERDICT_STYLE: Record<string, { bg: string; label: string; Icon: typeof CheckCircle2 }> = {
-  viable: { bg: 'bg-emerald-50 border-emerald-300 text-emerald-900', label: 'Viable', Icon: CheckCircle2 },
-  needs_changes: { bg: 'bg-amber-50 border-amber-300 text-amber-900', label: 'Needs changes', Icon: AlertCircle },
-  not_viable: { bg: 'bg-red-50 border-red-300 text-red-900', label: 'Not viable', Icon: XCircle },
-};
+function Propose() {
+  const params = useParams<{ ref: string }>();
+  const reference = params?.ref ?? "";
+  const router = useRouter();
 
-export default function CollegeProblemDetailPage({
-  params,
-}: {
-  params: Promise<{ ref: string }>;
-}) {
-  const [ref, setRef] = useState<string | null>(null);
-  const [problem, setProblem] = useState<Problem | null>(null);
-  const [mine, setMine] = useState<Proposal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const detailRes = useResource(() => apiClient.fetchChallenge(reference), [reference], {
+    enabled: Boolean(reference),
+  });
+  const problemsRes = useResource(() => apiClient.fetchCollegeProblems(), []);
 
-  const [text, setText] = useState('');
-  const [docName, setDocName] = useState('proposal.pdf');
-  const [pages, setPages] = useState(1);
-  const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [text, setText] = useState("");
+  const [name, setName] = useState("");
+  const [pages, setPages] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState<{
+    proposal_id: string;
+    closes_at: string | null;
+    window_days: number | null;
+    leader_score: number | null;
+    first: boolean;
+  } | null>(null);
 
-  useEffect(() => {
-    params.then((p) => setRef(p.ref));
-  }, [params]);
+  const detail = detailRes.data;
+  const c = detail?.challenge;
 
-  const load = useCallback(async () => {
-    if (!ref) return;
-    setError('');
+  const row = useMemo(
+    () => problemsRes.data?.problems.find((p) => p.ref === reference) ?? null,
+    [problemsRes.data, reference],
+  );
+
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const enough = text.trim().length >= MIN_TEXT;
+
+  async function submit() {
+    if (!c) return;
+    setBusy(true);
+    setError(null);
     try {
-      const [probs, props] = await Promise.all([fetchCollegeProblems(), fetchMyProposals()]);
-      const found = (probs.problems as Problem[]).find(
-        (p) => p.ref?.toUpperCase() === ref.toUpperCase(),
-      );
-      setProblem(found ?? null);
-      if (!found) {
-        setError(
-          'This problem is not open to your college. It may not be verified yet, or its window may have closed.',
-        );
-      }
-      setMine(
-        (props.proposals as Proposal[]).filter(
-          (p) => found && p.challenge_id === found.id,
-        ),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load this problem.');
-    } finally {
-      setLoading(false);
-    }
-  }, [ref]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // While a submission is waiting to be scored, keep checking.
-  useEffect(() => {
-    const waiting = mine.some((p) => p.state === 'submitted' || p.state === 'scoring');
-    if (!waiting) return;
-    const t = setInterval(load, 8000);
-    return () => clearInterval(t);
-  }, [mine, load]);
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!problem) return;
-    setNotice('');
-    setError('');
-    setSubmitting(true);
-    try {
-      const res = await submitProposal({
-        challenge_id: problem.id,
-        extracted_text: text,
-        document_name: docName,
-        document_pages: pages,
+      const result = await apiClient.submitProposal({
+        challenge_id: c.id,
+        extracted_text: text.trim(),
+        document_name: name.trim() || "proposal.pdf",
+        document_pages: pages ? Number(pages) : 1,
       });
-      setNotice(
-        `Submitted as version ${res.version}. Scoring is queued — the window closes ${new Date(
-          res.window.closes_at,
-        ).toLocaleString('en-IN')}.`,
-      );
-      setText('');
-      await load();
+      setSubmitted({
+        proposal_id: result.proposal_id,
+        closes_at: result.window?.closes_at ?? null,
+        window_days: result.window?.window_days ?? null,
+        leader_score: result.window?.leader_score ?? null,
+        first: Boolean(result.first_in_window),
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not submit.');
+      setError(err instanceof Error ? err.message : "The proposal was not accepted.");
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
-  };
+  }
 
-  const latest = mine.length > 0 ? mine.reduce((a, b) => (b.version > a.version ? b : a)) : null;
-  const awaiting = latest && (latest.state === 'submitted' || latest.state === 'scoring');
+  if (detailRes.loading && !detailRes.settled) {
+    return (
+      <>
+        <BackLink href="/college/problems" label="Problems" />
+        <Main className="pt-6">
+          <Skeleton height={110} rounded={18} />
+          <Skeleton height={300} rounded={18} />
+        </Main>
+      </>
+    );
+  }
 
-  const toRubric = (p: Proposal): RubricCriterion[] =>
-    (p.ai_rubric?.criteria ?? []).map((c) => ({
-      id: c.key,
-      name: c.label,
-      score: c.points,
-      max: c.max,
-      reason: c.reason,
-      page: c.pages?.[0],
-    }));
+  if (detailRes.error || !c) {
+    return (
+      <>
+        <BackLink href="/college/problems" label="Problems" />
+        <Main className="pt-6">
+          <ErrorNote
+            message={detailRes.error ?? `No problem is filed under ${reference}.`}
+            code={detailRes.code}
+            onRetry={detailRes.reload}
+          />
+        </Main>
+      </>
+    );
+  }
+
+  if (submitted) {
+    const cd = countdown(submitted.closes_at);
+    return (
+      <>
+        <BackLink href="/college/problems" label="Problems" trail={c.ref} />
+        <PageHead
+          eyebrow={`${c.ref} · submitted`}
+          title={submitted.first ? "You opened the window" : "You are in the window"}
+          lede={
+            submitted.first
+              ? "Yours is the first proposal for this problem, which starts the clock rather than winning it. Any college can now submit until the window closes, and the highest score takes the work."
+              : "Your document is in. Scoring runs as a separate job, so the score appears on your proposals page shortly rather than making you wait here."
+          }
+        />
+        <Main className="max-w-[720px]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat
+              label="Window closes"
+              value={cd.closed ? "closed" : cd.text}
+              sub={submitted.closes_at ? dateTime(submitted.closes_at) : "not recorded"}
+              tone={cd.urgent ? "alert" : undefined}
+            />
+            <Stat
+              label="Window length"
+              value={submitted.window_days ? `${submitted.window_days} days` : "—"}
+              sub={`Set by the ${humanise(c.band ?? "")} band`}
+            />
+            <Stat
+              label="Score to beat"
+              value={submitted.leader_score !== null ? `${submitted.leader_score}` : "none yet"}
+              sub={
+                submitted.leader_score !== null
+                  ? "The leading score, not the leading document"
+                  : "Nothing scored above the floor yet"
+              }
+            />
+          </div>
+
+          <Panel title="What happens next">
+            <ol className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-body">
+              <li>
+                <strong className="text-ink">1. Scoring.</strong> A reviewer model reads the
+                document against the seven published criteria and writes a reason for each. You
+                see every line of it, not just the total.
+              </li>
+              <li>
+                <strong className="text-ink">2. The leader.</strong> If your score is the highest
+                viable one, you lead. Ties break by who submitted first, and then by row id — so
+                the outcome is deterministic rather than whoever the job happened to read last.
+              </li>
+              <li>
+                <strong className="text-ink">3. The close.</strong> When the window ends the
+                leader is awarded, an execution plan is generated from the document, and the
+                itemised needs go to the funding board.
+              </li>
+              <li>
+                <strong className="text-ink">If you are displaced</strong> you are told, with
+                your score and the score that passed you, and you may submit a new version while
+                the window is still open.
+              </li>
+            </ol>
+          </Panel>
+
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="primary"
+              iconAfter="arrow"
+              onClick={() => router.push("/college/proposals")}
+            >
+              See my proposals
+            </Button>
+            <ButtonLink href="/college/problems" variant="secondary" icon="list">
+              Back to problems
+            </ButtonLink>
+          </div>
+
+          <p className="mono text-center text-[10px] uppercase tracking-[0.1em] text-mute">
+            proposal {submitted.proposal_id.slice(0, 8)}
+          </p>
+        </Main>
+      </>
+    );
+  }
+
+  const closed = row?.competition?.state && row.competition.state !== "not_opened" && row.competition.state !== "open";
 
   return (
-    <RoleGuard allowedRoles={['university', 'coordinator', 'admin']} consoleTitle="Propose a Solution">
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <Link
-            href="/college/problems"
-            className="font-mono text-[10px] tracking-wider uppercase text-[#2E7180] hover:underline flex items-center gap-1"
-          >
-            <ArrowLeft className="w-3 h-3" /> All verified problems
-          </Link>
+    <>
+      <BackLink href="/college/problems" label="Problems" trail={c.ref} />
 
-          {loading ? (
-            <LoadingSkeleton rows={3} />
-          ) : (
-            <>
-              {error && (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+      <PageHead
+        eyebrow={`${c.ref} · ${[c.block, c.district].filter(Boolean).join(", ")}`}
+        title={c.title}
+        lede={c.brief?.problem ?? c.why_critical}
+        right={
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <BandChip band={c.band} />
+              <ConfidenceChip confidence={c.confidence} />
+            </div>
+            <ButtonLink href={`/challenge/${c.ref}`} variant="secondary" size="sm" icon="eye">
+              Everything known about it
+            </ButtonLink>
+          </div>
+        }
+      />
+
+      <Main>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+          <div className="flex flex-col gap-5">
+            <Panel
+              title="Your proposal"
+              lede="Paste the document text. It is what the reviewer reads."
+            >
+              {closed && (
+                <Card depth="in" className="mb-4 flex items-start gap-3 p-4">
+                  <span className="mt-px text-alert-ink">
+                    <Icon name="alert" size={16} />
+                  </span>
+                  <p className="text-[13px] leading-relaxed text-body">
+                    This window has already {humanise(String(row?.competition?.state))}. A
+                    submission now will be refused by the server — the box is left open so you can
+                    see what was asked for, not to waste your time.
+                  </p>
+                </Card>
+              )}
+
+              <div className="flex flex-col gap-4">
+                <div className="grid gap-3.5 sm:grid-cols-[minmax(0,1fr)_120px]">
+                  <label className="flex flex-col gap-2">
+                    <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      Document name
+                    </span>
+                    <input
+                      className="field"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="gumla-siren-shelters.pdf"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      Pages
+                    </span>
+                    <input
+                      className="field"
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={pages}
+                      onChange={(e) => setPages(e.target.value)}
+                      placeholder="12"
+                    />
+                  </label>
+                </div>
+
+                <label className="flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    The document
+                  </span>
+                  <textarea
+                    className="field min-h-[320px]"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={
+                      "Problem addressed…\nApproach…\nBill of materials with quantities…\nCosting…\nTimeline…\nWho maintains it after handover…"
+                    }
+                  />
+                </label>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                    {num(words)} words · {num(text.trim().length)} characters
+                  </span>
+                  <span
+                    className={`mono text-[10.5px] uppercase tracking-[0.1em] ${
+                      enough ? "text-teal-ink" : "text-alert-ink"
+                    }`}
+                  >
+                    {enough ? "long enough to score" : `at least ${MIN_TEXT} characters`}
+                  </span>
+                </div>
+
+                <Caveat icon="file">
+                  Text, not a PDF upload — there is no file bucket on this deployment yet, and the
+                  reviewer reads text either way. Nothing about the scoring changes when the upload
+                  arrives.
+                </Caveat>
+
+                {error && (
+                  <div className="in-s flex items-start gap-2.5 p-3.5" role="alert">
+                    <span className="mt-px text-alert-ink">
+                      <Icon name="alert" size={15} />
+                    </span>
+                    <p className="text-[13px] leading-relaxed text-body">{error}</p>
+                  </div>
+                )}
+
+                <Button
+                  variant="primary"
+                  busy={busy}
+                  disabled={!enough}
+                  icon="upload"
+                  onClick={submit}
                 >
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">{error}</span>
+                  Submit this proposal
+                </Button>
+              </div>
+            </Panel>
+
+            <Panel
+              title="What you are solving"
+              lede="Scored against this brief specifically — a strong solution to a different problem scores zero on problem fit."
+            >
+              <p className="text-[14.5px] leading-relaxed text-ink">
+                {c.brief?.problem ?? c.why_critical}
+              </p>
+
+              {c.brief?.outcome && (
+                <div className="in mt-4 p-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    What success looks like
+                  </div>
+                  <p className="mt-2 text-[13.5px] leading-relaxed text-ink">{c.brief.outcome}</p>
+                  {c.brief.success_metric && (
+                    <p className="mt-2.5 text-[12.5px] leading-relaxed text-body">
+                      <span className="mono text-[9.5px] uppercase tracking-[0.1em] text-mute">
+                        measured by{" "}
+                      </span>
+                      {c.brief.success_metric}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {problem && (
-                <>
-                  {/* the brief */}
-                  <section className="bg-white rounded-xl border border-[#CCD1C7] p-5">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span
-                        className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded ${
-                          problem.priority >= 75
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        PRIORITY {problem.priority}
-                      </span>
-                      <span className="font-mono text-[10px] text-gray-600 border border-[#CCD1C7] px-1.5 py-0.5 rounded uppercase">
-                        {String(problem.category).replace(/_/g, ' ')}
-                      </span>
-                      <span className="font-mono text-[10px] text-gray-500">{problem.ref}</span>
-                    </div>
-                    <h1 className="text-xl font-extrabold text-[#102027] tracking-tight leading-snug">
-                      {problem.title}
-                    </h1>
-                    <div className="font-mono text-[10px] text-gray-500 mt-1.5">
-                      {problem.district}
-                      {problem.block ? ` · ${problem.block}` : ''} ·{' '}
-                      {problem.people_est?.toLocaleString('en-IN')} people ·{' '}
-                      {problem.report_count} reports merged
-                    </div>
+              {c.brief?.needs && c.brief.needs.length > 0 && (
+                <div className="mt-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    What the district says it needs
+                  </div>
+                  <ul className="mt-2.5 flex flex-col gap-2">
+                    {c.brief.needs.map((n, i) => (
+                      <li key={i} className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex-none text-navy">
+                          <Icon name="check" size={13} />
+                        </span>
+                        <span className="text-[13.5px] leading-relaxed text-body">{n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-                    {problem.brief?.problem && (
-                      <>
-                        <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mt-4 mb-1.5">
-                          The problem
-                        </div>
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          {problem.brief.problem}
-                        </p>
-                      </>
-                    )}
-                    {problem.brief?.outcome && (
-                      <>
-                        <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mt-4 mb-1.5">
-                          What good looks like
-                        </div>
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          {problem.brief.outcome}
-                        </p>
-                      </>
-                    )}
-                    {problem.brief?.needs && problem.brief.needs.length > 0 && (
-                      <>
-                        <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mt-4 mb-1.5">
-                          What it needs
-                        </div>
-                        <ul className="space-y-1">
-                          {problem.brief.needs.map((n) => (
-                            <li key={n} className="text-sm text-gray-700 flex gap-2">
-                              <span className="text-[#2E7180]">·</span>
-                              {n}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </section>
+              {c.brief?.translated_text && (
+                <Well className="mt-4">
+                  <div className="mono text-[9.5px] uppercase tracking-[0.1em] text-mute">
+                    what a reporter actually said
+                  </div>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-ink">
+                    {c.brief.translated_text}
+                  </p>
+                </Well>
+              )}
 
-                  {/* the competition */}
-                  <section className="bg-white rounded-xl border border-[#CCD1C7] p-4 flex flex-wrap items-center gap-4">
-                    <div>
-                      <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                        Competition
-                      </div>
-                      {problem.competition.state === 'not_opened' ? (
-                        <p className="text-sm font-semibold text-[#102027]">
-                          No proposals yet — yours would start the clock
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="text-sm font-semibold text-[#102027]">
-                            Score to beat:{' '}
-                            <span className="font-mono">
-                              {problem.competition.leader_score ?? '—'}
-                            </span>
-                          </span>
-                          {problem.competition.closes_at && (
-                            <span className="flex items-center gap-1.5 font-mono text-[11px] text-gray-600">
-                              <Clock className="w-3.5 h-3.5" />
-                              <CountdownToClose
-                                closeDate={problem.competition.closes_at}
-                                status={problem.competition.state}
-                                leadingScore={problem.competition.leader_score ?? undefined}
-                                compact
-                              />
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <p className="text-[11px] text-gray-500 mt-1 max-w-xl leading-relaxed">
-                        The leading score is public; the leading document and
-                        the college behind it are not, until the window closes.
-                      </p>
-                    </div>
-                    {latest?.is_leading && (
-                      <span className="ml-auto font-mono text-[10px] font-bold tracking-wider px-2.5 py-1.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
-                        <Trophy className="w-3.5 h-3.5" /> YOU ARE LEADING
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {c.capabilities?.map((x) => (
+                  <Tag key={x}>{humanise(x)}</Tag>
+                ))}
+                {c.hazard_tags?.map((x) => (
+                  <Tag key={x}>{humanise(x)}</Tag>
+                ))}
+              </div>
+            </Panel>
+          </div>
+
+          <aside className="flex flex-col gap-5">
+            <Panel title="The window">
+              <WindowState
+                competition={row?.competition}
+                myScore={row?.my_proposal?.score ?? null}
+              />
+              {row?.my_proposal && (
+                <div className="up-s mt-3 p-4">
+                  <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+                    your current submission
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-3">
+                    <span className="text-[13.5px] font-semibold text-ink">
+                      v{row.my_proposal.version} · {humanise(row.my_proposal.state)}
+                    </span>
+                    {row.my_proposal.score !== null && (
+                      <span className="mono text-[16px] font-semibold text-ink">
+                        {row.my_proposal.score}/100
                       </span>
                     )}
-                  </section>
-
-                  {/* verdicts on submissions so far */}
-                  {mine.map((p) => {
-                    const style = p.ai_verdict ? VERDICT_STYLE[p.ai_verdict] : null;
-                    return (
-                      <section
-                        key={p.id}
-                        className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden"
-                      >
-                        <div className="p-4 border-b border-[#CCD1C7] flex flex-wrap items-center gap-3">
-                          <FileText className="w-4 h-4 text-gray-400" />
-                          <span className="font-semibold text-sm text-[#102027]">
-                            Version {p.version}
-                          </span>
-                          <span className="font-mono text-[10px] text-gray-500">
-                            {p.document_name} ·{' '}
-                            {new Date(p.submitted_at).toLocaleString('en-IN')}
-                          </span>
-                          {p.state === 'submitted' || p.state === 'scoring' ? (
-                            <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px] text-gray-600">
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              reading the document and scoring…
-                            </span>
-                          ) : (
-                            <span className="ml-auto flex items-center gap-2">
-                              {style && (
-                                <span
-                                  className={`font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded border ${style.bg}`}
-                                >
-                                  {style.label.toUpperCase()}
-                                </span>
-                              )}
-                              <span className="font-mono text-lg font-extrabold text-[#102027]">
-                                {p.ai_score ?? '—'}
-                                <span className="text-gray-400 text-xs">/100</span>
-                              </span>
-                            </span>
-                          )}
-                        </div>
-
-                        {p.ai_error && (
-                          <div className="px-4 py-3 bg-red-50 text-xs text-[#A8332A]">
-                            Scoring could not complete: {p.ai_error}. It will be retried.
-                          </div>
-                        )}
-
-                        {p.ai_rubric?.summary && (
-                          <div className="px-4 pt-4">
-                            <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1.5">
-                              Summary
-                            </div>
-                            <p className="text-sm text-gray-700 leading-relaxed">
-                              {p.ai_rubric.summary}
-                            </p>
-                          </div>
-                        )}
-
-                        {(p.ai_rubric?.criteria?.length ?? 0) > 0 && (
-                          <div className="p-4">
-                            <RubricBreakdown criteria={toRubric(p)} />
-                          </div>
-                        )}
-
-                        {(p.ai_rubric?.required_changes?.length ?? 0) > 0 && (
-                          <div className="px-4 pb-4">
-                            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
-                              <div className="font-mono text-[10px] font-bold tracking-wider uppercase text-amber-800 mb-2">
-                                What to change before resubmitting
-                              </div>
-                              <ol className="space-y-1.5">
-                                {p.ai_rubric!.required_changes!.map((c, i) => (
-                                  <li
-                                    key={c}
-                                    className="text-sm text-amber-900 leading-relaxed flex gap-2"
-                                  >
-                                    <span className="font-mono text-xs shrink-0">
-                                      {String(i + 1).padStart(2, '0')}
-                                    </span>
-                                    {c}
-                                  </li>
-                                ))}
-                              </ol>
-                            </div>
-                          </div>
-                        )}
-
-                        {(p.funding_required || p.duration_days) && (
-                          <div className="px-4 pb-4 flex flex-wrap gap-6">
-                            {p.funding_required ? (
-                              <div>
-                                <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                                  Funding read from your document
-                                </div>
-                                <div className="font-mono font-bold text-[#102027]">
-                                  {formatIndianCurrency(p.funding_required)}
-                                </div>
-                              </div>
-                            ) : null}
-                            {p.duration_days ? (
-                              <div>
-                                <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                                  Duration
-                                </div>
-                                <div className="font-mono font-bold text-[#102027]">
-                                  {p.duration_days} days
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                        )}
-
-                        {p.score_to_beat !== null && (
-                          <div className="px-4 py-3 bg-[#F4F6F5] border-t border-[#CCD1C7] text-xs text-gray-700">
-                            Another college is ahead at{' '}
-                            <strong className="font-mono">{p.score_to_beat}</strong>. You can
-                            resubmit an improved version while the window is open.
-                          </div>
-                        )}
-                      </section>
-                    );
-                  })}
-
-                  {/* submit */}
-                  {problem.competition.state === 'open' ||
-                  problem.competition.state === 'not_opened' ? (
-                    <section className="bg-white rounded-xl border border-[#CCD1C7] p-5">
-                      <h2 className="font-bold text-[#102027] mb-1">
-                        {mine.length > 0 ? 'Submit an improved version' : 'Submit your proposal'}
-                      </h2>
-                      <p className="text-xs text-gray-600 mb-4 leading-relaxed max-w-2xl">
-                        Paste the text of your proposal document. It is scored
-                        against a published seven-criterion rubric, once, and
-                        the score is never recomputed — so a later submission by
-                        anyone cannot change what yours was given.
-                      </p>
-
-                      {notice && (
-                        <div className="flex items-start gap-2 text-xs text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-xl p-3 mb-4">
-                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                          <span className="leading-relaxed">{notice}</span>
-                        </div>
-                      )}
-
-                      <form onSubmit={onSubmit} className="space-y-3">
-                        <div className="flex flex-wrap gap-3">
-                          <label className="flex-1 min-w-[200px]">
-                            <span className="block font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                              Document name
-                            </span>
-                            <input
-                              value={docName}
-                              onChange={(e) => setDocName(e.target.value)}
-                              className="w-full h-10 px-3 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-sm outline-none focus:border-[#2E7180]"
-                            />
-                          </label>
-                          <label className="w-32">
-                            <span className="block font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                              Pages
-                            </span>
-                            <input
-                              type="number"
-                              min={1}
-                              max={500}
-                              value={pages}
-                              onChange={(e) => setPages(Number(e.target.value) || 1)}
-                              className="w-full h-10 px-3 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-sm outline-none focus:border-[#2E7180]"
-                            />
-                          </label>
-                        </div>
-
-                        <label className="block">
-                          <span className="block font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                            Proposal text
-                          </span>
-                          <textarea
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            required
-                            minLength={200}
-                            rows={12}
-                            placeholder={`Address the problem above directly. The rubric rewards:\n\n1. Problem fit — does it solve THIS problem\n2. Technical soundness\n3. Practicality in a rural block: power cuts, no internet, local labour, monsoon\n4. A credible cost, itemised\n5. A credible timeline\n6. Materials with quantities and units a company can pledge against\n7. Who maintains it in year two`}
-                            className="w-full px-3 py-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-sm leading-relaxed outline-none focus:border-[#2E7180] font-mono"
-                          />
-                          <span className="font-mono text-[10px] text-gray-500">
-                            {text.trim().length} characters · 200 minimum
-                          </span>
-                        </label>
-
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="submit"
-                            disabled={submitting || text.trim().length < 200}
-                            className="h-11 px-5 rounded-lg bg-[#102027] text-white text-sm font-semibold flex items-center gap-2 hover:bg-[#1D3540] disabled:opacity-50"
-                          >
-                            {submitting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" /> Submitting…
-                              </>
-                            ) : (
-                              <>
-                                <Send className="w-4 h-4" /> Submit for scoring
-                              </>
-                            )}
-                          </button>
-                          <span className="font-mono text-[10px] text-gray-500 flex items-center gap-1.5">
-                            <Upload className="w-3.5 h-3.5" />
-                            PDF upload arrives with the document store
-                          </span>
-                        </div>
-                      </form>
-                    </section>
-                  ) : (
-                    <section className="bg-white rounded-xl border border-[#CCD1C7] p-5 text-center">
-                      <p className="text-sm font-semibold text-[#102027]">
-                        This window is closed
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Proposals are no longer accepted for {problem.ref}.
-                      </p>
-                    </section>
-                  )}
-
-                  {awaiting && (
-                    <p className="font-mono text-[11px] text-gray-500 text-center">
-                      Checking for your score every few seconds…
+                  </div>
+                  {row.my_proposal.is_leading === false && (
+                    <p className="mt-2 text-[12.5px] leading-relaxed text-body">
+                      Another proposal is ahead. Submitting a new version replaces yours in the
+                      comparison; the earlier one stays on the record.
                     </p>
                   )}
-                </>
+                  <div className="mt-3">
+                    <ButtonLink
+                      href={`/college/proposals/${row.my_proposal.id}`}
+                      variant="secondary"
+                      size="sm"
+                      iconAfter="arrow"
+                    >
+                      Read the verdict
+                    </ButtonLink>
+                  </div>
+                </div>
               )}
-            </>
-          )}
-        </main>
-      </div>
-    </RoleGuard>
+            </Panel>
+
+            <Panel
+              title="Why it is ranked here"
+              lede="The district's own scoring, opened."
+            >
+              <ScoreFactors
+                breakdown={c.score_breakdown}
+                whyCritical={c.why_critical}
+                compact
+              />
+            </Panel>
+
+            <Panel title="Who else is on it" depth="in">
+              {detail?.assignments && detail.assignments.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {detail.assignments.map((a) => (
+                    <li key={`${a.org_id}-${a.role}`} className="up-s p-3">
+                      <div className="text-[13px] font-semibold text-ink">
+                        {a.organizations?.name ?? a.org_id}
+                      </div>
+                      <div className="mono mt-1 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                        {humanise(a.role)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] leading-relaxed text-body">
+                  Nobody is assigned yet. Assignment happens when a window is awarded, not when a
+                  proposal is submitted.
+                </p>
+              )}
+            </Panel>
+
+            {c.ai_uncertainties?.length > 0 && (
+              <Panel
+                title="What the brief is unsure about"
+                lede="Worth addressing explicitly — a proposal that resolves an uncertainty scores well on problem fit."
+                depth="in"
+              >
+                <ul className="flex flex-col gap-2">
+                  {c.ai_uncertainties.map((u, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex-none text-high-ink">
+                        <Icon name="alert" size={13} />
+                      </span>
+                      <p className="text-[12.5px] leading-relaxed text-body">{u}</p>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+
+            <Card depth="in" className="p-4">
+              <div className="flex items-center gap-2">
+                <Chip tone="neutral">Rubric v1</Chip>
+              </div>
+              <p className="mt-2.5 text-[12.5px] leading-relaxed text-body">
+                Problem fit 25 · Technical soundness 20 · Practicality in context 15 · Cost
+                credibility 15 · Timeline credibility 10 · Requirements completeness 10 ·
+                Maintenance and handover 5. Below 40 is refused outright.
+              </p>
+            </Card>
+          </aside>
+        </div>
+      </Main>
+    </>
   );
 }

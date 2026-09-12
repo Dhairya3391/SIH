@@ -1,254 +1,494 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  CheckCircle2, 
-  MapPin, 
-  Camera, 
-  ShieldCheck, 
-  AlertTriangle, 
-  Check, 
-  UploadCloud,
-  FileSpreadsheet,
-  Users,
-  Navigation
-} from 'lucide-react';
-import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { SEED_REPORTS } from '@/data/seedData';
+import React, { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { BackLink, Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Panel, Stat, Well } from "@/components/ui/Surface";
+import { Button } from "@/components/ui/Button";
+import { BandChip, ConfidenceChip, Tag } from "@/components/ui/Chip";
+import { Caveat, Empty, ErrorNote, Skeleton, SkeletonRows } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import { Corroboration, ConfidenceLadder } from "@/components/domain/Corroboration";
+import { ScoreFactors } from "@/components/domain/ScoreFactors";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import {
+  CHANNEL_LABEL,
+  CONFIDENCE_RUNGS,
+  bandOf,
+  dateTime,
+  num,
+  relative,
+} from "@/lib/format";
 
-export default function VerifyDetailPage() {
-  const params = useParams();
+/**
+ * Verify one report.
+ *
+ * Everything a verifier needs is on one screen, side by side, because the
+ * decision is a comparison: what the people there said, against what the
+ * outside world can confirm. Nothing is behind a tab — holding half the
+ * evidence in your head is how a wrong call gets made.
+ */
+export default function VerifyOnePage() {
+  return (
+    <RouteGuard>
+      <VerifyReview />
+    </RouteGuard>
+  );
+}
+
+function VerifyReview() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
   const router = useRouter();
-  const id = params?.id as string;
 
-  const [report, setReport] = useState<any>(SEED_REPORTS.find(r => r.id === id) || SEED_REPORTS[0]);
+  const res = useResource(() => apiClient.fetchChallenge(id), [id], { enabled: Boolean(id) });
 
-  React.useEffect(() => {
+  const [running, setRunning] = useState(false);
+  const [mode, setMode] = useState<"none" | "confirm" | "reject">("none");
+  const [sources, setSources] = useState("");
+  const [photos, setPhotos] = useState("");
+  const [note, setNote] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [done, setDone] = useState<"confirmed" | "rejected" | null>(null);
+
+  const detail = res.data;
+  const challenge = detail?.challenge;
+  const reports = detail?.cluster?.reports ?? [];
+
+  // The queue row carries the corroboration summary; the detail endpoint does
+  // not. Read it from the queue so the panel is populated either way.
+  const queue = useResource(() => apiClient.fetchVerifyQueue({ limit: 100 }), []);
+  const external = queue.data?.queue.find((q) => q.id === id)?.external ?? null;
+
+  async function runCorroboration() {
+    setRunning(true);
+    setActionError(null);
     try {
-      const saved = localStorage.getItem('jharsetu_custom_reports');
-      if (saved) {
-        const custom: any[] = JSON.parse(saved);
-        const match = custom.find(r => r.id === id || r.client_id === id);
-        if (match) setReport(match);
-      }
-    } catch {}
-  }, [id]);
-
-  const [severityConfirmed, setSeverityConfirmed] = useState(4);
-  const [peopleEst, setPeopleEst] = useState(450);
-  const [notes, setNotes] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [uploadProof, setUploadProof] = useState(true);
-
-  React.useEffect(() => {
-    if (report) {
-      setSeverityConfirmed(report.urgency || 4);
-      setPeopleEst(report.people_est || 450);
-    }
-  }, [report]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitted(true);
-
-    try {
-      // 1. Mark report ID as verified
-      const verifiedIds: string[] = JSON.parse(localStorage.getItem('jharsetu_verified_report_ids') || '[]');
-      if (!verifiedIds.includes(report.id)) {
-        localStorage.setItem('jharsetu_verified_report_ids', JSON.stringify([...verifiedIds, report.id]));
-      }
-
-      // 2. Synthesize/promote into a verified societal challenge in the public feed
-      const customChallenges: any[] = JSON.parse(localStorage.getItem('jharsetu_custom_challenges') || '[]');
-      const newChalId = `CHAL-${(report.category || 'CIVIL').toUpperCase()}-${(report.id || 'NEW').replace(/[^a-zA-Z0-9]/g, '')}`;
-      
-      const verifiedChallenge = {
-        id: newChalId,
-        ref: `CHAL-${(report.id || 'VERIFIED').toUpperCase()}`,
-        region_id: 'jharkhand',
-        title: report.original_text?.length > 60 ? `${report.original_text.slice(0, 60)}...` : report.original_text || 'Verified Citizen Issue',
-        problem: report.original_text || 'Field-verified report submitted by citizen and corroborated on site with GPS proof.',
-        category: report.category || 'water',
-        dm_phase: 'response',
-        district: report.district || 'Gumla',
-        lat: report.lat || 23.3441,
-        lng: report.lng || 85.3096,
-        people_est: peopleEst,
-        severity: severityConfirmed,
-        priority: Math.min(95, severityConfirmed * 18 + 10),
-        priority_band: severityConfirmed >= 4 ? 'critical' : severityConfirmed >= 3 ? 'high' : 'moderate',
-        confidence: 'field_verified',
-        status: 'VERIFIED',
-        report_count: 1,
-        capabilities_needed: ['Field Engineering', 'Equipment Deployment'],
-        mode: 'peace',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const filtered = customChallenges.filter(c => c.id !== newChalId);
-      localStorage.setItem('jharsetu_custom_challenges', JSON.stringify([verifiedChallenge, ...filtered]));
+      await apiClient.runCorroboration(id);
+      queue.reload();
+      res.reload();
     } catch (err) {
-      console.error('Failed to save verification state', err);
+      setActionError(err instanceof Error ? err.message : "Corroboration could not run.");
+    } finally {
+      setRunning(false);
     }
+  }
 
-    setTimeout(() => {
-      router.push('/');
-    }, 2000);
-  };
+  async function confirm() {
+    const sourceList = sources
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setBusy(true);
+    setActionError(null);
+    try {
+      await apiClient.confirmVerification(id, {
+        source_urls: sourceList,
+        photo_paths: photos
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+        note: note.trim(),
+      });
+      setDone("confirmed");
+      res.reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "The verification was not recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await apiClient.rejectVerification(id, reason.trim());
+      setDone("rejected");
+      res.reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "The rejection was not recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (res.loading && !res.settled) {
+    return (
+      <>
+        <BackLink href="/verify" label="Verification queue" />
+        <Main className="pt-6">
+          <Skeleton height={90} rounded={16} />
+          <div className="grid gap-5 lg:grid-cols-2">
+            <SkeletonRows rows={3} height={140} />
+            <SkeletonRows rows={3} height={140} />
+          </div>
+        </Main>
+      </>
+    );
+  }
+
+  if (res.error || !challenge) {
+    return (
+      <>
+        <BackLink href="/verify" label="Verification queue" />
+        <Main className="pt-6">
+          <ErrorNote
+            message={res.error ?? "That report could not be loaded."}
+            code={res.code}
+            onRetry={res.reload}
+          />
+        </Main>
+      </>
+    );
+  }
 
   return (
-    <RoleGuard 
-      allowedRoles={['volunteer', 'coordinator', 'admin']} 
-      title="Perform Field Verification"
-      description="Ground truth confirmation protocol for verifying citizen reports with GPS coordinates, on-site photographs, and corroboration."
-    >
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        
-        {/* Back Link */}
-        <Link
-          href="/verify"
-          className="inline-flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-[#2E7180] transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Verification Queue</span>
-        </Link>
+    <>
+      <BackLink href="/verify" label="Verification queue" trail={challenge.ref} />
 
-        {submitted ? (
-          <div className="bg-emerald-50 border border-emerald-300 p-8 rounded-2xl text-center space-y-4 shadow-sm animate-in fade-in">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto">
-              <Check className="w-8 h-8" />
+      <PageHead
+        eyebrow={`${challenge.ref} · ${challenge.district ?? "district unknown"}`}
+        title={challenge.title}
+        lede={challenge.brief?.problem ?? challenge.why_critical}
+        right={
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <div className="flex items-center gap-2">
+              <BandChip band={challenge.band ?? bandOf(challenge.priority)} />
+              <ConfidenceChip confidence={challenge.confidence} />
             </div>
-            <h2 className="text-2xl font-bold text-emerald-900">
-              Field Verification Recorded!
-            </h2>
-            <p className="text-xs text-emerald-700 max-w-md mx-auto">
-              Confidence level elevated to <strong>FIELD_VERIFIED</strong>. Ledger transaction signed with Verifier ID #VER-SK-8492. Redirecting to queue...
-            </p>
+            <span className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+              filed {relative(challenge.created_at)}
+            </span>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Header */}
-            <div className="bg-white p-6 rounded-2xl border border-[#CCD1C7] space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                  REPORT REF #{report.id.toUpperCase()}
-                </span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                  PENDING FIELD CHECK
-                </span>
-              </div>
-              <h1 className="text-xl font-bold text-[#102027]">
-                {report.original_text}
-              </h1>
-              <div className="flex items-center gap-4 text-xs text-gray-500 font-mono">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                  {report.district} ({report.village || 'Panchayat Area'})
-                </span>
-                <span>GPS: {report.lat.toFixed(4)}, {report.lng.toFixed(4)}</span>
-              </div>
-            </div>
+        }
+      />
 
-            {/* Verification Checklist */}
-            <div className="bg-white p-6 rounded-2xl border border-[#CCD1C7] space-y-6">
-              <h2 className="text-base font-bold text-[#102027] border-b border-gray-100 pb-3 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
-                <span>On-Site Ground Assessment</span>
+      <Main>
+        {done && (
+          <Card depth="in" className="flex items-start gap-3 p-5">
+            <span className="mt-px text-teal-ink">
+              <Icon name="check" size={18} />
+            </span>
+            <div>
+              <h2 className="text-[15px] font-bold text-navy-dark">
+                {done === "confirmed" ? "Verification recorded" : "Rejection recorded"}
               </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                
-                {/* Severity adjustment */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">
-                    Confirmed Ground Severity (1 to 5)
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={severityConfirmed}
-                    onChange={(e) => setSeverityConfirmed(Number(e.target.value))}
-                    className="w-full accent-amber-600"
-                  />
-                  <div className="flex justify-between text-[11px] font-mono text-gray-500">
-                    <span>1: Minor</span>
-                    <span className="font-bold text-amber-700 text-sm">{severityConfirmed} / 5</span>
-                    <span>5: Critical Crisis</span>
-                  </div>
-                </div>
-
-                {/* People affected adjustment */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">
-                    Estimated Inhabitants Affected
-                  </label>
-                  <input
-                    type="number"
-                    value={peopleEst}
-                    onChange={(e) => setPeopleEst(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Photo Evidence Simulation */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-700">
-                  Geo-Tagged Photographic Evidence
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center bg-gray-50 space-y-2">
-                  <Camera className="w-8 h-8 text-gray-400 mx-auto" />
-                  <div className="text-xs text-gray-600 font-medium">
-                    Attached: <strong>IMG_FIELD_SITE_PROOF_8492.JPG</strong> (EXIF geocoded)
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-mono">
-                    ✓ EXIF Metadata verified: 23.3441° N, 85.3096° E · Accuracy ±6m
-                  </div>
-                </div>
-              </div>
-
-              {/* Ground notes */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-700">
-                  Field Inspector Notes & Ground Truth Findings
-                </label>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Inspected on site. Three village handpumps are non-functional due to lowered water table. School children currently walking 2.5km to stream..."
-                  className="w-full p-3 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-amber-600"
-                />
+              <p className="mt-1.5 text-[13px] leading-relaxed text-body">
+                {done === "confirmed"
+                  ? "This problem is now field verified and open to colleges. Your name and the sources you filed are on the record against it."
+                  : "The report stays on file with your reason attached, so the reporter and any reviewer can see why it did not stand."}
+              </p>
+              <div className="mt-4">
+                <Button
+                  variant="primary"
+                  iconAfter="arrow"
+                  onClick={() => router.push("/verify")}
+                >
+                  Next in the queue
+                </Button>
               </div>
             </div>
-
-            {/* Submit Bar */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Link
-                href="/verify"
-                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-100 transition"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Submit Field Verification & Sign Ledger</span>
-              </button>
-            </div>
-
-          </form>
+          </Card>
         )}
 
-      </div>
-    </RoleGuard>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label="Priority" value={`${challenge.priority}`} sub="Out of 100" />
+          <Stat
+            label="Reports"
+            value={num(challenge.report_count)}
+            sub={`${num(challenge.reporter_count)} separate reporters`}
+          />
+          <Stat
+            label="People affected"
+            value={num(challenge.people_est)}
+            sub={challenge.brief?.vulnerable?.length ? challenge.brief.vulnerable.join(", ") : "No group named"}
+          />
+          <Stat
+            label="Villages"
+            value={num(detail?.cluster?.villages ?? 0)}
+            sub={`${num(detail?.cluster?.photos ?? 0)} photos · ${num(detail?.cluster?.via_sms ?? 0)} by SMS`}
+          />
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {/* ---- what the people there said --------------------------------- */}
+          <div className="flex flex-col gap-5">
+            <Panel
+              title="What the people there said"
+              lede={`${num(reports.length)} of ${num(challenge.report_count)} reports, newest first. Original wording first, then how the system read it.`}
+            >
+              {reports.length === 0 ? (
+                <Empty
+                  icon="mic"
+                  title="No individual reports are readable here"
+                  why="The reports behind this problem are not exposed on this endpoint, which happens for seeded rows. The counts above are from the challenge record itself."
+                />
+              ) : (
+                <ul className="flex max-h-[560px] flex-col gap-3 overflow-y-auto pr-1">
+                  {reports.slice(0, 20).map((r) => (
+                    <li key={r.id} className="up-s p-4">
+                      <div className="mono flex flex-wrap items-center gap-x-2 gap-y-1 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                        <span>{dateTime(r.created_at)}</span>
+                        <span>·</span>
+                        <span>{CHANNEL_LABEL[r.channel] ?? r.channel}</span>
+                        {r.village && (
+                          <>
+                            <span>·</span>
+                            <span>{r.village}</span>
+                          </>
+                        )}
+                        <span>·</span>
+                        <span>urgency {r.urgency}/5</span>
+                      </div>
+
+                      <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink">
+                        {r.original_text}
+                      </p>
+
+                      {r.translated_text && r.translated_text !== r.original_text && (
+                        <Well small className="mt-2.5">
+                          <p className="text-[12.5px] leading-relaxed text-body">
+                            <span className="mono text-[9.5px] uppercase tracking-[0.1em] text-mute">
+                              read as ({r.lang}){" "}
+                            </span>
+                            {r.translated_text}
+                          </p>
+                        </Well>
+                      )}
+
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {r.people_est > 0 && <Tag>{num(r.people_est)} people</Tag>}
+                        {r.vulnerable.map((v) => (
+                          <Tag key={v}>{v}</Tag>
+                        ))}
+                        {r.photo_urls.length > 0 && (
+                          <Tag icon={<Icon name="camera" size={11} />}>
+                            {r.photo_urls.length} photo
+                            {r.photo_urls.length === 1 ? "" : "s"}
+                          </Tag>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            {detail && detail.verifications.length > 0 && (
+              <Panel
+                title="Already on the record"
+                lede="Verifications filed before yours."
+                depth="in"
+              >
+                <ul className="flex flex-col gap-2.5">
+                  {detail.verifications.map((v) => (
+                    <li key={v.id} className="up-s p-3.5">
+                      <div className="mono text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                        {v.kind} · {dateTime(v.created_at)}
+                      </div>
+                      {v.note && (
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-ink">{v.note}</p>
+                      )}
+                      {v.evidence_url && (
+                        <p className="mono mt-1.5 truncate text-[10.5px] text-mute">
+                          {v.evidence_url}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+          </div>
+
+          {/* ---- what the outside world says -------------------------------- */}
+          <div className="flex flex-col gap-5">
+            <Panel
+              title="What the outside world says"
+              lede="Three independent checks. The model answers with passage numbers, never URLs, so it cannot invent a source."
+            >
+              <Corroboration
+                external={external}
+                onRun={runCorroboration}
+                running={running}
+              />
+            </Panel>
+
+            <Panel
+              title="Where this sits on the ladder"
+              lede="Confirming moves it up one rung. Only a person can reach field verified."
+            >
+              <ConfidenceLadder current={challenge.confidence} rungs={CONFIDENCE_RUNGS} />
+            </Panel>
+
+            {challenge.ai_uncertainties?.length > 0 && (
+              <Panel
+                title="What the compiler was unsure about"
+                lede="Written by the model about its own output. Worth checking first."
+                depth="in"
+              >
+                <ul className="flex flex-col gap-2">
+                  {challenge.ai_uncertainties.map((u, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex-none text-high-ink">
+                        <Icon name="alert" size={13} />
+                      </span>
+                      <p className="text-[13px] leading-relaxed text-body">{u}</p>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+
+            <Panel title="Why it is ranked where it is">
+              <ScoreFactors
+                breakdown={challenge.score_breakdown}
+                whyCritical={challenge.why_critical}
+                compact
+              />
+            </Panel>
+          </div>
+        </div>
+
+        {/* ---- the decision ------------------------------------------------- */}
+        {!done && (
+          <Panel
+            title="Your decision"
+            lede="Confirm needs a source and a note. Reject needs a reason the reporter can read."
+          >
+            {actionError && (
+              <div className="in-s mb-4 flex items-start gap-2.5 p-3.5" role="alert">
+                <span className="mt-px text-alert-ink">
+                  <Icon name="alert" size={15} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">{actionError}</p>
+              </div>
+            )}
+
+            {mode === "none" && (
+              <div className="flex flex-wrap gap-3">
+                <Button variant="primary" icon="check" onClick={() => setMode("confirm")}>
+                  Confirm this problem
+                </Button>
+                <Button variant="danger" icon="x" onClick={() => setMode("reject")}>
+                  It does not stand
+                </Button>
+              </div>
+            )}
+
+            {mode === "confirm" && (
+              <div className="flex flex-col gap-4">
+                <label className="flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Sources — one per line
+                  </span>
+                  <textarea
+                    className="field"
+                    rows={3}
+                    value={sources}
+                    onChange={(e) => setSources(e.target.value)}
+                    placeholder={"Block office register entry 14/09\nhttps://…"}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Photo references — optional, one per line
+                  </span>
+                  <textarea
+                    className="field min-h-[72px]"
+                    rows={2}
+                    value={photos}
+                    onChange={(e) => setPhotos(e.target.value)}
+                    placeholder="field/gumla/2026-09-14-culvert.jpg"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    What you found
+                  </span>
+                  <textarea
+                    className="field"
+                    rows={3}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Visited on 14 September. Two damaged fields, no shelter within 2 km. Spoke to the panchayat secretary."
+                  />
+                </label>
+
+                <Caveat icon="shield">
+                  This is signed with your account and cannot be edited afterwards. A college will
+                  build against what you write here.
+                </Caveat>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="primary"
+                    icon="check"
+                    busy={busy}
+                    disabled={!note.trim() || sources.trim().length === 0}
+                    onClick={confirm}
+                  >
+                    Record the verification
+                  </Button>
+                  <Button variant="secondary" onClick={() => setMode("none")}>
+                    Back
+                  </Button>
+                </div>
+                {(!note.trim() || !sources.trim()) && (
+                  <p className="text-[12.5px] leading-relaxed text-mute">
+                    A source and a note are both required — an unsourced confirmation is
+                    indistinguishable from a guess to everyone downstream.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {mode === "reject" && (
+              <div className="flex flex-col gap-4">
+                <label className="flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Why it does not stand
+                  </span>
+                  <textarea
+                    className="field"
+                    rows={3}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="The culvert named here was rebuilt in June; the photographs are of a different site 8 km away."
+                  />
+                </label>
+
+                <Caveat icon="info">
+                  The report is not deleted. It stays on file with this reason attached, which is
+                  what stops the same claim being re-filed and re-rejected in a loop.
+                </Caveat>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="danger"
+                    icon="x"
+                    busy={busy}
+                    disabled={reason.trim().length < 10}
+                    onClick={reject}
+                  >
+                    Record the rejection
+                  </Button>
+                  <Button variant="secondary" onClick={() => setMode("none")}>
+                    Back
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Panel>
+        )}
+      </Main>
+    </>
   );
 }

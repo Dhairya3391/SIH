@@ -1,214 +1,121 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import {
-  AlertCircle,
-  Building2,
-  Filter,
-  MapPin,
-  Package,
-  RefreshCw,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import {
-  ContributionSplitter,
-  formatIndianCurrency,
-  formatIndianNumber,
-} from '@/components/shared/ContributionSplitter';
-import { fetchNeeds, pledgeResource } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import React, { useMemo, useState } from "react";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Panel, Stat } from "@/components/ui/Surface";
+import { Button, ButtonLink, Toggle } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { Caveat, Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import { NeedCard } from "@/components/domain/NeedCard";
+import * as apiClient from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useResource } from "@/lib/useResource";
+import { CATEGORY_LABEL, humanise, num } from "@/lib/format";
+import type { NeedLine } from "@/types/database";
 
 /**
- * The contribution marketplace.
+ * The needs board.
  *
- * Every line shows what REMAINS, not what was originally asked for, because
- * the mechanic the whole pitch turns on is two contributors closing one line
- * between them: 12 units needed, 5 taken by someone else, 7 left for you.
+ * Every line is itemised and every line is divisible. A need for twelve siren
+ * units can be closed by six organisations giving two each — which is the
+ * entire point, because most CSR budgets in the state are small and a board
+ * that only accepts whole needs turns those donors away.
  */
-
-interface NeedRow {
-  need_id: string;
-  item: string;
-  unit: string | null;
-  kind: string;
-  capability: string | null;
-  qty_needed: number;
-  qty_pledged: number;
-  qty_remaining: number;
-  pct_closed: number;
-  contributor_count: number;
-  challenge: {
-    id: string;
-    ref: string;
-    title: string;
-    district: string;
-    category: string;
-    priority: number;
-    people_est: number;
-    age_days: number;
-  };
+export default function NeedsPage() {
+  return (
+    <RouteGuard>
+      <NeedsBoard />
+    </RouteGuard>
+  );
 }
 
-const KIND_LABEL: Record<string, string> = {
-  money: 'Funding',
-  equipment: 'Materials',
-  people: 'People',
-  expertise: 'Expertise',
-};
+type Lens = "all" | "open" | "nearly" | "untouched";
 
-export default function NeedsMarketplacePage() {
-  const { organisation } = useAuth();
-  const [rows, setRows] = useState<NeedRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [district, setDistrict] = useState('all');
-  const [kind, setKind] = useState('all');
+function NeedsBoard() {
+  const { organisation, user } = useAuth();
+  const [district, setDistrict] = useState("");
+  const [kind, setKind] = useState("");
+  const [lens, setLens] = useState<Lens>("open");
+  const [pledging, setPledging] = useState<NeedLine | null>(null);
 
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const res = await fetchNeeds({
-        district: district === 'all' ? undefined : district,
-        kind: kind === 'all' ? undefined : kind,
-        limit: 80,
-      });
-      setRows(res.needs as NeedRow[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load open needs.');
-    } finally {
-      setLoading(false);
-    }
-  }, [district, kind]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const districts = useMemo(
-    () => [...new Set(rows.map((r) => r.challenge.district))].sort(),
-    [rows],
+  const res = useResource(
+    () =>
+      apiClient.fetchNeeds({
+        district: district || undefined,
+        kind: kind || undefined,
+        limit: 120,
+      }),
+    [district, kind],
   );
 
-  const totals = useMemo(() => {
-    const money = rows.filter((r) => r.kind === 'money');
-    const material = rows.filter((r) => r.kind !== 'money');
-    return {
-      lines: rows.length,
-      challenges: new Set(rows.map((r) => r.challenge.ref)).size,
-      moneyRemaining: money.reduce((s, r) => s + r.qty_remaining, 0),
-      materialLines: material.length,
-      partlyClosed: rows.filter((r) => r.qty_pledged > 0).length,
-    };
-  }, [rows]);
+  // Memoised so an unresolved fetch does not hand every useMemo below a
+  // brand-new empty array on each render.
+  const needs = useMemo(() => res.data?.needs ?? [], [res.data]);
 
-  const onPledge = async (row: NeedRow, amount: number, note?: string) => {
-    if (!organisation?.id) {
-      throw new Error('This account is not linked to an organisation, so it cannot pledge yet.');
-    }
-    await pledgeResource(row.challenge.id, {
-      need_id: row.need_id,
-      org_id: organisation.id,
-      qty: amount,
-      kind: row.kind,
-      note: note || `Pledged via the needs marketplace`,
-    });
-    await load();
-  };
+  const districts = useMemo(
+    () =>
+      [
+        ...new Set(needs.map((n) => n.challenge?.district).filter(Boolean) as string[]),
+      ].sort(),
+    [needs],
+  );
+  const kinds = useMemo(
+    () => [...new Set(needs.map((n) => n.kind).filter(Boolean))].sort(),
+    [needs],
+  );
+
+  const remainingOf = (n: NeedLine) =>
+    n.qty_remaining ?? n.qty_open ?? n.qty_needed - n.qty_pledged;
+
+  const counts = useMemo(() => {
+    const open = needs.filter((n) => remainingOf(n) > 0);
+    const untouched = needs.filter((n) => n.qty_pledged === 0);
+    const nearly = needs.filter((n) => n.pct_closed >= 60 && remainingOf(n) > 0);
+    const people = [
+      ...new Map(
+        open.filter((n) => n.challenge).map((n) => [n.challenge.id, n.challenge.people_est]),
+      ).values(),
+    ].reduce((a, b) => a + b, 0);
+    return { open: open.length, untouched: untouched.length, nearly: nearly.length, people };
+  }, [needs]);
+
+  const rows = useMemo(() => {
+    const filtered =
+      lens === "open"
+        ? needs.filter((n) => remainingOf(n) > 0)
+        : lens === "nearly"
+          ? needs.filter((n) => n.pct_closed >= 60 && remainingOf(n) > 0)
+          : lens === "untouched"
+            ? needs.filter((n) => n.qty_pledged === 0)
+            : needs;
+    // Nearly-closed lines first: finishing one delivers something, starting
+    // five delivers nothing.
+    return filtered
+      .slice()
+      .sort(
+        (a, b) =>
+          b.pct_closed - a.pct_closed ||
+          (b.challenge?.priority ?? 0) - (a.challenge?.priority ?? 0),
+      );
+  }, [needs, lens]);
 
   return (
-    <RoleGuard
-      allowedRoles={['industry', 'university', 'coordinator', 'admin']}
-      consoleTitle="Contribution Marketplace"
-    >
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          {/* header */}
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Stage 4 · Fractional CSR and NGO sponsorship
-              </div>
-              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
-                What still needs covering
-              </h1>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
-                Open lines across every funded project. You can take part of a
-                line — another partner can take the rest.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setLoading(true);
-                load();
-              }}
-              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </button>
-          </div>
-
-          {/* live totals */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Open lines
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-[#102027]">
-                {totals.lines}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
-                across {totals.challenges} projects
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Funding still open
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-[#102027]">
-                {totals.moneyRemaining > 0 ? formatIndianCurrency(totals.moneyRemaining) : '—'}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">across all money lines</div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Material lines
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-[#102027]">
-                {totals.materialLines}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">equipment and supplies</div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-emerald-700 mb-1">
-                Part-covered
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-emerald-700">
-                {totals.partlyClosed}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
-                someone has already started these
-              </div>
-            </div>
-          </div>
-
-          {/* filters */}
-          <div className="bg-white rounded-xl border border-[#CCD1C7] p-3 flex flex-wrap items-center gap-3">
-            <span className="font-mono text-[10px] tracking-wider uppercase text-gray-500 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5" /> Filter
-            </span>
+    <>
+      <PageHead
+        eyebrow="Company / NGO"
+        title="What is actually needed"
+        lede="Itemised lines from problems that a person verified and a college is building against. Give part of a line or all of it — six organisations closing one need together is the normal case, not a fallback."
+        right={
+          <div className="flex flex-wrap items-center gap-2.5">
             <select
+              className="field max-w-[180px]"
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
-              className="h-9 px-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-xs outline-none focus:border-[#2E7180]"
+              aria-label="Filter by district"
             >
-              <option value="all">All districts</option>
+              <option value="">All districts</option>
               {districts.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -216,142 +123,343 @@ export default function NeedsMarketplacePage() {
               ))}
             </select>
             <select
+              className="field max-w-[170px]"
               value={kind}
               onChange={(e) => setKind(e.target.value)}
-              className="h-9 px-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-xs outline-none focus:border-[#2E7180]"
+              aria-label="Filter by kind"
             >
-              <option value="all">Funding and materials</option>
-              <option value="money">Funding only</option>
-              <option value="equipment">Materials only</option>
-              <option value="people">People</option>
-              <option value="expertise">Expertise</option>
+              <option value="">All kinds</option>
+              {kinds.map((k) => (
+                <option key={k} value={k}>
+                  {humanise(k)}
+                </option>
+              ))}
             </select>
-            {organisation && (
-              <span className="ml-auto text-[11px] text-gray-500 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5" /> Pledging as{' '}
-                <strong className="text-[#102027]">{organisation.name}</strong>
-              </span>
-            )}
           </div>
+        }
+      />
 
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
-            >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
+      <Main>
+        {res.loading && !res.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={4} height={220} />
+          </>
+        ) : res.error ? (
+          <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Open lines"
+                value={num(counts.open)}
+                sub={district ? `In ${district}` : "Across Jharkhand"}
+              />
+              <Stat
+                label="Nothing pledged yet"
+                value={num(counts.untouched)}
+                sub="No organisation has given anything"
+                tone={counts.untouched > 0 ? "alert" : undefined}
+              />
+              <Stat
+                label="Over 60% closed"
+                value={num(counts.nearly)}
+                sub="A small contribution finishes these"
+                tone={counts.nearly > 0 ? "teal" : undefined}
+              />
+              <Stat
+                label="People behind them"
+                value={num(counts.people)}
+                sub="Across the problems with open lines"
+              />
             </div>
-          )}
 
-          {/* the lines */}
-          {loading ? (
-            <LoadingSkeleton rows={4} />
-          ) : rows.length === 0 ? (
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-10 text-center">
-              <Package className="w-7 h-7 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-[#102027]">
-                Nothing is waiting for a contribution right now
-              </p>
-              <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
-                Lines appear here once a college wins a proposal and publishes
-                what it needs. Every line already open has been fully covered.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {rows.map((row) => (
-                <article
-                  key={row.need_id}
-                  className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden"
-                >
-                  <div className="p-4 border-b border-[#CCD1C7] flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                        <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-[#102027] text-white">
-                          {KIND_LABEL[row.kind] ?? row.kind}
-                        </span>
-                        {row.challenge.priority >= 75 && (
-                          <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-red-100 text-red-800">
-                            CRITICAL {row.challenge.priority}
-                          </span>
-                        )}
-                        {row.qty_pledged > 0 && (
-                          <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {row.pct_closed}% COVERED
-                          </span>
-                        )}
-                        {row.capability && (
-                          <span className="font-mono text-[10px] text-gray-500 border border-[#CCD1C7] px-1.5 py-0.5 rounded">
-                            {row.capability}
-                          </span>
-                        )}
-                      </div>
-                      <h2 className="font-bold text-[#102027]">{row.item}</h2>
-                      <Link
-                        href={`/challenge/${row.challenge.ref}`}
-                        className="text-xs text-[#2E7180] hover:underline mt-1 inline-block"
-                      >
-                        {row.challenge.title}
-                      </Link>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 font-mono text-[10px] text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {row.challenge.district}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />{' '}
-                          {formatIndianNumber(row.challenge.people_est)} people
-                        </span>
-                        <span>{row.challenge.ref}</span>
-                        <span>open {row.challenge.age_days}d</span>
-                        {row.contributor_count > 0 && (
-                          <span className="text-emerald-700">
-                            {row.contributor_count} partner
-                            {row.contributor_count === 1 ? '' : 's'} already in
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                        Remaining
-                      </div>
-                      <div className="text-xl font-extrabold font-mono text-[#102027]">
-                        {row.kind === 'money'
-                          ? formatIndianCurrency(row.qty_remaining)
-                          : `${formatIndianNumber(row.qty_remaining)} ${row.unit ?? ''}`}
-                      </div>
-                      <div className="font-mono text-[10px] text-gray-500">
-                        of {formatIndianNumber(row.qty_needed)} {row.unit ?? ''}
-                      </div>
-                    </div>
-                  </div>
+            {counts.nearly > 0 && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-teal-ink">
+                  <Icon name="box" size={16} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">
+                  <strong className="text-ink">
+                    {counts.nearly} line{counts.nearly === 1 ? " is" : "s are"} more than 60%
+                    closed.
+                  </strong>{" "}
+                  Those are the cheapest deliveries in the state right now — a partial line blocks
+                  the same execution stage as an empty one, so finishing one is worth more than
+                  starting three.
+                </p>
+              </Card>
+            )}
 
-                  <div className="p-4 bg-[#F4F6F5]">
-                    <ContributionSplitter
-                      itemName={row.item}
-                      totalNeeded={row.qty_needed}
-                      alreadyPledged={row.qty_pledged}
-                      unit={row.unit ?? 'units'}
-                      isCurrency={row.kind === 'money'}
-                      orgName={organisation?.name}
-                      disabled={!organisation}
-                      onPledge={(amount, note) => onPledge(row, amount, note)}
-                    />
-                    {!organisation && (
-                      <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
-                        <Wallet className="w-3.5 h-3.5" />
-                        This account has no organisation attached, so it can
-                        browse but not pledge.
-                      </p>
-                    )}
-                  </div>
-                </article>
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  ["open", `Still open (${counts.open})`],
+                  ["nearly", `Nearly there (${counts.nearly})`],
+                  ["untouched", `Untouched (${counts.untouched})`],
+                  ["all", `Everything (${needs.length})`],
+                ] as [Lens, string][]
+              ).map(([key, label]) => (
+                <Toggle key={key} active={lens === key} onClick={() => setLens(key)}>
+                  {label}
+                </Toggle>
               ))}
             </div>
-          )}
-        </main>
+
+            {rows.length === 0 ? (
+              <Empty
+                icon="box"
+                title={needs.length === 0 ? "No open needs right now" : "Nothing under this lens"}
+                why={
+                  needs.length === 0
+                    ? "Needs appear here when a college's awarded proposal is broken into itemised lines. If the board is empty, no awarded project is currently short of anything."
+                    : "The lines are all still there, just not in this subset. Switch to Everything."
+                }
+              />
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {rows.map((n) => (
+                  <NeedCard
+                    key={n.need_id}
+                    need={n}
+                    onPledge={organisation ? setPledging : undefined}
+                  />
+                ))}
+              </div>
+            )}
+
+            {!organisation && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-alert-ink">
+                  <Icon name="alert" size={16} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">
+                  {user?.role === "admin"
+                    ? "You are signed in as the system owner, which is not attached to an organisation. Pledging is disabled because a pledge has to belong to somebody — the button is shown as unavailable rather than hidden so you can see what a company would see."
+                    : "This account is not linked to an organisation, so it cannot pledge. An administrator has to attach it first."}
+                </p>
+              </Card>
+            )}
+
+            <Panel
+              title="What happens after you pledge"
+              lede="A pledge is a commitment that gets tracked to delivery, not a donation that disappears."
+              depth="in"
+            >
+              <ol className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-body">
+                <li>
+                  <strong className="text-ink">Offered.</strong> The line shows your quantity as
+                  pledged and the college can plan around it.
+                </li>
+                <li>
+                  <strong className="text-ink">Dispatched.</strong> You mark it sent. The college
+                  sees what is coming and when.
+                </li>
+                <li>
+                  <strong className="text-ink">Received.</strong> The college confirms. Only then
+                  does the stage that depended on it unblock.
+                </li>
+                <li>
+                  <strong className="text-ink">Afterwards.</strong> It stays on your contributions
+                  page permanently, with the stage it unlocked and any photograph the college
+                  filed — including after the project closes.
+                </li>
+              </ol>
+            </Panel>
+          </>
+        )}
+      </Main>
+
+      {pledging && organisation && (
+        <PledgeSheet
+          need={pledging}
+          orgId={organisation.id}
+          onClose={() => setPledging(null)}
+          onDone={() => {
+            setPledging(null);
+            res.reload();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * The pledge form. Defaults to the whole remaining quantity but does not
+ * insist on it — the quantity field is the fractional part of "fractional
+ * sponsorship", so it has to be first-class rather than an advanced option.
+ */
+function PledgeSheet({
+  need,
+  orgId,
+  onClose,
+  onDone,
+}: {
+  need: NeedLine;
+  orgId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const remaining = need.qty_remaining ?? need.qty_open ?? need.qty_needed - need.qty_pledged;
+  const [qty, setQty] = useState(String(remaining));
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const amount = Number(qty);
+  const valid = Number.isFinite(amount) && amount > 0 && amount <= remaining;
+
+  async function submit() {
+    if (!need.challenge) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.pledge(need.challenge.id, {
+        need_id: need.need_id,
+        org_id: orgId,
+        qty: amount,
+        kind: need.kind,
+        note: note.trim() || undefined,
+      });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The pledge was not recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(11,42,74,0.28)] p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Pledge towards ${need.item}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="up w-full max-w-[480px] p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <span className="eyebrow">Pledge</span>
+            <h2 className="mt-2 text-[20px] font-extrabold text-navy-dark">{need.item}</h2>
+            <div className="mono mt-1.5 text-[10.5px] uppercase tracking-[0.1em] text-mute">
+              {need.challenge?.ref} · {need.challenge?.district} ·{" "}
+              {CATEGORY_LABEL[need.challenge?.category ?? ""] ??
+                humanise(need.challenge?.category ?? "")}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="up-s up-hit grid h-9 w-9 place-items-center rounded-xl text-mute"
+          >
+            <Icon name="x" size={15} />
+          </button>
+        </div>
+
+        <div className="in mt-5 p-4">
+          <div className="flex items-baseline justify-between">
+            <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+              still open
+            </span>
+            <span className="mono text-[15px] font-semibold text-ink">
+              {num(remaining)} {need.unit}
+            </span>
+          </div>
+        </div>
+
+        <label className="mt-4 flex flex-col gap-2">
+          <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+            How much you can give ({need.unit})
+          </span>
+          <input
+            className="field"
+            type="number"
+            min={1}
+            max={remaining}
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+          />
+        </label>
+
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {[0.25, 0.5, 1].map((f) => {
+            const v = Math.max(1, Math.round(remaining * f));
+            return (
+              <Toggle
+                key={f}
+                active={Number(qty) === v}
+                onClick={() => setQty(String(v))}
+              >
+                {f === 1 ? "All of it" : `${Math.round(f * 100)}%`} · {num(v)} {need.unit}
+              </Toggle>
+            );
+          })}
+        </div>
+
+        <label className="mt-4 flex flex-col gap-2">
+          <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+            A note for the college — optional
+          </span>
+          <textarea
+            className="field min-h-[84px]"
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Can release from the Ranchi stockyard on Tuesday. Galvanised finish."
+          />
+        </label>
+
+        {!valid && qty !== "" && (
+          <p className="mt-3 text-[12.5px] leading-relaxed text-alert-ink">
+            Enter between 1 and {num(remaining)} {need.unit}. Pledging more than is needed would
+            show a line as over-closed and mislead everyone downstream.
+          </p>
+        )}
+
+        {error && (
+          <div className="in-s mt-3 flex items-start gap-2.5 p-3.5" role="alert">
+            <span className="mt-px text-alert-ink">
+              <Icon name="alert" size={15} />
+            </span>
+            <p className="text-[13px] leading-relaxed text-body">{error}</p>
+          </div>
+        )}
+
+        <div className="mt-5">
+          <Caveat icon="shield">
+            This records a commitment against your organisation, visible to the college and to the
+            district. It is not a payment — delivery is confirmed separately by the college.
+          </Caveat>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button variant="primary" busy={busy} disabled={!valid} onClick={submit} icon="check">
+            Pledge {valid ? `${num(amount)} ${need.unit}` : ""}
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <Chip tone="neutral">{humanise(need.kind)}</Chip>
+          {need.capability && <Chip tone="neutral">{humanise(need.capability)}</Chip>}
+          <ButtonLink
+            href={`/challenge/${need.challenge?.ref}`}
+            variant="secondary"
+            size="sm"
+            icon="eye"
+            className="ml-auto"
+          >
+            Read the brief
+          </ButtonLink>
+        </div>
       </div>
-    </RoleGuard>
+    </div>
   );
 }

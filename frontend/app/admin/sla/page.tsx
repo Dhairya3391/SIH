@@ -1,280 +1,302 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { AlertCircle, ArrowLeft, Gauge, RefreshCw, TrendingDown } from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import { fetchSla } from '@/lib/api';
+import React from "react";
+import Link from "next/link";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Stat } from "@/components/ui/Surface";
+import { ButtonLink } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { Empty, ErrorNote, NotMeasured, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { hours, num, pct } from "@/lib/format";
+import type { SlaStage } from "@/types/database";
 
 /**
- * Actual against target, per stage and per district.
+ * Where the time actually goes.
  *
- * A stage nobody has completed shows "not measured yet", never 100%.
- * Attainment of nothing is not perfect attainment, and a government sponsor
- * reading a green gauge over an empty sample is being misled.
+ * Eight stages, each with a target, and the breaches named with their
+ * reference so a coordinator can open the one that is late. A stage with no
+ * sample says so — an attainment figure computed from one row is noise, and
+ * printing it as though it were a rate is how dashboards start lying.
  */
-
-interface Breach {
-  challenge_id: string;
-  ref: string;
-  district: string;
-  hours: number;
-}
-interface Stage {
-  stage_key: string;
-  label: string;
-  target_hours: number;
-  sample_size: number;
-  median_hours: number | null;
-  worst_hours: number | null;
-  attainment_pct: number | null;
-  breaches: Breach[];
-}
-interface DistrictRow {
-  district: string;
-  sample_size: number;
-  attainment_pct: number;
-  mean_hours: number;
-}
-
-function hoursLabel(h: number | null): string {
-  if (h === null) return '—';
-  if (h < 1) return `${Math.round(h * 60)}m`;
-  if (h < 48) return `${Math.round(h * 10) / 10}h`;
-  return `${Math.round(h / 24)}d`;
-}
-
-function Gauge_({ pct }: { pct: number | null }) {
-  if (pct === null) {
-    return (
-      <span className="font-mono text-[11px] text-gray-400">not measured yet</span>
-    );
-  }
-  const tone =
-    pct >= 90 ? 'bg-emerald-600' : pct >= 70 ? 'bg-amber-500' : 'bg-[#A8332A]';
+export default function SlaPage() {
   return (
-    <div className="flex items-center gap-2 min-w-[120px]">
-      <div className="h-2 flex-1 rounded-full bg-[#E9EEEB] overflow-hidden">
-        <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+    <RouteGuard>
+      <Sla />
+    </RouteGuard>
+  );
+}
+
+function Sla() {
+  const res = useResource(() => apiClient.fetchSla(), []);
+  const d = res.data;
+
+  const measured = (d?.stages ?? []).filter((s) => s.sample_size > 0);
+  const unmeasured = (d?.stages ?? []).filter((s) => s.sample_size === 0);
+  const worstStage = measured
+    .slice()
+    .sort((a, b) => (a.attainment_pct ?? 100) - (b.attainment_pct ?? 100))[0];
+  const totalBreaches = measured.reduce((s, x) => s + x.breaches.length, 0);
+
+  return (
+    <>
+      <PageHead
+        eyebrow="System owner"
+        title="SLA and timings"
+        lede="Each stage has a target in hours. This page names the stage that stalls and the specific challenges that breached it — an average with nothing attached to it cannot be acted on."
+        right={
+          <ButtonLink href="/admin" variant="secondary" icon="back">
+            Command centre
+          </ButtonLink>
+        }
+      />
+
+      <Main>
+        {res.loading && !res.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={5} height={130} />
+          </>
+        ) : res.error ? (
+          <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
+        ) : !d ? null : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Stages measured"
+                value={`${num(d.overall.stages_measured)} of ${num(d.overall.stages_total)}`}
+                sub="The rest have no completed transitions yet"
+              />
+              <Stat
+                label="Sample size"
+                value={num(d.overall.sample_size)}
+                sub={
+                  d.overall.sample_size < 10
+                    ? "Small: read these as examples, not rates"
+                    : "Transitions with both timestamps"
+                }
+                tone={d.overall.sample_size < 10 ? "alert" : undefined}
+              />
+              <Stat
+                label="Breaches on record"
+                value={num(totalBreaches)}
+                sub="Named below, with references"
+                tone={totalBreaches > 0 ? "alert" : undefined}
+              />
+              <Stat
+                label="Worst stage"
+                value={worstStage ? pct(worstStage.attainment_pct) : "—"}
+                sub={worstStage ? worstStage.label : "Nothing measured yet"}
+                tone={worstStage && (worstStage.attainment_pct ?? 100) < 50 ? "alert" : undefined}
+              />
+            </div>
+
+            {d.overall.sample_size < 10 && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-mute">
+                  <Icon name="info" size={16} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">
+                  <strong className="text-ink">
+                    The sample is {num(d.overall.sample_size)} transitions.
+                  </strong>{" "}
+                  Percentages from a sample this small are shown because the individual breaches
+                  are useful, not because the rate is meaningful. They will settle once the
+                  platform has run for a few weeks.
+                </p>
+              </Card>
+            )}
+
+            <Panel
+              title="Stage by stage"
+              lede="Median and worst case against the target, with every breach named."
+            >
+              {measured.length === 0 ? (
+                <Empty
+                  icon="clock"
+                  title="No stage has enough data to measure"
+                  why="A stage is only measured once challenges have both the start and the end timestamp for it. Nothing has completed a full transition yet."
+                />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {measured.map((s) => (
+                    <StageRow key={s.stage_key} stage={s} />
+                  ))}
+                </div>
+              )}
+
+              {unmeasured.length > 0 && (
+                <div className="hairline mt-5 pt-5">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Not measurable yet
+                  </div>
+                  <ul className="mt-3 flex flex-col gap-2.5">
+                    {unmeasured.map((s) => (
+                      <li key={s.stage_key} className="in-s p-3.5">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="text-[13px] font-semibold text-ink">{s.label}</span>
+                          <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                            target {hours(s.target_hours)}
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <NotMeasured
+                            what={s.label}
+                            why="no challenge has both timestamps for this transition yet"
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Panel>
+
+            <Panel
+              title="By district"
+              lede="Attainment where the work actually happens. A district with one sample is labelled as such."
+            >
+              {d.by_district.length === 0 ? (
+                <Empty
+                  icon="pin"
+                  title="No district has a measurable sample"
+                  why="District attainment needs completed transitions attributed to a district. None are recorded yet."
+                />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {d.by_district
+                    .slice()
+                    .sort((a, b) => a.attainment_pct - b.attainment_pct)
+                    .map((x) => (
+                      <div key={x.district} className="up-s p-4">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="text-[14px] font-bold text-ink">{x.district}</span>
+                          <div className="flex items-center gap-2.5">
+                            <Chip tone={x.attainment_pct >= 70 ? "teal" : x.attainment_pct >= 40 ? "high" : "alert"}>
+                              {pct(x.attainment_pct)} on target
+                            </Chip>
+                            <span className="mono text-[10.5px] text-mute">
+                              n={num(x.sample_size)}
+                            </span>
+                          </div>
+                        </div>
+                        <Meter
+                          value={x.attainment_pct}
+                          className="mt-2.5"
+                          height={8}
+                          colour={
+                            x.attainment_pct >= 70
+                              ? "var(--color-teal)"
+                              : x.attainment_pct >= 40
+                                ? "var(--color-high)"
+                                : "var(--color-alert)"
+                          }
+                        />
+                        <div className="mono mt-2 text-[10px] uppercase tracking-[0.1em] text-mute">
+                          mean {hours(x.mean_hours)} per stage
+                          {x.sample_size < 5 ? " · sample too small to be a rate" : ""}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </Panel>
+          </>
+        )}
+      </Main>
+    </>
+  );
+}
+
+function StageRow({ stage: s }: { stage: SlaStage }) {
+  const attain = s.attainment_pct ?? 0;
+  const tone = attain >= 70 ? "teal" : attain >= 40 ? "high" : "alert";
+  const colour =
+    tone === "teal"
+      ? "var(--color-teal)"
+      : tone === "high"
+        ? "var(--color-high)"
+        : "var(--color-alert)";
+
+  return (
+    <div className="up-s p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold text-navy-dark">{s.label}</h3>
+          <div className="mono mt-1 text-[10px] uppercase tracking-[0.1em] text-mute">
+            {s.stage_key} · target {hours(s.target_hours)} · n={num(s.sample_size)}
+          </div>
+        </div>
+        <Chip tone={tone}>{pct(s.attainment_pct)} on target</Chip>
       </div>
-      <span className="font-mono text-[11px] font-semibold tabular-nums w-10 text-right">
-        {pct}%
-      </span>
+
+      <Meter value={attain} className="mt-3.5" height={10} colour={colour} />
+
+      <div className="mt-3.5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Figure label="Median" value={hours(s.median_hours)} />
+        <Figure label="Worst case" value={hours(s.worst_hours)} alert={(s.worst_hours ?? 0) > s.target_hours * 3} />
+        <Figure label="Target" value={hours(s.target_hours)} />
+      </div>
+
+      {s.breaches.length > 0 && (
+        <div className="hairline mt-4 pt-3.5">
+          <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-alert-ink">
+            {s.breaches.length} breach{s.breaches.length === 1 ? "" : "es"}
+          </div>
+          <ul className="mt-2.5 flex flex-col gap-1.5">
+            {s.breaches.slice(0, 8).map((b) => (
+              <li key={b.challenge_id}>
+                <Link
+                  href={`/admin/challenges/${b.ref}`}
+                  className="in-s flex items-center justify-between gap-3 p-2.5 hover:text-navy"
+                >
+                  <span className="mono text-[11px] text-navy">{b.ref}</span>
+                  <span className="flex-1 truncate text-[12.5px] text-body">
+                    {b.district ?? "district unknown"}
+                  </span>
+                  <span className="mono flex-none text-[11px] font-semibold text-alert-ink">
+                    {hours(b.hours)}
+                  </span>
+                  <span className="flex-none text-mute">
+                    <Icon name="chevRight" size={13} />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {s.breaches.length > 8 && (
+            <p className="mono mt-2 text-[10px] uppercase tracking-[0.1em] text-mute">
+              and {s.breaches.length - 8} more
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function SlaPage() {
-  const [data, setData] = useState<{
-    stages: Stage[];
-    by_district: DistrictRow[];
-    overall: { sample_size: number; stages_measured: number; stages_total: number };
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      setData(await fetchSla());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load SLA data.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
+function Figure({
+  label,
+  value,
+  alert,
+}: {
+  label: string;
+  value: string;
+  alert?: boolean;
+}) {
   return (
-    <RouteGuard allowedRoles={['admin']} consoleTitle="SLA and Timings">
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <Link
-                href="/admin"
-                className="font-mono text-[10px] tracking-wider uppercase text-[#2E7180] hover:underline flex items-center gap-1 mb-1"
-              >
-                <ArrowLeft className="w-3 h-3" /> Command centre
-              </Link>
-              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
-                How long each stage actually takes
-              </h1>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
-                Measured from the record, against the target for each stage.
-                Where nothing has completed yet, this says so rather than
-                showing a green gauge over an empty sample.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setLoading(true);
-                load();
-              }}
-              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </button>
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
-            >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
-            </div>
-          )}
-
-          {loading ? (
-            <LoadingSkeleton rows={4} />
-          ) : (
-            <>
-              <div className="bg-white rounded-xl border border-[#CCD1C7] p-4 flex flex-wrap gap-x-8 gap-y-2">
-                <div>
-                  <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                    Intervals measured
-                  </div>
-                  <div className="text-xl font-extrabold font-mono">
-                    {data?.overall.sample_size ?? 0}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                    Stages with data
-                  </div>
-                  <div className="text-xl font-extrabold font-mono">
-                    {data?.overall.stages_measured ?? 0}
-                    <span className="text-gray-400 text-sm"> / {data?.overall.stages_total ?? 0}</span>
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-500 max-w-md leading-relaxed self-center">
-                  Stages fill in as challenges pass through them. A brand-new
-                  deployment measures almost nothing, and that is the honest
-                  reading rather than a fault.
-                </p>
-              </div>
-
-              {/* per stage */}
-              <section>
-                <h2 className="font-bold text-[#102027] mb-2 flex items-center gap-2">
-                  <Gauge className="w-4 h-4 text-[#2E7180]" /> By stage
-                </h2>
-                <div className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[760px]">
-                      <thead>
-                        <tr className="bg-[#F4F6F5] border-b border-[#CCD1C7]">
-                          {['Stage', 'Target', 'Median', 'Worst', 'n', 'Attainment'].map((h) => (
-                            <th
-                              key={h}
-                              className="text-left font-mono text-[10px] tracking-wider uppercase text-gray-500 px-4 py-2.5 whitespace-nowrap"
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(data?.stages ?? []).map((s) => (
-                          <tr key={s.stage_key} className="border-b border-[#DFE4DC] last:border-0">
-                            <td className="px-4 py-3">
-                              <div className="font-semibold text-[#102027]">{s.label}</div>
-                              <div className="font-mono text-[10px] text-gray-500">
-                                {s.stage_key}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-600 tabular-nums">
-                              {hoursLabel(s.target_hours)}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs font-semibold tabular-nums">
-                              {hoursLabel(s.median_hours)}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-600 tabular-nums">
-                              {hoursLabel(s.worst_hours)}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-500 tabular-nums">
-                              {s.sample_size}
-                            </td>
-                            <td className="px-4 py-3">
-                              <Gauge_ pct={s.attainment_pct} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </section>
-
-              {/* breaches */}
-              {(data?.stages ?? []).some((s) => s.breaches.length > 0) && (
-                <section>
-                  <h2 className="font-bold text-[#102027] mb-2">Where the target was missed</h2>
-                  <div className="space-y-2">
-                    {(data?.stages ?? [])
-                      .filter((s) => s.breaches.length > 0)
-                      .map((s) => (
-                        <div
-                          key={s.stage_key}
-                          className="bg-white rounded-xl border border-[#CCD1C7] p-3"
-                        >
-                          <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-2">
-                            {s.label} · target {hoursLabel(s.target_hours)}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {s.breaches.map((b) => (
-                              <Link
-                                key={`${s.stage_key}-${b.challenge_id}`}
-                                href={`/admin/challenges/${b.ref}`}
-                                className="font-mono text-[11px] bg-red-50 border border-red-200 text-red-800 rounded px-2 py-1 hover:border-red-400"
-                              >
-                                {b.ref} · {b.district} · {hoursLabel(b.hours)}
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </section>
-              )}
-
-              {/* per district */}
-              <section>
-                <h2 className="font-bold text-[#102027] mb-2 flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4 text-[#A8332A]" /> By district, worst first
-                </h2>
-                {(data?.by_district ?? []).length === 0 ? (
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] p-6 text-center text-xs text-gray-500">
-                    No district has enough completed intervals to compare yet.
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#DFE4DC]">
-                    {(data?.by_district ?? []).map((d) => (
-                      <div key={d.district} className="p-3 flex flex-wrap items-center gap-3">
-                        <span className="font-semibold text-sm text-[#102027] w-36">
-                          {d.district}
-                        </span>
-                        <Gauge_ pct={d.attainment_pct} />
-                        <span className="font-mono text-[10px] text-gray-500">
-                          n={d.sample_size} · mean {hoursLabel(d.mean_hours)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </>
-          )}
-        </main>
+    <div className="in-s p-3">
+      <div className="mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
+        {label}
       </div>
-    </RouteGuard>
+      <div
+        className={`mono mt-1 text-[15px] font-semibold ${alert ? "text-alert-ink" : "text-ink"}`}
+      >
+        {value}
+      </div>
+    </div>
   );
 }

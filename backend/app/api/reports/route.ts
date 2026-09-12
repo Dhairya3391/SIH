@@ -20,6 +20,107 @@ export const maxDuration = 60;
  *
  * Idempotent on client_id, so the offline queue can retry as often as it likes.
  */
+/**
+ * GET /api/reports - the reports this signed-in person filed, and where each
+ * one landed.
+ *
+ * Deliberately scoped to reporter_id and nothing else. Anonymous reporters are
+ * NOT served here: their client_id is a device-local token, and accepting it
+ * as a lookup key would turn a guessable string into a way to read a
+ * stranger's words. An anonymous reporter follows their report through the
+ * challenge ref the POST already returned, which is public by design.
+ */
+export const GET = route(async (request: NextRequest) => {
+  const actor = await currentActor();
+  if (!actor) {
+    return fail(
+      401,
+      "Sign in to see the reports filed from your account. A report filed without an account can still be followed through the reference number you were given.",
+      "unauthenticated",
+    );
+  }
+
+  const limit = Math.min(
+    Number(new URL(request.url).searchParams.get("limit") ?? 50) || 50,
+    200,
+  );
+
+  const supabase = supabaseAdmin();
+
+  const { data: reports, error } = await supabase
+    .from("reports")
+    .select(
+      "id, client_id, channel, district, village, lang, original_text, translated_text, people_est, urgency, vulnerable, photo_urls, audio_url, cluster_id, dedup_similarity, created_at, processed_at",
+    )
+    .eq("reporter_id", actor.id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  if (!reports || reports.length === 0) {
+    return ok({ reports: [], challenges: [], count: 0 });
+  }
+
+  const clusterIds = [
+    ...new Set(reports.map((r) => r.cluster_id as string | null).filter(Boolean) as string[]),
+  ];
+
+  const { data: challenges } = clusterIds.length
+    ? await supabase
+        .from("challenges")
+        .select(
+          "id, ref, title, district, category, status, confidence, priority, severity, people_est, report_count, verified_at, updated_at",
+        )
+        .in("id", clusterIds)
+    : { data: [] as Record<string, unknown>[] };
+
+  const byId = new Map((challenges ?? []).map((c) => [c.id as string, c]));
+
+  return ok({
+    reports: reports.map((r) => {
+      const challenge = r.cluster_id ? byId.get(r.cluster_id as string) : null;
+      return {
+        id: r.id as string,
+        client_id: r.client_id as string,
+        channel: r.channel as string,
+        district: r.district as string | null,
+        village: r.village as string | null,
+        lang: r.lang as string,
+        original_text: r.original_text as string | null,
+        translated_text: r.translated_text as string | null,
+        people_est: r.people_est as number | null,
+        urgency: r.urgency as number | null,
+        vulnerable: (r.vulnerable ?? []) as string[],
+        photo_count: ((r.photo_urls ?? []) as string[]).length,
+        has_audio: Boolean(r.audio_url),
+        created_at: r.created_at as string,
+        /** Null while the compiler has not run yet - shown as "being read". */
+        processed_at: r.processed_at as string | null,
+        dedup_similarity: r.dedup_similarity as number | null,
+        challenge: challenge
+          ? {
+              id: challenge.id as string,
+              ref: challenge.ref as string,
+              title: challenge.title as string,
+              district: challenge.district as string | null,
+              category: challenge.category as string,
+              status: challenge.status as string,
+              confidence: challenge.confidence as string,
+              priority: challenge.priority as number,
+              severity: challenge.severity as number,
+              people_est: challenge.people_est as number,
+              /** How many reports it took to build this one challenge. */
+              report_count: challenge.report_count as number,
+              verified_at: challenge.verified_at as string | null,
+              updated_at: challenge.updated_at as string,
+            }
+          : null,
+      };
+    }),
+    count: reports.length,
+  });
+});
+
 export const POST = route(async (request: NextRequest) => {
   const actor = await currentActor();
   const contentType = request.headers.get("content-type") ?? "";

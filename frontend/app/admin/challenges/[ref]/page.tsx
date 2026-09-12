@@ -1,293 +1,303 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import React from "react";
+import { useParams } from "next/navigation";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { BackLink, Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Panel, Stat } from "@/components/ui/Surface";
+import { ButtonLink } from "@/components/ui/Button";
+import { BandChip, Chip, ConfidenceChip, StatusChip } from "@/components/ui/Chip";
+import { ErrorNote, Skeleton } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
 import {
-  AlertCircle,
-  ArrowLeft,
-  ChevronDown,
-  Clock,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import { TimelineGaps, TimelineEvent } from '@/components/shared/TimelineGaps';
-import { fetchChallengeHistory } from '@/lib/api';
+  DurationSummary,
+  GapStrip,
+  StageTracker,
+  TimelineList,
+} from "@/components/domain/Timeline";
+import { WindowState } from "@/components/domain/Competition";
+import { ScoreFactors } from "@/components/domain/ScoreFactors";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { bandOf, dateTime, humanise, num } from "@/lib/format";
 
 /**
- * Everything that ever happened to one challenge, in order, with the gap
- * between each step.
+ * One challenge, every entry, with the gaps.
  *
- * This is the view that answers "what happened here, and when" without the
- * system owner opening the database, and it reads from the same endpoint the
- * narrator does, so the two can never disagree.
+ * The question a review panel always asks is not "what happened" but "how long
+ * did each step take". So the gap between events is a column of its own and a
+ * strip drawn to scale, and anything over two days is flagged — the
+ * interesting number in this system is never the total, it is where the total
+ * went.
  */
-
-interface Event {
-  at: string;
-  kind: string;
-  actor: string | null;
-  summary: string;
-  detail: Record<string, unknown>;
-  gap_hours: number | null;
+export default function ChallengeHistoryPage() {
+  return (
+    <RouteGuard>
+      <History />
+    </RouteGuard>
+  );
 }
 
-const KIND_LABEL: Record<string, string> = {
-  report: 'Citizen report',
-  external_check: 'AI corroboration',
-  verified: 'Human verification',
-  rejected: 'Rejected by verifier',
-  proposal: 'Proposal submitted',
-  lead_change: 'Lead changed',
-  contribution: 'Contribution',
-  progress_update: 'Progress update',
-  ledger: 'Ledger entry',
+const COUNT_LABEL: Record<string, string> = {
+  reports: "Reports",
+  external_checks: "AI checks",
+  verifications: "Verifications",
+  proposals: "Proposals",
+  contributions: "Contributions",
+  progress_updates: "Updates",
+  ledger_entries: "Ledger",
+  threads: "Threads",
 };
 
-const KIND_TONE: Record<string, string> = {
-  report: 'bg-gray-100 text-gray-700',
-  external_check: 'bg-blue-50 text-blue-800',
-  verified: 'bg-emerald-100 text-emerald-800',
-  rejected: 'bg-red-100 text-red-800',
-  proposal: 'bg-[#E5A83B]/20 text-[#8A5A00]',
-  lead_change: 'bg-purple-50 text-purple-800',
-  contribution: 'bg-teal-50 text-teal-800',
-  progress_update: 'bg-emerald-50 text-emerald-800',
-  ledger: 'bg-gray-100 text-gray-600',
-};
+function History() {
+  const params = useParams<{ ref: string }>();
+  const reference = params?.ref ?? "";
+  const res = useResource(() => apiClient.fetchChallengeHistory(reference), [reference], {
+    enabled: Boolean(reference),
+  });
 
-function gapLabel(h: number | null): string {
-  if (h === null) return 'first event';
-  if (h < 1) return `${Math.round(h * 60)}m later`;
-  if (h < 48) return `${Math.round(h * 10) / 10}h later`;
-  return `${Math.round(h / 24)}d later`;
-}
+  const d = res.data;
+  const c = d?.challenge;
 
-export default function AdminChallengeHistoryPage({
-  params,
-}: {
-  params: Promise<{ ref: string }>;
-}) {
-  const [ref, setRef] = useState<string | null>(null);
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  if (res.loading && !res.settled) {
+    return (
+      <>
+        <BackLink href="/admin" label="Command centre" />
+        <Main className="pt-6">
+          <Skeleton height={110} rounded={18} />
+          <Skeleton height={160} rounded={18} />
+          <Skeleton height={420} rounded={18} />
+        </Main>
+      </>
+    );
+  }
 
-  useEffect(() => {
-    params.then((p) => setRef(p.ref));
-  }, [params]);
+  if (res.error || !c || !d) {
+    return (
+      <>
+        <BackLink href="/admin" label="Command centre" />
+        <Main className="pt-6">
+          <ErrorNote
+            message={res.error ?? `No record is filed under ${reference}.`}
+            code={res.code}
+            onRetry={res.reload}
+          />
+        </Main>
+      </>
+    );
+  }
 
-  const load = useCallback(async () => {
-    if (!ref) return;
-    setError('');
-    try {
-      setData(await fetchChallengeHistory(ref));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load the history.');
-    } finally {
-      setLoading(false);
-    }
-  }, [ref]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const events: Event[] = data?.timeline ?? [];
-  const counts: Record<string, number> = data?.counts ?? {};
-
-  const timelineEvents: TimelineEvent[] = events.map((e, i) => ({
-    id: `${e.kind}-${i}`,
-    label: `${KIND_LABEL[e.kind] ?? e.kind}: ${e.summary.slice(0, 70)}`,
-    date: e.at,
-    actor: e.actor ?? undefined,
-    daysSincePrevious: e.gap_hours !== null ? Math.round((e.gap_hours / 24) * 10) / 10 : undefined,
-    isBottleneck: (e.gap_hours ?? 0) > 168,
-    status: 'completed',
-  }));
+  const counts = Object.entries(d.counts ?? {});
 
   return (
-    <RouteGuard allowedRoles={['admin']} consoleTitle="Challenge History">
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <Link
-                href="/admin"
-                className="font-mono text-[10px] tracking-wider uppercase text-[#2E7180] hover:underline flex items-center gap-1 mb-1"
-              >
-                <ArrowLeft className="w-3 h-3" /> Command centre
-              </Link>
-              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
-                {data?.challenge?.ref ?? ref} — complete record
-              </h1>
-              {data?.challenge?.title && (
-                <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
-                  {data.challenge.title}
-                </p>
-              )}
+    <>
+      <BackLink href="/admin" label="Command centre" trail={c.ref} />
+
+      <PageHead
+        eyebrow="Complete record"
+        title={`${c.ref} — every entry, in order`}
+        lede={`${c.title} Read from the same endpoint the narrator uses, so this page and the narration can never disagree.`}
+        right={
+          <div className="flex flex-col items-start gap-3 sm:items-end">
+            <DurationSummary
+              from={c.created_at}
+              to={c.closed_at ?? null}
+              longestGapHours={d.longest_gap_hours}
+            />
+            <div className="flex flex-wrap gap-2">
+              <ButtonLink href={`/challenge/${c.ref}`} variant="secondary" size="sm" icon="eye">
+                The brief
+              </ButtonLink>
             </div>
-            <button
-              onClick={() => {
-                setLoading(true);
-                load();
-              }}
-              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </button>
           </div>
+        }
+      />
 
-          {error && (
+      <Main>
+        <div className="flex flex-wrap items-center gap-2">
+          <BandChip band={c.band ?? bandOf(c.priority)} />
+          <ConfidenceChip confidence={c.confidence} />
+          <StatusChip status={c.status} />
+          {c.is_simulated && <Chip tone="neutral">Seeded row</Chip>}
+        </div>
+
+        {/* ---- counts ------------------------------------------------- */}
+        {counts.length > 0 && (
+          <div className="scroll-x">
             <div
-              role="alert"
-              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+              className="grid gap-2.5"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(counts.length, 8)}, minmax(96px, 1fr))`,
+                minWidth: counts.length > 4 ? 680 : undefined,
+              }}
             >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
-            </div>
-          )}
-
-          {loading ? (
-            <LoadingSkeleton rows={4} />
-          ) : (
-            <>
-              {/* counts */}
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-                {Object.entries(counts).map(([k, v]) => (
-                  <div key={k} className="bg-white rounded-lg border border-[#CCD1C7] p-2.5">
-                    <div className="font-mono text-[9px] tracking-wider uppercase text-gray-500 leading-tight">
-                      {k.replace(/_/g, ' ')}
-                    </div>
-                    <div className="font-mono text-lg font-extrabold text-[#102027]">{v}</div>
+              {counts.map(([key, value]) => (
+                <div key={key} className="up-s p-3">
+                  <div className="mono text-[9px] font-semibold uppercase leading-tight tracking-[0.1em] text-mute">
+                    {COUNT_LABEL[key] ?? humanise(key)}
                   </div>
-                ))}
-              </div>
-
-              {/* window */}
-              {data?.window && (
-                <div className="bg-white rounded-xl border border-[#CCD1C7] p-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                  <div>
-                    <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                      Proposal window
-                    </div>
-                    <div className="font-semibold uppercase font-mono text-xs">
-                      {data.window.state}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                      Length
-                    </div>
-                    <div className="font-mono text-xs">{data.window.window_days} days</div>
-                  </div>
-                  <div>
-                    <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                      Leading score
-                    </div>
-                    <div className="font-mono text-xs">{data.window.leader_score ?? '—'}</div>
-                  </div>
-                  <div>
-                    <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
-                      Reopened
-                    </div>
-                    <div className="font-mono text-xs">{data.window.reopen_count} times</div>
+                  <div className="mono mt-1 text-[20px] font-semibold text-ink">
+                    {num(value)}
                   </div>
                 </div>
-              )}
+              ))}
+            </div>
+          </div>
+        )}
 
-              {/* the gaps, which is the specified ask */}
-              {events.length > 0 && (
-                <section>
-                  <h2 className="font-bold text-[#102027] mb-2 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[#2E7180]" /> Time between each step
-                  </h2>
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-                    <TimelineGaps
-                      events={timelineEvents}
-                      projectTitle={data?.challenge?.title}
-                      slaThresholdDays={7}
-                    />
-                    {data?.longest_gap_hours > 0 && (
-                      <p className="font-mono text-[11px] text-gray-500 mt-3 pt-3 border-t border-[#DFE4DC]">
-                        Longest single gap: {gapLabel(data.longest_gap_hours)}
-                      </p>
-                    )}
-                  </div>
-                </section>
-              )}
-
-              {/* the record */}
-              <section>
-                <h2 className="font-bold text-[#102027] mb-2 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#2E7180]" /> Every entry, in order
-                </h2>
-                {events.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] p-8 text-center">
-                    <p className="text-sm font-semibold text-[#102027]">
-                      Nothing has happened to this challenge yet
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
-                      No reports are clustered to it, and no verification,
-                      proposal or contribution has been recorded. That is the
-                      honest reading, not a loading failure.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#DFE4DC]">
-                    {events.map((e, i) => (
-                      <div key={`${e.kind}-${e.at}-${i}`}>
-                        <button
-                          onClick={() => setOpenIdx(openIdx === i ? null : i)}
-                          className="w-full text-left p-3.5 flex flex-wrap items-start gap-3 hover:bg-[#F4F6F5]"
-                        >
-                          <span
-                            className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded shrink-0 ${
-                              KIND_TONE[e.kind] ?? 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {(KIND_LABEL[e.kind] ?? e.kind).toUpperCase()}
-                          </span>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-sm text-[#102027] leading-snug">
-                              {e.summary}
-                            </span>
-                            <span className="block font-mono text-[10px] text-gray-500 mt-0.5">
-                              {new Date(e.at).toLocaleString('en-IN')}
-                              {e.actor ? ` · ${e.actor}` : ''}
-                            </span>
-                          </span>
-                          <span
-                            className={`font-mono text-[10px] shrink-0 ${
-                              (e.gap_hours ?? 0) > 168 ? 'text-[#A8332A] font-bold' : 'text-gray-500'
-                            }`}
-                          >
-                            {gapLabel(e.gap_hours)}
-                          </span>
-                          <ChevronDown
-                            className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${
-                              openIdx === i ? 'rotate-180' : ''
-                            }`}
-                          />
-                        </button>
-                        {openIdx === i && (
-                          <pre className="mx-3.5 mb-3.5 p-3 rounded-lg bg-[#0D1619] text-[#E2E9E7] font-mono text-[10.5px] leading-relaxed overflow-x-auto">
-                            {JSON.stringify(e.detail, null, 2)}
-                          </pre>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </>
+        {/* ---- the gap strip ------------------------------------------ */}
+        <Panel
+          title="Time between each step"
+          lede="Bar width is the gap, to scale. Anything over two days is flagged."
+          right={
+            <span className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+              {num(d.timeline.length)} entries
+            </span>
+          }
+        >
+          {d.timeline.length === 0 ? (
+            <p className="text-[13px] leading-relaxed text-body">
+              No entries yet, so there are no gaps to draw.
+            </p>
+          ) : (
+            <GapStrip events={d.timeline} />
           )}
-        </main>
-      </div>
-    </RouteGuard>
+        </Panel>
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+          <div className="flex flex-col gap-5">
+            <Panel
+              title="The record"
+              lede="Every entry names its actor. The gap column is the time since the previous entry."
+            >
+              <TimelineList events={d.timeline} />
+            </Panel>
+
+            {d.stages.length > 0 && (
+              <Panel
+                title="Execution plan"
+                lede="Generated from the awarded proposal, then worked through stage by stage."
+              >
+                <StageTracker stages={d.stages} />
+              </Panel>
+            )}
+          </div>
+
+          <aside className="flex flex-col gap-5">
+            <Panel title="The proposal window">
+              <WindowState
+                competition={
+                  d.window
+                    ? {
+                        state: d.window.state,
+                        opened_at: d.window.opened_at,
+                        closes_at: d.window.closes_at,
+                        closed_at: d.window.closed_at,
+                        window_days: d.window.window_days,
+                        leader_score: d.window.leader_score,
+                        leader_changed_at: d.window.leader_changed_at,
+                        awarded_proposal_id: d.window.awarded_proposal_id,
+                        reopen_count: d.window.reopen_count,
+                      }
+                    : { state: "not_opened" }
+                }
+              />
+              {d.window && (
+                <dl className="mt-4 flex flex-col">
+                  <Row label="Opened" value={dateTime(d.window.opened_at)} />
+                  <Row label="Length" value={`${d.window.window_days} days`} />
+                  <Row label="Closes" value={dateTime(d.window.closes_at)} />
+                  <Row
+                    label="Closed"
+                    value={d.window.closed_at ? dateTime(d.window.closed_at) : "still open"}
+                  />
+                  <Row
+                    label="Lead last changed"
+                    value={
+                      d.window.leader_changed_at
+                        ? dateTime(d.window.leader_changed_at)
+                        : "never changed"
+                    }
+                  />
+                  <Row label="Reopened" value={`${d.window.reopen_count} time(s)`} />
+                </dl>
+              )}
+            </Panel>
+
+            {d.needs.length > 0 && (
+              <Panel
+                title="Itemised needs"
+                lede="What the awarded proposal broke down into."
+                depth="in"
+              >
+                <ul className="flex flex-col gap-2">
+                  {d.needs.map((n) => (
+                    <li key={n.id} className="up-s p-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[13px] font-semibold text-ink">{n.item}</span>
+                        <span className="mono flex-none text-[11px] text-mute">
+                          {num(n.qty_needed)} {n.unit}
+                        </span>
+                      </div>
+                      <div className="mono mt-1 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                        {humanise(n.kind)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+
+            <Panel title="Score at the time of ranking">
+              <ScoreFactors
+                breakdown={c.score_breakdown}
+                whyCritical={c.why_critical}
+                compact
+              />
+            </Panel>
+
+            <Card depth="in" className="p-4">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-px text-mute">
+                  <Icon name="shield" size={14} />
+                </span>
+                <p className="text-[12px] leading-relaxed text-body">
+                  This is the whole record for one challenge, including entries your role would
+                  not normally see. Nothing here is editable — the record is append-only, which is
+                  what makes the gap column trustworthy.
+                </p>
+              </div>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Stat
+                label="Longest gap"
+                value={
+                  d.longest_gap_hours === null || d.longest_gap_hours === undefined
+                    ? "—"
+                    : `${Math.round(d.longest_gap_hours)}h`
+                }
+                sub="Between two consecutive entries"
+                tone={(d.longest_gap_hours ?? 0) > 48 ? "alert" : undefined}
+              />
+              <Stat
+                label="Reports behind it"
+                value={num(c.report_count)}
+                sub={`${num(c.reporter_count)} separate reporters`}
+              />
+            </div>
+          </aside>
+        </div>
+      </Main>
+    </>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="hairline flex items-baseline justify-between gap-3 py-2 first:border-t-0">
+      <dt className="mono text-[10px] uppercase tracking-[0.1em] text-mute">{label}</dt>
+      <dd className="mono text-right text-[11px] font-semibold text-ink">{value}</dd>
+    </div>
   );
 }

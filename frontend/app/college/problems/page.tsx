@@ -1,359 +1,354 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Filter,
-  GraduationCap,
-  MapPin,
-  RefreshCw,
-  Trophy,
-  Users,
-} from 'lucide-react';
-import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import { CountdownToClose } from '@/components/shared/CountdownToClose';
-import { fetchCollegeProblems } from '@/lib/api';
-import { formatIndianNumber } from '@/components/shared/ContributionSplitter';
+import React, { useMemo, useState } from "react";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Panel, Stat } from "@/components/ui/Surface";
+import { ButtonLink, Toggle } from "@/components/ui/Button";
+import { BandChip, Chip, ConfidenceChip, Tag } from "@/components/ui/Chip";
+import { Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon, CATEGORY_ICON } from "@/components/ui/Icon";
+import { WindowState } from "@/components/domain/Competition";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { CATEGORY_LABEL, bandOf, humanise, num, relative } from "@/lib/format";
+import type { CollegeProblem } from "@/types/database";
 
 /**
- * Verified problems a college may propose against, with the competition state
- * on every card, because that is what a college actually decides on: is a
- * window open, when does it close, what is the score to beat, and am I in it.
+ * The problems a college can take on.
  *
- * The leading SCORE is shown. The leading document and the leading college are
- * not, until the window closes - showing the number motivates a better
- * proposal, showing the rest invites copying and off-platform pressure.
+ * Only verified problems appear: a college should never spend a semester
+ * building against something nobody confirmed exists. Each row carries the
+ * competition state — whether a window is open, how long is left, and the
+ * score to beat.
  */
-
-interface Problem {
-  id: string;
-  ref: string;
-  title: string;
-  district: string;
-  block: string | null;
-  category: string;
-  priority: number;
-  people_est: number;
-  report_count: number;
-  confidence: string;
-  status: string;
-  brief: { problem?: string; needs?: string[] } | null;
-  capabilities: string[] | null;
-  competition: {
-    state: string;
-    closes_at?: string;
-    window_days?: number;
-    leader_score?: number | null;
-    proposal_count?: number;
-  };
-  my_proposal: {
-    id: string;
-    version: number;
-    state: string;
-    score: number | null;
-    verdict: string | null;
-    is_leading: boolean | null;
-  } | null;
-}
-
-function CompetitionBadge({ p }: { p: Problem }) {
-  const c = p.competition;
-  const mine = p.my_proposal;
-
-  if (c.state === 'not_opened') {
-    return (
-      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-[#102027] text-white">
-        NO PROPOSALS YET — YOU WOULD OPEN THE WINDOW
-      </span>
-    );
-  }
-  if (c.state === 'awarded') {
-    return (
-      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-gray-200 text-gray-700">
-        CLOSED — AWARDED
-      </span>
-    );
-  }
-  if (c.state === 'reopened') {
-    return (
-      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-amber-100 text-amber-800">
-        REOPENED — NO VIABLE PROPOSAL LAST TIME
-      </span>
-    );
-  }
-  if (mine && mine.is_leading) {
-    return (
-      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-        <Trophy className="w-3 h-3" /> YOUR PROPOSAL IS LEADING · {mine.score}
-      </span>
-    );
-  }
-  if (mine && mine.is_leading === false) {
-    return (
-      <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-red-100 text-red-800 border border-red-300">
-        OUTSCORED · LEADING {c.leader_score} · YOURS {mine.score ?? '—'}
-      </span>
-    );
-  }
-  return (
-    <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-[#E5A83B]/20 text-[#8A5A00]">
-      {c.leader_score != null ? `SCORE TO BEAT · ${c.leader_score}` : 'OPEN FOR PROPOSALS'}
-    </span>
-  );
-}
-
 export default function CollegeProblemsPage() {
-  const [rows, setRows] = useState<Problem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [district, setDistrict] = useState('all');
-  const [onlyOpen, setOnlyOpen] = useState(false);
+  return (
+    <RouteGuard>
+      <CollegeProblems />
+    </RouteGuard>
+  );
+}
 
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const res = await fetchCollegeProblems({
-        district: district === 'all' ? undefined : district,
-      });
-      setRows(res.problems as Problem[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load verified problems.');
-    } finally {
-      setLoading(false);
-    }
-  }, [district]);
+type Lens = "all" | "open" | "unopened" | "mine";
 
-  useEffect(() => {
-    load();
-  }, [load]);
+function CollegeProblems() {
+  const [district, setDistrict] = useState("");
+  const [category, setCategory] = useState("");
+  const [lens, setLens] = useState<Lens>("all");
 
-  const districts = useMemo(() => [...new Set(rows.map((r) => r.district))].sort(), [rows]);
-
-  const shown = useMemo(
+  const res = useResource(
     () =>
-      onlyOpen
-        ? rows.filter((r) => r.competition.state === 'open' || r.competition.state === 'not_opened')
-        : rows,
-    [rows, onlyOpen],
+      apiClient.fetchCollegeProblems({
+        district: district || undefined,
+        category: category || undefined,
+      }),
+    [district, category],
   );
 
-  const stats = useMemo(
-    () => ({
-      total: rows.length,
-      unclaimed: rows.filter((r) => r.competition.state === 'not_opened').length,
-      open: rows.filter((r) => r.competition.state === 'open').length,
-      mine: rows.filter((r) => r.my_proposal).length,
-    }),
-    [rows],
+  // Memoised so an unresolved fetch does not hand every useMemo below a
+  // brand-new empty array on each render.
+  const problems = useMemo(() => res.data?.problems ?? [], [res.data]);
+
+  const districts = useMemo(
+    () => [...new Set(problems.map((p) => p.district).filter(Boolean) as string[])].sort(),
+    [problems],
   );
+  const categories = useMemo(
+    () => [...new Set(problems.map((p) => p.category).filter(Boolean))].sort(),
+    [problems],
+  );
+
+  const counts = useMemo(() => {
+    const open = problems.filter((p) => p.competition?.state === "open").length;
+    const unopened = problems.filter(
+      (p) => !p.competition || p.competition.state === "not_opened",
+    ).length;
+    const mine = problems.filter((p) => p.my_proposal).length;
+    const leading = problems.filter((p) => p.my_proposal?.is_leading).length;
+    return { open, unopened, mine, leading };
+  }, [problems]);
+
+  const rows = useMemo(() => {
+    const filtered =
+      lens === "open"
+        ? problems.filter((p) => p.competition?.state === "open")
+        : lens === "unopened"
+          ? problems.filter((p) => !p.competition || p.competition.state === "not_opened")
+          : lens === "mine"
+            ? problems.filter((p) => p.my_proposal)
+            : problems;
+    // Open windows first (there is a clock), then by score.
+    return filtered.slice().sort((a, b) => {
+      const aOpen = a.competition?.state === "open" ? 1 : 0;
+      const bOpen = b.competition?.state === "open" ? 1 : 0;
+      if (aOpen !== bOpen) return bOpen - aOpen;
+      return b.priority - a.priority;
+    });
+  }, [problems, lens]);
 
   return (
-    <RoleGuard
-      allowedRoles={['university', 'coordinator', 'admin']}
-      consoleTitle="Verified Problems"
-    >
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Stage 3 · Academic solution portal
-              </div>
-              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
-                Problems open for proposals
-              </h1>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
-                Human-verified only. A proposal written against an unverified
-                report risks a semester of work on something that turns out to
-                be wrong.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setLoading(true);
-                load();
-              }}
-              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              { k: 'Verified and open', v: stats.total, sub: 'available to propose against' },
-              { k: 'No proposals yet', v: stats.unclaimed, sub: 'you would open the window' },
-              { k: 'Windows running', v: stats.open, sub: 'a score already to beat' },
-              { k: 'Your submissions', v: stats.mine, sub: 'across these problems' },
-            ].map((s) => (
-              <div key={s.k} className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-                <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                  {s.k}
-                </div>
-                <div className="text-2xl font-extrabold font-mono text-[#102027]">{s.v}</div>
-                <div className="text-[11px] text-gray-500 mt-0.5">{s.sub}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-xl border border-[#CCD1C7] p-3 flex flex-wrap items-center gap-3">
-            <span className="font-mono text-[10px] tracking-wider uppercase text-gray-500 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5" /> Filter
-            </span>
+    <>
+      <PageHead
+        eyebrow="College"
+        title="Problems open to proposals"
+        lede="Verified by a person, ranked by the district, and waiting for someone to solve them. You compete on the quality of the proposal — not on who submits first."
+        right={
+          <div className="flex flex-wrap items-center gap-2.5">
             <select
+              className="field max-w-[180px]"
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
-              className="h-9 px-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-xs outline-none focus:border-[#2E7180]"
+              aria-label="Filter by district"
             >
-              <option value="all">All districts</option>
+              <option value="">All districts</option>
               {districts.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={onlyOpen}
-                onChange={(e) => setOnlyOpen(e.target.checked)}
-                className="w-4 h-4 accent-[#2E7180]"
-              />
-              Only ones I can still enter
-            </label>
-            <Link
-              href="/college/projects"
-              className="ml-auto text-xs font-semibold text-[#2E7180] hover:underline"
+            <select
+              className="field max-w-[210px]"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-label="Filter by category"
             >
-              My proposals and projects →
-            </Link>
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABEL[c] ?? humanise(c)}
+                </option>
+              ))}
+            </select>
           </div>
+        }
+      />
 
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
-            >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
+      <Main>
+        {res.loading && !res.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={4} height={190} />
+          </>
+        ) : res.error ? (
+          <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Open to you"
+                value={num(problems.length)}
+                sub="Verified and unclaimed"
+              />
+              <Stat
+                label="Windows running"
+                value={num(counts.open)}
+                sub="Someone has already submitted"
+                tone={counts.open > 0 ? "navy" : undefined}
+              />
+              <Stat
+                label="No window yet"
+                value={num(counts.unopened)}
+                sub="Your submission would start the clock"
+              />
+              <Stat
+                label="You are leading"
+                value={`${num(counts.leading)} of ${num(counts.mine)}`}
+                sub={counts.mine === 0 ? "You have not submitted yet" : "Of your submissions"}
+                tone={counts.leading > 0 ? "teal" : undefined}
+              />
             </div>
-          )}
 
-          {loading ? (
-            <LoadingSkeleton rows={4} />
-          ) : shown.length === 0 ? (
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-10 text-center">
-              <GraduationCap className="w-7 h-7 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-[#102027]">
-                Nothing verified is waiting for a proposal
+            <Card depth="in" className="flex items-start gap-3 p-4">
+              <span className="mt-px text-mute">
+                <Icon name="info" size={16} />
+              </span>
+              <p className="text-[13px] leading-relaxed text-body">
+                <strong className="text-ink">How the window works.</strong> The first proposal
+                opens it, and its length comes from the severity band — critical 2 days, high 5,
+                moderate 10, long term 14. While it is open the leading <em>score</em> is public
+                but the leading document and the college behind it are not. When it closes the
+                highest score is awarded the work; if you are displaced you are told, with your
+                own score and the one that beat it.
               </p>
-              <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
-                Problems appear here once a verifier has confirmed them with
-                sources or a field photo. Until then they sit on the verifier
-                desk, not here.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {shown.map((p) => (
-                <article
-                  key={p.id}
-                  className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden"
-                >
-                  <div className="p-4">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span
-                        className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded ${
-                          p.priority >= 75
-                            ? 'bg-red-100 text-red-800'
-                            : p.priority >= 55
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {p.priority >= 75 ? 'CRITICAL' : p.priority >= 55 ? 'HIGH' : 'MODERATE'}{' '}
-                        {p.priority}
-                      </span>
-                      <span className="font-mono text-[10px] text-gray-600 border border-[#CCD1C7] px-1.5 py-0.5 rounded uppercase">
-                        {String(p.category).replace(/_/g, ' ')}
-                      </span>
-                      <span className="font-mono text-[10px] text-emerald-700 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        {String(p.confidence).replace(/_/g, ' ')}
-                      </span>
-                      <span className="font-mono text-[10px] text-gray-500">{p.ref}</span>
-                    </div>
+            </Card>
 
-                    <h2 className="font-bold text-[#102027] leading-snug">{p.title}</h2>
-                    {p.brief?.problem && (
-                      <p className="text-xs text-gray-600 mt-1.5 leading-relaxed line-clamp-2">
-                        {p.brief.problem}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 font-mono text-[10px] text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {p.district}
-                        {p.block ? ` · ${p.block}` : ''}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" /> {formatIndianNumber(p.people_est)} people
-                      </span>
-                      <span>{p.report_count} reports merged</span>
-                    </div>
-
-                    {p.capabilities && p.capabilities.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2.5">
-                        {p.capabilities.map((c) => (
-                          <span
-                            key={c}
-                            className="font-mono text-[10px] bg-[#F4F6F5] border border-[#CCD1C7] px-1.5 py-0.5 rounded"
-                          >
-                            {c}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="px-4 py-3 bg-[#F4F6F5] border-t border-[#CCD1C7] flex flex-wrap items-center gap-3">
-                    <CompetitionBadge p={p} />
-                    {p.competition.state === 'open' && p.competition.closes_at && (
-                      <span className="flex items-center gap-1.5 font-mono text-[11px] text-gray-600">
-                        <Clock className="w-3.5 h-3.5" />
-                        <CountdownToClose
-                          closeDate={p.competition.closes_at}
-                          status={p.competition.state}
-                          leadingScore={p.competition.leader_score ?? undefined}
-                          compact
-                        />
-                      </span>
-                    )}
-                    {p.competition.proposal_count ? (
-                      <span className="font-mono text-[10px] text-gray-500">
-                        {p.competition.proposal_count} proposal
-                        {p.competition.proposal_count === 1 ? '' : 's'} in
-                      </span>
-                    ) : null}
-                    <Link
-                      href={`/college/problems/${p.ref}`}
-                      className="ml-auto h-9 px-4 rounded-lg bg-[#102027] text-white text-xs font-semibold flex items-center hover:bg-[#1D3540]"
-                    >
-                      {p.my_proposal ? 'Resubmit or review' : 'Read and propose'}
-                    </Link>
-                  </div>
-                </article>
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  ["all", `All (${problems.length})`],
+                  ["open", `Window open (${counts.open})`],
+                  ["unopened", `No window yet (${counts.unopened})`],
+                  ["mine", `I have submitted (${counts.mine})`],
+                ] as [Lens, string][]
+              ).map(([key, label]) => (
+                <Toggle key={key} active={lens === key} onClick={() => setLens(key)}>
+                  {label}
+                </Toggle>
               ))}
             </div>
-          )}
-        </main>
+
+            {rows.length === 0 ? (
+              <Empty
+                icon="search"
+                title={
+                  problems.length === 0
+                    ? "No verified problems are open right now"
+                    : "Nothing under this lens"
+                }
+                why={
+                  problems.length === 0
+                    ? "Problems appear here once a verifier confirms them. Until then they are still being checked, which is deliberate — a college should not build against an unconfirmed report."
+                    : "The problems are all still listed, just not in this subset. Switch back to All."
+                }
+              />
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {rows.map((p) => (
+                  <ProblemCard key={p.id} problem={p} />
+                ))}
+              </div>
+            )}
+
+            <Panel
+              title="What a proposal has to contain"
+              lede="The rubric is published in advance, so nobody is guessing at what is being judged."
+              depth="in"
+            >
+              <ul className="grid gap-x-6 gap-y-2.5 text-[13px] leading-relaxed text-body sm:grid-cols-2">
+                <li>
+                  <strong className="text-ink">Problem fit — 25.</strong> Judged against this
+                  brief, not the category. A good solution to a different problem scores zero.
+                </li>
+                <li>
+                  <strong className="text-ink">Technical soundness — 20.</strong> Real components,
+                  available in India, used the way they work.
+                </li>
+                <li>
+                  <strong className="text-ink">Practicality in context — 15.</strong> Buildable{" "}
+                  <em>and maintainable</em> in a rural block: no reliable power, no technician on
+                  call, monsoon.
+                </li>
+                <li>
+                  <strong className="text-ink">Cost credibility — 15.</strong> Too low is
+                  penalised as hard as inflated.
+                </li>
+                <li>
+                  <strong className="text-ink">Timeline credibility — 10.</strong> Plausible, and
+                  respecting any deadline in the brief.
+                </li>
+                <li>
+                  <strong className="text-ink">Requirements completeness — 10.</strong> Itemised
+                  materials, so a funder can act on it.
+                </li>
+                <li>
+                  <strong className="text-ink">Maintenance and handover — 5.</strong> Who keeps it
+                  running after you graduate.
+                </li>
+              </ul>
+              <p className="mt-4 text-[12.5px] leading-relaxed text-body">
+                Anything under 40 is refused as not viable rather than ranked last.
+              </p>
+            </Panel>
+          </>
+        )}
+      </Main>
+    </>
+  );
+}
+
+function ProblemCard({ problem }: { problem: CollegeProblem }) {
+  const mine = problem.my_proposal;
+
+  return (
+    <div className="up flex flex-col p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mono flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] uppercase tracking-[0.1em] text-mute">
+            <span className="text-navy">{problem.ref}</span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <Icon name="pin" size={11} />
+              {[problem.block, problem.district].filter(Boolean).join(", ")}
+            </span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-1">
+              <Icon name={CATEGORY_ICON[problem.category] ?? "info"} size={11} />
+              {CATEGORY_LABEL[problem.category] ?? humanise(problem.category)}
+            </span>
+          </div>
+          <h3 className="mt-2 text-[16px] font-bold leading-snug text-navy-dark">
+            {problem.title}
+          </h3>
+        </div>
+        <div className="flex flex-none items-end gap-1">
+          <span className="mono text-[24px] font-semibold leading-none text-ink">
+            {problem.priority}
+          </span>
+          <span className="mono pb-0.5 text-[10px] text-mute">/100</span>
+        </div>
       </div>
-    </RoleGuard>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <BandChip band={problem.band ?? bandOf(problem.priority)} />
+        <ConfidenceChip confidence={problem.confidence} />
+        <Tag>{num(problem.people_est)} people</Tag>
+      </div>
+
+      {problem.brief?.problem && (
+        <p className="mt-3 text-[13px] leading-relaxed text-body">
+          {problem.brief.problem.length > 220
+            ? `${problem.brief.problem.slice(0, 219).trimEnd()}…`
+            : problem.brief.problem}
+        </p>
+      )}
+
+      {problem.capabilities?.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {problem.capabilities.slice(0, 5).map((c) => (
+            <Tag key={c}>{humanise(c)}</Tag>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4">
+        <WindowState competition={problem.competition} myScore={mine?.score ?? null} compact />
+      </div>
+
+      {mine && (
+        <div className="up-s mt-3 flex flex-wrap items-center justify-between gap-2 p-3.5">
+          <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+            your v{mine.version} · {humanise(mine.state)}
+          </div>
+          <div className="flex items-center gap-2">
+            {mine.score !== null && (
+              <span className="mono text-[13px] font-semibold text-ink">{mine.score}/100</span>
+            )}
+            {mine.is_leading === true && <Chip tone="teal">Leading</Chip>}
+            {mine.is_leading === false && <Chip tone="high">Behind</Chip>}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-auto flex flex-wrap gap-2.5 pt-4">
+        <ButtonLink
+          href={`/college/problems/${problem.ref}`}
+          variant="primary"
+          size="sm"
+          iconAfter="arrow"
+        >
+          {mine ? "Submit a new version" : "Read it and propose"}
+        </ButtonLink>
+        <ButtonLink href={`/challenge/${problem.ref}`} variant="secondary" size="sm" icon="eye">
+          Full brief
+        </ButtonLink>
+      </div>
+
+      <p className="mono mt-3 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+        verified {problem.verified_at ? relative(problem.verified_at) : "date not recorded"} ·{" "}
+        {num(problem.report_count)} reports
+      </p>
+    </div>
   );
 }

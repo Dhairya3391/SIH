@@ -1,411 +1,378 @@
-import { Challenge } from '@/types/database';
+import type {
+  AdminMetrics,
+  Challenge,
+  ChallengeDetail,
+  ChallengeHistory,
+  CollegeProblem,
+  Contribution,
+  ContributionTotals,
+  DashboardMetrics,
+  FundedProject,
+  HealthReport,
+  IntakeResult,
+  Message,
+  MyReport,
+  NeedLine,
+  Organisation,
+  Proposal,
+  SilentZones,
+  SlaReport,
+  Thread,
+  User,
+  UserRole,
+  VerifyQueueItem,
+} from "@/types/database";
 
 /**
- * The frontend talks to /api/* on its own origin. Which service answers depends
- * on BACKEND_ORIGIN (see next.config.ts):
+ * Every call goes to /api/* on this origin. next.config.ts rewrites that to
+ * BACKEND_ORIGIN, so the session cookie stays first-party and there is no CORS
+ * and no credentials: "include" anywhere.
  *
- *   unset -> the frontend's own demo routes, envelope { success, data }
- *   set   -> the backend service in backend/, envelope { ok, data }
- *
- * Everything below normalises both into the shapes the pages already expect, so
- * flipping between them needs no page changes.
+ * The backend answers { ok, data } on success and { ok: false, error } on
+ * failure. `request` unwraps the former and throws an ApiError carrying the
+ * service's own sentence for the latter, because a console that cannot say
+ * WHY it is empty is worse than one that is empty.
  */
 
-type Envelope = {
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+
+  constructor(message: string, status: number, code: string | null = null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+type Envelope<T> = {
   ok?: boolean;
-  success?: boolean;
-  data?: unknown;
-  error?: { message?: string } | string;
+  data?: T;
+  error?: { message?: string; code?: string } | string;
 };
 
-function unwrap(json: Envelope): any {
-  if (json?.ok === false || json?.success === false) {
-    const err = json.error;
-    const message = typeof err === 'string' ? err : err?.message;
-    throw new Error(message || 'Request failed');
+function messageOf(json: Envelope<unknown>, fallback: string): string {
+  const err = json?.error;
+  if (typeof err === "string" && err) return err;
+  if (err && typeof err === "object" && err.message) return err.message;
+  return fallback;
+}
+
+function codeOf(json: Envelope<unknown>): string | null {
+  const err = json?.error;
+  if (err && typeof err === "object" && err.code) return err.code;
+  return null;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, { cache: "no-store", ...init });
+  } catch {
+    throw new ApiError(
+      "Could not reach the server. Check the connection and try again.",
+      0,
+      "offline",
+    );
   }
-  return json?.data ?? json;
-}
 
-/** Backend rows name a few fields differently from the demo routes. */
-function normaliseChallenge(raw: any): Challenge {
-  if (!raw) return raw;
-  return {
-    ...raw,
-    // The backend keeps the compiled brief as a JSON object; its `problem` is the
-    // real problem statement, and why_critical is only the ranking verdict.
-    problem: raw.problem ?? raw.brief?.problem ?? raw.why_critical ?? '',
-    outcome: raw.outcome ?? raw.brief?.outcome ?? '',
-    needs: raw.needs ?? raw.brief?.needs ?? [],
-    compiler_source: raw.brief?.source ?? null,
-    ref: raw.ref ?? raw.id,
-    priority_band:
-      raw.priority_band ??
-      raw.band ??
-      (raw.priority >= 75 ? 'critical' : raw.priority >= 55 ? 'high' : raw.priority >= 35 ? 'moderate' : 'long-term'),
-    capabilities_needed: raw.capabilities_needed ?? raw.capabilities ?? [],
-    ai_unsure_about:
-      raw.ai_unsure_about ??
-      (Array.isArray(raw.ai_uncertainties) ? raw.ai_uncertainties.join(' · ') : raw.ai_uncertainties),
-    score_breakdown: raw.score_breakdown
-      ? { ...raw.score_breakdown, why_critical: raw.score_breakdown.why_critical ?? raw.why_critical ?? '' }
-      : raw.score_breakdown,
-  } as Challenge;
-}
+  const json = (await res.json().catch(() => ({}))) as Envelope<T>;
 
-export async function fetchChallenges(regionId: string = 'jharkhand', limit: number = 500) {
-  const res = await fetch(`/api/challenges?region_id=${regionId}&limit=${limit}`, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to fetch challenges';
-    throw new Error(typeof message === 'string' ? message : 'Failed to fetch challenges');
+  if (!res.ok || json?.ok === false) {
+    throw new ApiError(
+      messageOf(json, `The request to ${path} failed (${res.status}).`),
+      res.status,
+      codeOf(json),
+    );
   }
-  const payload = unwrap(json);
-  const rows: any[] = Array.isArray(payload) ? payload : payload?.challenges ?? payload?.items ?? [];
-  return { data: rows.map(normaliseChallenge), count: payload?.total ?? rows.length };
+
+  return (json?.data ?? (json as unknown)) as T;
 }
 
-export async function submitReport(payload: {
+function post<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+function query(params: Record<string, string | number | undefined | null>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+export type Session = { user: User | null; organisation: Organisation | null };
+
+/** GET /api/auth/login — the session probe. Signed out is not an error. */
+export async function fetchSession(): Promise<Session> {
+  const data = await request<Session>("/api/auth/login");
+  return { user: data?.user ?? null, organisation: data?.organisation ?? null };
+}
+
+export function signIn(email: string, password: string): Promise<Session> {
+  return post<Session>("/api/auth/login", { email, password });
+}
+
+/** The judging path. Labelled as a demo in the UI rather than dressed up. */
+export function demoSignIn(role: UserRole): Promise<{ user: User; email: string }> {
+  return post<{ user: User; email: string }>("/api/auth/demo-login", { role });
+}
+
+export function signOut(): Promise<unknown> {
+  return post("/api/auth/logout");
+}
+
+// ---------------------------------------------------------------------------
+// Reports and challenges
+// ---------------------------------------------------------------------------
+
+export type ChallengeListParams = {
+  region_id?: string;
+  district?: string;
+  category?: string;
+  status?: string;
+  band?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function fetchChallenges(params: ChallengeListParams = {}) {
+  return request<{
+    challenges: Challenge[];
+    total: number;
+    limit: number;
+    offset: number;
+    redacted: boolean;
+  }>(`/api/challenges${query({ region_id: "jharkhand", limit: 200, ...params })}`);
+}
+
+export function fetchChallenge(idOrRef: string) {
+  return request<ChallengeDetail>(`/api/challenges/${encodeURIComponent(idOrRef)}`);
+}
+
+export type ReportInput = {
   text: string;
   district?: string;
   village?: string;
   people_est?: number;
-  reporter_name?: string;
+  urgency?: number;
   vulnerable?: string[];
+  reporter_name?: string;
   photo_urls?: string[];
   client_id?: string;
-  /** Recorded voice note. Sent as multipart; the backend transcribes via Whisper. */
+  /** A recorded voice note. Sent as multipart; the backend transcribes it. */
   audio?: Blob | null;
-}) {
-  const { audio, ...fields } = payload;
-  const body = JSON.stringify({
-    // The offline queue can retry safely: both services key on client_id.
-    client_id: payload.client_id ?? `cli-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+};
+
+/**
+ * POST /api/reports.
+ *
+ * client_id is generated here and reused on retry, so a citizen on a dropping
+ * connection who taps send twice files one report, not two.
+ */
+export async function submitReport(input: ReportInput): Promise<IntakeResult> {
+  const { audio, ...fields } = input;
+  const payload = JSON.stringify({
+    client_id: input.client_id ?? newClientId(),
     ...fields,
   });
 
-  const res = await fetch('/api/reports', audio
-    ? (() => {
-      const form = new FormData();
-      form.append('payload', body);
-      form.append('audio', audio, 'report.webm');
-      return { method: 'POST', body: form } as RequestInit;
-    })()
-    : {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to submit report';
-    throw new Error(typeof message === 'string' ? message : 'Failed to submit report');
+  if (audio) {
+    const form = new FormData();
+    form.append("payload", payload);
+    form.append("audio", audio, "report.webm");
+    return request<IntakeResult>("/api/reports", { method: "POST", body: form });
   }
-  const data = unwrap(json);
 
-  return {
-    ...data,
-    challenge: data.challenge ? normaliseChallenge(data.challenge) : undefined,
-    // The backend answers with a routing decision and a score rather than a brief,
-    // so describe what it actually did with the report.
-    compiled: data.compiled ?? {
-      category:
-        data.decision === 'merged'
-          ? 'merged into an existing challenge'
-          : data.decision === 'new'
-            ? 'opened a new challenge'
-            : data.decision,
-      priority: data.priority,
-    },
-    challenge_ref: data.challenge_ref,
-    dedup_reason: data.dedup_reason,
-    trace: data.trace,
-    is_fallback: data.is_fallback ?? data.degraded ?? false,
-  };
+  return request<IntakeResult>("/api/reports", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+  });
 }
 
-export async function fetchChallengeDetail(id: string) {
-  const res = await fetch(`/api/challenges/${id}`, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to fetch challenge detail';
-    throw new Error(typeof message === 'string' ? message : 'Failed to fetch challenge detail');
-  }
-  const data = unwrap(json);
-  
-  if (data.challenge) {
-    data.challenge = normaliseChallenge(data.challenge);
-  }
-  return data;
+export function newClientId(): string {
+  return `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /**
- * Recommended partners are computed on demand by the backend; the `matches`
- * array on the detail response is the persisted table, which the team decided
- * to leave empty (docs/DECISIONS.md). Read the computed endpoint instead, or
- * the panel is permanently empty while ten real partners sit one call away.
+ * GET /api/reports — what this account filed. Anonymous reports are not here
+ * by design; those are followed through the reference the submission returned,
+ * which the browser keeps in localStorage (see lib/localReports.ts).
  */
-export async function fetchMatches(id: string, limit: number = 5) {
-  const res = await fetch(`/api/challenges/${id}/matches?limit=${limit}`, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error('Failed to fetch recommended partners');
-  }
-  const payload = unwrap(json);
-  return Array.isArray(payload) ? payload : payload?.matches ?? [];
+export function fetchMyReports() {
+  return request<{ reports: MyReport[]; count: number }>("/api/reports");
 }
 
-export async function fetchNearbyResources(id: string, radiusKm: number = 30) {
-  const res = await fetch(`/api/challenges/${id}/nearby?radius_km=${radiusKm}`, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to fetch nearby resources';
-    throw new Error(typeof message === 'string' ? message : 'Failed to fetch nearby resources');
-  }
-  return unwrap(json);
+export function fetchReportTrace(reportId: string) {
+  return request<{ trace: unknown[] }>(`/api/reports/${encodeURIComponent(reportId)}/trace`);
 }
-
-export async function adoptChallenge(id: string, payload: { org_id: string; role: string }) {
-  const res = await fetch(`/api/challenges/${id}/adopt`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to adopt challenge';
-    throw new Error(typeof message === 'string' ? message : 'Failed to adopt challenge');
-  }
-  return unwrap(json);
-}
-
-export async function pledgeResource(id: string, payload: { need_id?: string; org_id: string; qty: number; kind: string; note?: string }) {
-  const res = await fetch(`/api/challenges/${id}/pledges`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to pledge resource';
-    throw new Error(typeof message === 'string' ? message : 'Failed to pledge resource');
-  }
-  return unwrap(json);
-}
-export async function demoLogin(role: string) {
-  const res = await fetch('/api/auth/demo-login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || 'Failed to switch role';
-    throw new Error(typeof message === 'string' ? message : 'Failed to switch role');
-  }
-  return unwrap(json);
-}
-
-export async function fetchDemoUser() {
-  const res = await fetch('/api/auth/demo-login', { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return null;
-  }
-  return unwrap(json);
-}
-
-export async function fetchSilentZones(regionId: string = 'jharkhand') {
-  const res = await fetch(`/api/map/silent-zones?region_id=${regionId}`, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error('Failed to fetch silent zones');
-  }
-  return unwrap(json);
-}
-
-export async function verifyLedger() {
-  const res = await fetch('/api/ledger/verify', { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error('Failed to verify ledger');
-  }
-  return unwrap(json);
-}
-
-export async function fetchDashboardMetrics(regionId: string = 'jharkhand') {
-  const res = await fetch(`/api/dashboard/metrics?region_id=${regionId}`, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error('Failed to fetch dashboard metrics');
-  }
-  return unwrap(json);
-}
-
 
 // ---------------------------------------------------------------------------
-// Stage 2-6 consoles. Each helper returns the payload the console renders, and
-// throws with the API's own message so a console can show why it is empty
-// rather than pretending it has no data.
+// Verification
 // ---------------------------------------------------------------------------
 
-async function getJson(path: string) {
-  const res = await fetch(path, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = json?.error?.message || json?.error || `Request to ${path} failed`;
-    throw new Error(typeof message === 'string' ? message : `Request to ${path} failed`);
-  }
-  return unwrap(json);
+export async function fetchVerifyQueue(
+  params: { district?: string; hazard?: string; limit?: number } = {},
+) {
+  return request<{ queue: VerifyQueueItem[]; count: number }>(
+    `/api/verify/queue${query({ limit: 40, ...params })}`,
+  );
 }
 
-/** GET /api/verify/queue - unverified reports with their AI corroboration. */
-export async function fetchVerifyQueue(params: { district?: string; hazard?: string; limit?: number } = {}) {
-  const q = new URLSearchParams();
-  if (params.district) q.set('district', params.district);
-  if (params.hazard) q.set('hazard', params.hazard);
-  q.set('limit', String(params.limit ?? 40));
-  const d = await getJson(`/api/verify/queue?${q}`);
-  return { queue: d?.queue ?? [], count: d?.count ?? 0 };
-}
-
-export async function confirmVerification(
+export function confirmVerification(
   challengeId: string,
-  payload: { source_urls: string[]; photo_paths: string[]; note: string; granted?: string },
+  body: { source_urls: string[]; photo_paths: string[]; note: string; granted?: string },
 ) {
-  const res = await fetch(`/api/verify/${challengeId}/confirm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message || 'Could not record the verification');
-  return unwrap(json);
+  return post<{ confidence: string }>(`/api/verify/${challengeId}/confirm`, body);
 }
 
-export async function rejectVerification(challengeId: string, reason: string) {
-  const res = await fetch(`/api/verify/${challengeId}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message || 'Could not record the rejection');
-  return unwrap(json);
+export function rejectVerification(challengeId: string, reason: string) {
+  return post<unknown>(`/api/verify/${challengeId}/reject`, { reason });
 }
 
-/** GET /api/college/problems - verified problems plus their competition state. */
-export async function fetchCollegeProblems(params: { district?: string; category?: string } = {}) {
-  const q = new URLSearchParams();
-  if (params.district) q.set('district', params.district);
-  if (params.category) q.set('category', params.category);
-  const d = await getJson(`/api/college/problems?${q}`);
-  return { problems: d?.problems ?? [], count: d?.count ?? 0 };
+/** Ask the AI to look for independent proof (weather, news, web). */
+export function runCorroboration(challengeId: string) {
+  return post<{ verdict: string; checks: unknown[] }>(
+    `/api/challenges/${challengeId}/corroborate`,
+  );
 }
 
-/** GET /api/needs - open material lines and funding gaps across all challenges. */
-export async function fetchNeeds(
-  params: { district?: string; category?: string; kind?: string; limit?: number } = {},
+// ---------------------------------------------------------------------------
+// College: problems, and the proposal competition
+// ---------------------------------------------------------------------------
+
+export async function fetchCollegeProblems(
+  params: { district?: string; category?: string } = {},
 ) {
-  const q = new URLSearchParams();
-  if (params.district) q.set('district', params.district);
-  if (params.category) q.set('category', params.category);
-  if (params.kind) q.set('kind', params.kind);
-  q.set('limit', String(params.limit ?? 60));
-  const d = await getJson(`/api/needs?${q}`);
-  return { needs: d?.needs ?? [], count: d?.count ?? 0 };
+  return request<{ problems: CollegeProblem[]; count: number }>(
+    `/api/college/problems${query(params)}`,
+  );
 }
 
-/** GET /api/admin/metrics - the system owner's readout. */
-export async function fetchAdminMetrics() {
-  return getJson('/api/admin/metrics');
-}
-
-/** GET /api/college/proposals - this college's submissions with their rubrics. */
 export async function fetchMyProposals() {
-  const d = await getJson('/api/college/proposals');
-  return { proposals: d?.proposals ?? [], count: d?.count ?? 0 };
+  return request<{ proposals: Proposal[]; count: number }>("/api/college/proposals");
 }
 
-/** POST /api/college/proposals - submit a proposal and open/join the window. */
-export async function submitProposal(payload: {
+export function submitProposal(body: {
   challenge_id: string;
   extracted_text: string;
   document_name?: string;
   document_pages?: number;
 }) {
-  const res = await fetch('/api/college/proposals', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message || 'Could not submit the proposal');
-  return unwrap(json);
-}
-
-/** GET /api/contributions/mine - what this org gave, and what happened to it. */
-export async function fetchMyContributions() {
-  return getJson('/api/contributions/mine');
-}
-
-/** GET /api/admin/sla - attainment per stage and per district. */
-export async function fetchSla() {
-  return getJson('/api/admin/sla');
-}
-
-/** GET /api/admin/challenges/[ref]/history - the complete ordered record. */
-export async function fetchChallengeHistory(refOrId: string) {
-  return getJson(`/api/admin/challenges/${encodeURIComponent(refOrId)}/history`);
-}
-
-/** POST /api/challenges/[id]/corroborate - look for independent proof. */
-export async function runCorroboration(challengeId: string) {
-  const res = await fetch(`/api/challenges/${challengeId}/corroborate`, { method: 'POST' });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message || 'Corroboration could not run');
-  return unwrap(json);
+  return post<{
+    proposal_id: string;
+    window: { closes_at: string; window_days: number; leader_score: number | null };
+    first_in_window: boolean;
+  }>("/api/college/proposals", body);
 }
 
 // ---------------------------------------------------------------------------
-// Messaging: one thread per challenge per contributing organisation.
+// Sponsorship
 // ---------------------------------------------------------------------------
 
-/** GET /api/threads - every conversation this organisation is a party to. */
+export async function fetchNeeds(
+  params: { district?: string; category?: string; kind?: string; limit?: number } = {},
+) {
+  return request<{ needs: NeedLine[]; count: number }>(
+    `/api/needs${query({ limit: 60, ...params })}`,
+  );
+}
+
+export function pledge(
+  challengeId: string,
+  body: { need_id?: string; org_id: string; qty: number; kind: string; note?: string },
+) {
+  return post<unknown>(`/api/challenges/${challengeId}/pledges`, body);
+}
+
+export function fetchMyContributions() {
+  return request<{
+    contributions: Contribution[];
+    projects: FundedProject[];
+    totals: ContributionTotals | null;
+  }>("/api/contributions/mine");
+}
+
+// ---------------------------------------------------------------------------
+// Coordinator and admin
+// ---------------------------------------------------------------------------
+
+export function fetchDashboardMetrics(regionId = "jharkhand") {
+  return request<DashboardMetrics>(
+    `/api/dashboard/metrics${query({ region_id: regionId })}`,
+  );
+}
+
+export function fetchAdminMetrics() {
+  return request<AdminMetrics>("/api/admin/metrics");
+}
+
+export function fetchSla() {
+  return request<SlaReport>("/api/admin/sla");
+}
+
+export function fetchChallengeHistory(refOrId: string) {
+  return request<ChallengeHistory>(
+    `/api/admin/challenges/${encodeURIComponent(refOrId)}/history`,
+  );
+}
+
+export function fetchSilentZones(regionId = "jharkhand") {
+  return request<SilentZones>(`/api/map/silent-zones${query({ region_id: regionId })}`);
+}
+
+/**
+ * GET /api/ledger/verify — walks the hash chain and recomputes every entry.
+ *
+ * Tamper evidence without pretending to be a blockchain: the append-only
+ * guarantee is a Postgres trigger, and this proves nothing was rewritten.
+ */
+export function verifyLedger() {
+  return request<{
+    ok: boolean;
+    entries_checked: number;
+    broken_at: string | null;
+    explanation: string;
+  }>("/api/ledger/verify");
+}
+
+export function fetchHealth() {
+  return request<HealthReport>("/api/health");
+}
+
+// ---------------------------------------------------------------------------
+// Messaging
+// ---------------------------------------------------------------------------
+
 export async function fetchThreads() {
-  const d = await getJson('/api/threads');
-  return { threads: d?.threads ?? [], count: d?.count ?? 0 };
+  return request<{ threads: Thread[]; count: number }>("/api/threads");
 }
 
-/** POST /api/threads - open the thread for a challenge, or return the existing one. */
-export async function openThread(payload: {
+export function openThread(body: {
   challenge_id: string;
   college_org_id?: string;
   contributor_org_id?: string;
 }) {
-  const res = await fetch('/api/threads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message || 'Could not open a conversation');
-  return unwrap(json);
+  return post<{ thread_id: string }>("/api/threads", body);
 }
 
-/** GET /api/threads/[id]/messages - reading also marks the other side read. */
-export async function fetchMessages(threadId: string) {
-  return getJson(`/api/threads/${threadId}/messages`);
+export function fetchMessages(threadId: string) {
+  return request<{ thread: Thread; messages: Message[]; count: number }>(
+    `/api/threads/${threadId}/messages`,
+  );
 }
 
-/** POST /api/threads/[id]/messages */
-export async function sendMessage(threadId: string, body: string) {
-  const res = await fetch(`/api/threads/${threadId}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message || 'Could not send that message');
-  return unwrap(json);
+export function sendMessage(threadId: string, body: string) {
+  return post<Message>(`/api/threads/${threadId}/messages`, { body });
 }

@@ -1,434 +1,567 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, use } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, MapPin, Users, Flame, ChevronDown, CheckCircle2, ShieldQuestion, Wrench, Building2, PackagePlus, Loader2, ArrowRight } from 'lucide-react';
-import { fetchChallengeDetail, fetchNearbyResources, fetchMatches, adoptChallenge, pledgeResource } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
+import React from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { BackLink, Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Stat, Well } from "@/components/ui/Surface";
+import { ButtonLink } from "@/components/ui/Button";
+import { BandChip, Chip, ConfidenceChip, StatusChip, Tag } from "@/components/ui/Chip";
+import { AiNote, Empty, ErrorNote, Skeleton } from "@/components/ui/States";
+import { Icon, CATEGORY_ICON } from "@/components/ui/Icon";
+import { ScoreFactors } from "@/components/domain/ScoreFactors";
+import { ConfidenceLadder } from "@/components/domain/Corroboration";
+import { NeedLineRow } from "@/components/domain/NeedCard";
+import { TimelineList } from "@/components/domain/Timeline";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { useAuth } from "@/lib/auth";
+import { ROLE_HOME } from "@/lib/nav";
+import {
+  CATEGORY_LABEL,
+  CHANNEL_LABEL,
+  CONFIDENCE_RUNGS,
+  bandOf,
+  dateOnly,
+  dateTime,
+  humanise,
+  money,
+  num,
+  relative,
+} from "@/lib/format";
 
-export default function ChallengeDetailPage({ params }: { params: Promise<{ ref: string }> }) {
-  const resolvedParams = use(params);
-  const { user, role } = useAuth();
-  const [data, setData] = useState<any>(null);
-  const [nearby, setNearby] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  
-  // For Adopt and Pledge
-  const [adopting, setAdopting] = useState(false);
-  const [computedMatches, setComputedMatches] = useState<any[]>([]);
-  const [pledging, setPledging] = useState<string | null>(null);
-  const [pledgeQty, setPledgeQty] = useState<{ [key: string]: number }>({});
+/**
+ * The brief. One problem, everything known about it.
+ *
+ * This is the page a coordinator prints and takes to a block meeting, so it is
+ * laid out to read top to bottom on paper as well as on screen, and the print
+ * stylesheet strips the soft shadows to thin borders rather than wasting toner
+ * on grey.
+ */
+export default function ChallengePage() {
+  return (
+    <RouteGuard>
+      <Brief />
+    </RouteGuard>
+  );
+}
 
-  const loadData = async () => {
-    try {
-      const res = await fetchChallengeDetail(resolvedParams.ref);
-      setData(res);
-      const [nearbyRes, matchRes] = await Promise.allSettled([
-        fetchNearbyResources(res.challenge.id, 30),
-        fetchMatches(res.challenge.id, 5),
-      ]);
-      if (nearbyRes.status === 'fulfilled') setNearby(nearbyRes.value);
-      if (matchRes.status === 'fulfilled') setComputedMatches(matchRes.value);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load details');
-    } finally {
-      setLoading(false);
-    }
-  };
+function Brief() {
+  const params = useParams<{ ref: string }>();
+  const reference = params?.ref ?? "";
+  const { role } = useAuth();
 
-  useEffect(() => {
-    loadData();
-  }, [resolvedParams.ref]);
+  const res = useResource(() => apiClient.fetchChallenge(reference), [reference], {
+    enabled: Boolean(reference),
+  });
 
-  if (loading) {
+  const detail = res.data;
+  const c = detail?.challenge;
+  const brief = c?.brief;
+
+  const back = role ? ROLE_HOME[role] : "/";
+
+  if (res.loading && !res.settled) {
     return (
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-        <RoleNav />
-        <LoadingSkeleton message="Retrieving compiled challenge brief & resource swarms..." />
-      </div>
+      <>
+        <BackLink href={back} label="Back" />
+        <Main className="pt-6">
+          <Skeleton height={120} rounded={18} />
+          <Skeleton height={320} rounded={18} />
+          <Skeleton height={260} rounded={18} />
+        </Main>
+      </>
     );
   }
 
-  if (error || !data) {
+  if (res.error || !c) {
     return (
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-        <RoleNav />
-        <div className="flex-1 flex items-center justify-center p-6 text-center">
-          <div className="p-6 bg-white border border-red-200 rounded-2xl max-w-md shadow-xs space-y-3">
-            <span className="text-xs font-mono font-bold text-red-600 uppercase">Error Loading Challenge</span>
-            <p className="text-sm text-gray-700">{error || 'Challenge record could not be found'}</p>
-            <Link href="/overview" className="inline-block text-xs font-mono font-bold text-[#2E7180] underline">
-              Browse Statewide Directory
-            </Link>
-          </div>
-        </div>
-      </div>
+      <>
+        <BackLink href={back} label="Back" />
+        <Main className="pt-6">
+          <ErrorNote
+            message={res.error ?? `No problem is filed under ${reference}.`}
+            code={res.code}
+            onRetry={res.reload}
+          />
+        </Main>
+      </>
     );
   }
 
-  const { challenge, gap, cluster, assignments } = data;
-  const matches = computedMatches;
-
-  const roleBackLinks: Record<string, { href: string; label: string }> = {
-    citizen: { href: '/my-reports', label: 'My Reports' },
-    volunteer: { href: '/verify', label: 'Verification Queue' },
-    university: { href: '/college/problems', label: 'Problem Browser' },
-    industry: { href: '/needs', label: 'Needs Marketplace' },
-    coordinator: { href: '/queue', label: 'Triage Queue' },
-    admin: { href: '/admin', label: 'Command Center' },
-  };
-  const backTarget = (role ? roleBackLinks[role] : null) || { href: '/overview', label: 'Overview' };
-
-  const handleAdopt = async () => {
-    if (!user?.org_id) return alert('No organisation associated with this user.');
-    try {
-      setAdopting(true);
-      await adoptChallenge(challenge.id, { org_id: user.org_id, role: 'builder' });
-      await loadData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setAdopting(false);
-    }
-  };
-
-  const handlePledge = async (needId: string) => {
-    const qty = pledgeQty[needId];
-    if (!qty || qty <= 0) return;
-    if (!user?.org_id) return alert('No organisation associated with this user.');
-    try {
-      setPledging(needId);
-      await pledgeResource(challenge.id, {
-        need_id: needId,
-        org_id: user.org_id,
-        qty,
-        kind: 'equipment',
-        note: 'Pledged via demo'
-      });
-      setPledgeQty({ ...pledgeQty, [needId]: 0 });
-      await loadData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setPledging(null);
-    }
-  };
-
-  const hasAdopted = assignments?.some((a: any) => a.org_id === user?.org_id);
+  const stages: { key: string; label: string; at: string | null | undefined }[] = [
+    { key: "reported", label: "Reported", at: c.created_at },
+    { key: "refined", label: "Compiled", at: c.refined_at },
+    { key: "verified", label: "Verified", at: c.verified_at },
+    { key: "team", label: "Team formed", at: c.team_formed_at },
+    { key: "deployed", label: "Deployed", at: c.deployed_at },
+    { key: "closed", label: "Closed", at: c.closed_at },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-      <RoleNav />
+    <>
+      <BackLink href={back} label="Back" trail={c.ref} />
 
-      <div className="bg-white border-b border-[#CCD1C7] px-4 py-2 text-xs font-mono">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link
-            href={backTarget.href}
-            className="inline-flex items-center gap-1 font-bold text-gray-600 hover:text-[#102027] transition"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to {backTarget.label}
-          </Link>
-          <span className="text-gray-400">Challenge {challenge.ref ?? challenge.id}</span>
-        </div>
-      </div>
-
-      <main className="max-w-6xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-6">
-        <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#D94F45]/15 text-[#A8332A] border border-[#D94F45]/30">
-              PRIORITY {challenge.priority}
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700 uppercase">
-              {String(challenge.category).replace(/_/g, " ")}
-            </span>
-          </div>
-          <h1 className="text-2xl font-extrabold mb-3 text-[#102027]">{challenge.title}</h1>
-          <p className="text-sm text-gray-700 leading-relaxed mb-6">{challenge.problem}</p>
-          
-          <div className="flex items-center gap-4 text-xs font-mono text-gray-600">
-            <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {challenge.district}</span>
-            <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {challenge.people_est} affected</span>
-            <span className="flex items-center gap-1">Confidence: {String(challenge.confidence || 'unverified').replace(/_/g, ' ')}</span>
-          </div>
-        </div>
-
-        {/* Cluster & Evidence + Priority Explanation */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6 space-y-4">
-            <h2 className="text-lg font-bold text-[#102027] flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#2E7180]" /> Ground Reports & Evidence
-            </h2>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <p className="text-sm font-semibold text-[#102027]">
-                {cluster?.report_count || 0} reports from {cluster?.villages || 0} villages
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs font-mono">
-                <span className="px-2 py-1 bg-white border border-gray-200 rounded text-gray-600">
-                  {cluster?.photos || 0} photos
-                </span>
-                {(cluster?.via_sms || 0) > 0 && (
-                  <span className="px-2 py-1 bg-amber-50 border border-amber-200 rounded text-amber-800 font-bold">
-                    {cluster.via_sms} via SMS
-                  </span>
-                )}
-              </div>
+      <PageHead
+        eyebrow={`${c.ref} · ${
+          [c.block, c.district].filter(Boolean).join(", ") || "district unknown"
+        }`}
+        title={c.title}
+        lede={brief?.problem ?? c.why_critical}
+        right={
+          <div className="flex flex-col items-start gap-2.5 sm:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <BandChip band={c.band ?? bandOf(c.priority)} />
+              <ConfidenceChip confidence={c.confidence} />
+              <StatusChip status={c.status} />
             </div>
-            
-            <div className="space-y-3 pt-2">
-              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide">Community Validation</h3>
-              <div className="flex gap-2">
-                <button className="flex-1 bg-white border border-[#CCD1C7] text-[#102027] hover:bg-gray-50 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                  Confirm Impact
-                </button>
-                <button className="flex-1 bg-white border border-[#CCD1C7] text-[#102027] hover:bg-gray-50 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                  Flag as Invalid
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-[#102027] flex items-center gap-2 mb-4">
-              <Flame className="w-5 h-5 text-[#D94F45]" /> Why this rank?
-            </h2>
-            <div className="space-y-3">
-              <div className="bg-red-50 border border-red-100 rounded-lg p-3">
-                <span className="text-[11px] font-mono font-bold text-red-800 uppercase tracking-wider mb-1 block">Verdict</span>
-                <p className="text-sm text-red-900 leading-relaxed">
-                  {challenge.score_breakdown?.why_critical || 'Analysis pending.'}
-                </p>
-              </div>
-              <div className="text-[11px] text-gray-500 leading-relaxed border-t border-gray-100 pt-3">
-                {challenge.ai_disclaimer || 'Analysis performed by automated system.'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Partner Matching & Nearby Resources Panel */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs overflow-hidden">
-            <div className="bg-[#2E7180] text-white p-4 flex items-center justify-between">
-              <h2 className="font-bold flex items-center gap-2">
-                <Building2 className="w-5 h-5" /> Recommended Partners
-              </h2>
-              {role === 'university' && (
-                hasAdopted ? (
-                  <span className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Adopted
-                  </span>
-                ) : (
-                  <button 
-                    onClick={handleAdopt} 
-                    disabled={adopting}
-                    className="bg-white text-[#2E7180] hover:bg-teal-50 px-3 py-1 rounded text-xs font-bold flex items-center gap-1 shadow-sm transition"
-                  >
-                    {adopting ? 'Adopting...' : 'Adopt Challenge'}
-                  </button>
-                )
+            <div className="flex flex-wrap gap-2">
+              {c.confidence === "unverified" && (
+                <ButtonLink href={`/verify/${c.id}`} variant="secondary" size="sm" icon="shield">
+                  Verify
+                </ButtonLink>
               )}
-            </div>
-            <div className="p-4 space-y-4">
-              {matches && matches.length > 0 ? (
-                matches.map((m: any, idx: number) => (
-                  <div key={m.org_id ?? idx} className="border border-gray-200 rounded-lg p-3 bg-[#F4F6F5]">
-                    <div className="flex justify-between items-start gap-2 mb-1">
-                      <h4 className="font-bold text-sm text-[#102027]">{m.name}</h4>
-                      <span className="text-[10px] font-mono font-bold bg-[#E5A83B]/20 text-[#8A5A00] px-2 py-0.5 rounded shrink-0">
-                        FIT {Math.round(m.score)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 mb-1.5">
-                      {String(m.type || '').replace(/_/g, ' ')}
-                      {m.district ? ` · ${m.district}` : ''}
-                      {typeof m.distance_km === 'number' ? ` · ${Math.round(m.distance_km)} km away` : ''}
-                    </p>
-                    {Array.isArray(m.reasons) && m.reasons.length > 0 && (
-                      <ul className="space-y-0.5">
-                        {m.reasons.slice(0, 2).map((r: string) => (
-                          <li key={r} className="text-[11px] text-[#2E7180] flex gap-1.5">
-                            <span aria-hidden="true">·</span>{r}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-gray-500 text-center py-4">No recommended partners found.</div>
+              {/* Admin only: the history endpoint itself is requireRole("admin"),
+                  so offering this to a coordinator would be a link to a refusal. */}
+              {role === "admin" && (
+                <ButtonLink
+                  href={`/admin/challenges/${c.ref}`}
+                  variant="secondary"
+                  size="sm"
+                  icon="clock"
+                >
+                  Full record
+                </ButtonLink>
               )}
             </div>
           </div>
+        }
+      />
 
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs overflow-hidden">
-            <div className="bg-gray-100 text-[#102027] border-b border-[#CCD1C7] p-4">
-              <h2 className="font-bold flex items-center gap-2">
-                <MapPin className="w-5 h-5" /> Available Nearby
-              </h2>
-            </div>
-            <div className="p-4 space-y-4">
-              {nearby && nearby.resources && nearby.resources.length > 0 ? (
-                nearby.resources.map((r: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#102027]">{r.quantity} {r.unit} {r.type}</h4>
-                      <p className="text-[11px] text-gray-500">{r.org_name || 'Partner Org'} · {r.distance_km != null ? Math.round(r.distance_km) : '?'} km away</p>
-                    </div>
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                      {r.availability.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-gray-500 text-center py-4">No resources currently listed nearby.</div>
-              )}
-            </div>
-          </div>
+      <Main>
+        {/* ---- the numbers ------------------------------------------------- */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label="Priority" value={`${c.priority}`} sub="Out of 100, opened below" />
+          <Stat
+            label="People affected"
+            value={num(c.people_est)}
+            sub={brief?.vulnerable?.length ? brief.vulnerable.join(", ") : "No group named"}
+          />
+          <Stat
+            label="Reports"
+            value={num(c.report_count)}
+            sub={`${num(c.reporter_count)} separate reporters${
+              detail?.cluster ? ` · ${num(detail.cluster.villages)} villages` : ""
+            }`}
+          />
+          <Stat
+            label="Severity"
+            value={`${c.severity}/5`}
+            sub={c.severity_source ? `Set by ${humanise(c.severity_source)}` : "From the reports"}
+          />
         </div>
 
-        {/* Team Builder */}
-        {data.team && data.team.length > 0 && (
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs overflow-hidden">
-            <div className="bg-[#102027] text-white border-b border-gray-800 p-4">
-              <h2 className="font-bold flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4" /> Skill-Gap Team Builder
-              </h2>
-            </div>
-            <div className="p-4">
-              <div className="flex flex-wrap gap-2">
-                {data.team.map((member: any, idx: number) => (
-                  <span 
-                    key={idx} 
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                      member.filled 
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                        : 'bg-white text-gray-600 border-gray-200 border-dashed'
-                    }`}
-                  >
-                    {member.seat} {member.filled && '✓'}
-                  </span>
-                ))}
-              </div>
-            </div>
+        {/* ---- lifecycle strip -------------------------------------------- */}
+        <Card className="p-5">
+          <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+            Where it has got to
           </div>
-        )}
-
-        {/* Resource Swarm & Pledges */}
-        {gap && gap.needs && gap.needs.length > 0 && (
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <PackagePlus className="w-5 h-5 text-[#2E7180]" /> Resource Swarm (Gap Bar)
-            </h2>
-            <div className="space-y-6">
-              {gap.needs.map((need: any) => {
-                const open = need.qty_needed - need.qty_pledged;
-                const pct = Math.min(100, (need.qty_pledged / need.qty_needed) * 100);
-                const isFullyPledged = open <= 0;
-                
+          <div className="scroll-x mt-3.5">
+            <ol className="flex min-w-[560px] items-stretch gap-2">
+              {stages.map((s) => {
+                const reached = Boolean(s.at);
                 return (
-                  <div key={need.need_id} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-sm text-[#102027]">{need.item}</h3>
-                      <span className="font-mono text-xs font-bold text-[#2E7180]">
-                        {need.qty_pledged} / {need.qty_needed} {need.unit}
-                      </span>
+                  <li key={s.key} className={`flex-1 ${reached ? "press" : "in-s"} p-3`}>
+                    <div
+                      className={`mono text-[9.5px] font-semibold uppercase tracking-[0.08em] ${
+                        reached ? "text-navy" : "text-mute"
+                      }`}
+                    >
+                      {s.label}
                     </div>
-                    
-                    <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden mb-3">
-                      <div 
-                        className="bg-[#2E7180] h-full transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div
+                      className={`mono mt-1.5 text-[11px] ${reached ? "text-ink" : "text-mute"}`}
+                    >
+                      {reached ? dateOnly(s.at) : "—"}
                     </div>
-                    
-                    {role === 'industry' && !isFullyPledged && (
-                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
-                        <span className="text-xs text-gray-500 font-medium">Industry Pledge:</span>
-                        <input 
-                          type="number" 
-                          min={1} 
-                          max={open}
-                          value={pledgeQty[need.need_id] || ''}
-                          onChange={(e) => setPledgeQty({ ...pledgeQty, [need.need_id]: parseInt(e.target.value) || 0 })}
-                          placeholder="Qty"
-                          className="w-20 text-xs border border-gray-300 rounded px-2 py-1 outline-none focus:border-[#2E7180]"
-                        />
-                        <button 
-                          onClick={() => handlePledge(need.need_id)}
-                          disabled={pledging === need.need_id}
-                          className="bg-[#102027] text-white hover:bg-gray-800 px-3 py-1 rounded text-xs font-bold transition"
-                        >
-                          {pledging === need.need_id ? '...' : 'Pledge'}
-                        </button>
-                      </div>
-                    )}
-                    {isFullyPledged && (
-                      <div className="mt-2 text-xs font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> Fully Pledged
-                      </div>
-                    )}
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </div>
-        )}
+          {detail?.next_actions && detail.next_actions.length > 0 && (
+            <div className="hairline mt-4 pt-4">
+              <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                What can happen next
+              </div>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {detail.next_actions.map((a) => (
+                  <li key={a.action} className="flex flex-wrap items-center gap-2.5">
+                    <Chip tone={a.ready ? "teal" : "neutral"}>
+                      {a.ready ? "Ready" : "Blocked"}
+                    </Chip>
+                    <span className="text-[13px] font-semibold text-ink">
+                      {humanise(a.action)} → {humanise(a.to)}
+                    </span>
+                    {a.problems.length > 0 && (
+                      <span className="text-[12.5px] text-body">{a.problems.join("; ")}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
 
-        {/* Proposals / Solutions */}
-        {data.solutions && data.solutions.length > 0 && (
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-[#2E7180]" /> Proposals & Readiness
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {data.solutions.map((sol: any) => (
-                <div key={sol.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-bold text-sm text-[#102027]">{sol.title}</h3>
-                      <span className="font-mono text-xs font-bold px-2 py-1 bg-white border border-gray-200 rounded text-gray-700">
-                        Readiness: {sol.readiness || '?'}/100
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)]">
+          {/* ---- left column --------------------------------------------- */}
+          <div className="flex flex-col gap-5">
+            <Panel
+              title="The problem"
+              lede={
+                brief?.source
+                  ? brief.source === "ai"
+                    ? "Compiled from the reports by the model."
+                    : "Written by the rule-based compiler, with no model available."
+                  : undefined
+              }
+              right={
+                <span className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+                  {brief?.detected_language
+                    ? `reported in ${brief.detected_language}`
+                    : ""}
+                </span>
+              }
+            >
+              <p className="text-[15px] leading-relaxed text-ink">
+                {brief?.problem ?? c.why_critical}
+              </p>
+
+              {brief?.outcome && (
+                <div className="in mt-4 p-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    What success looks like
+                  </div>
+                  <p className="mt-2 text-[13.5px] leading-relaxed text-ink">{brief.outcome}</p>
+                  {brief.success_metric && (
+                    <p className="mt-2.5 text-[12.5px] leading-relaxed text-body">
+                      <span className="mono text-[9.5px] uppercase tracking-[0.1em] text-mute">
+                        measured by{" "}
                       </span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 mb-3">{sol.organizations?.name || 'Unknown Partner'}</p>
-                    <p className="text-xs text-gray-700 leading-relaxed line-clamp-3 mb-3">{sol.approach}</p>
-                  </div>
-                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-200">
-                    <span className="text-xs font-mono text-gray-600">Cost: {sol.cost_estimate || 'TBD'}</span>
-                    <span className="text-xs font-mono text-gray-600">Time: {sol.deploy_days ? `${sol.deploy_days} days` : 'TBD'}</span>
-                  </div>
+                      {brief.success_metric}
+                    </p>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              )}
 
-        {/* Timeline */}
-        {data.timeline && data.timeline.length > 0 && (
-          <div className="bg-white rounded-2xl border border-[#CCD1C7] shadow-xs p-5 sm:p-6 mb-8">
-            <h2 className="text-lg font-bold mb-4 text-[#102027]">Timeline & Log</h2>
-            <div className="space-y-4">
-              {data.timeline.map((entry: any, i: number) => (
-                <div key={i} className="flex gap-4">
-                  <div className="w-24 shrink-0 text-xs text-gray-500 font-mono text-right pt-0.5">
-                    {new Date(entry.created_at).toLocaleDateString()}
+              {brief?.needs && brief.needs.length > 0 && (
+                <div className="mt-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    What it needs
                   </div>
-                  <div className="w-px bg-gray-200 relative">
-                    <div className="absolute top-1.5 -left-1 w-2.5 h-2.5 rounded-full bg-[#2E7180]" />
-                  </div>
-                  <div className="pb-4">
-                    <p className="text-sm font-semibold text-[#102027]">{entry.kind || entry.title}</p>
-                    {entry.note && <p className="text-xs text-gray-600 mt-1">{entry.note}</p>}
-                  </div>
+                  <ul className="mt-2.5 flex flex-col gap-2">
+                    {brief.needs.map((n, i) => (
+                      <li key={i} className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex-none text-navy">
+                          <Icon name="check" size={13} />
+                        </span>
+                        <span className="text-[13.5px] leading-relaxed text-body">{n}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ))}
-            </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                <Tag icon={<Icon name={CATEGORY_ICON[c.category] ?? "info"} size={11} />}>
+                  {CATEGORY_LABEL[c.category] ?? humanise(c.category)}
+                </Tag>
+                <Tag>{humanise(c.dm_phase)}</Tag>
+                {c.hazard_tags?.map((h) => (
+                  <Tag key={h}>{humanise(h)}</Tag>
+                ))}
+                {c.sdg_tags?.map((s) => (
+                  <Tag key={s}>{s}</Tag>
+                ))}
+                {c.sendai_tags?.map((s) => (
+                  <Tag key={s}>{humanise(s)}</Tag>
+                ))}
+              </div>
+
+              {c.ai_uncertainties?.length > 0 && (
+                <div className="in-s mt-4 p-4">
+                  <div className="mono flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-high-ink">
+                    <Icon name="alert" size={12} />
+                    What the compiler was unsure about
+                  </div>
+                  <ul className="mt-2.5 flex flex-col gap-1.5">
+                    {c.ai_uncertainties.map((u, i) => (
+                      <li key={i} className="text-[12.5px] leading-relaxed text-body">
+                        {u}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <AiNote />
+              </div>
+            </Panel>
+
+            <Panel
+              title="Why it is ranked here"
+              lede="Every factor, with its cap and the sentence behind it."
+            >
+              <ScoreFactors breakdown={c.score_breakdown} whyCritical={c.why_critical} />
+            </Panel>
+
+            {detail?.solutions && detail.solutions.length > 0 && (
+              <Panel
+                title="Proposed solutions"
+                lede="What a college or partner said they would build, and how ready the reviewer judged it."
+              >
+                <ul className="flex flex-col gap-3">
+                  {detail.solutions.map((s) => (
+                    <li key={s.id} className="up-s p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-[15px] font-bold leading-snug text-navy-dark">
+                            {s.title}
+                          </h4>
+                          <div className="mono mt-1 text-[10px] uppercase tracking-[0.08em] text-mute">
+                            {s.organizations?.name ?? "unattributed"}
+                            {s.organizations?.type ? ` · ${humanise(s.organizations.type)}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex flex-none flex-col items-end gap-1.5">
+                          {s.readiness !== null && (
+                            <span className="mono text-[20px] font-semibold leading-none text-ink">
+                              {s.readiness}
+                              <span className="text-[11px] text-mute">/100</span>
+                            </span>
+                          )}
+                          <Chip
+                            tone={s.status === "approved_for_pilot" ? "teal" : "neutral"}
+                          >
+                            {humanise(s.status)}
+                          </Chip>
+                        </div>
+                      </div>
+
+                      {s.readiness !== null && <Meter value={s.readiness} className="mt-3" height={7} />}
+
+                      <p className="mt-3 text-[13px] leading-relaxed text-body">{s.approach}</p>
+
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {s.cost_estimate !== null && <Tag>{money(s.cost_estimate)}</Tag>}
+                        {s.deploy_days !== null && <Tag>{s.deploy_days} days to deploy</Tag>}
+                      </div>
+
+                      {s.risks && (
+                        <Well small className="mt-3">
+                          <p className="text-[12.5px] leading-relaxed text-body">
+                            <span className="mono text-[9.5px] uppercase tracking-[0.1em] text-mute">
+                              risks{" "}
+                            </span>
+                            {s.risks}
+                          </p>
+                        </Well>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+
+            <Panel
+              title="What the people there said"
+              lede={
+                detail?.cluster
+                  ? `${num(detail.cluster.report_count)} reports from ${num(detail.cluster.reporter_count)} reporters across ${num(detail.cluster.villages)} villages · ${num(detail.cluster.via_sms)} by SMS`
+                  : undefined
+              }
+            >
+              {!detail?.cluster || detail.cluster.reports.length === 0 ? (
+                <Empty
+                  icon="mic"
+                  title="No individual reports are readable here"
+                  why="The reports behind this problem are not exposed to your role on this endpoint. The counts on the challenge record are still shown above."
+                />
+              ) : (
+                <ul className="flex max-h-[440px] flex-col gap-2.5 overflow-y-auto pr-1">
+                  {detail.cluster.reports.slice(0, 12).map((r) => (
+                    <li key={r.id} className="in-s p-3.5">
+                      <div className="mono flex flex-wrap items-center gap-x-2 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                        <span>{dateTime(r.created_at)}</span>
+                        <span>·</span>
+                        <span>{CHANNEL_LABEL[r.channel] ?? r.channel}</span>
+                        {r.village && (
+                          <>
+                            <span>·</span>
+                            <span>{r.village}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="mt-2 text-[13px] leading-relaxed text-ink">
+                        {r.original_text}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel
+              title="The record"
+              lede="Every entry in order, with the time between each one."
+            >
+              <TimelineList events={detail?.timeline ?? []} />
+            </Panel>
           </div>
-        )}
-      </main>
+
+          {/* ---- right column -------------------------------------------- */}
+          <aside className="flex flex-col gap-5">
+            <Panel title="Evidence" lede="Where this sits, and what put it there.">
+              <ConfidenceLadder current={c.confidence} rungs={CONFIDENCE_RUNGS} />
+
+              {detail?.verifications && detail.verifications.length > 0 && (
+                <div className="hairline mt-4 pt-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Verifications on file
+                  </div>
+                  <ul className="mt-2.5 flex flex-col gap-2">
+                    {detail.verifications.map((v) => (
+                      <li key={v.id} className="up-s p-3">
+                        <div className="mono text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                          {v.kind} · {dateOnly(v.created_at)}
+                        </div>
+                        {v.note && (
+                          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink">{v.note}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Panel>
+
+            {detail?.gap && detail.gap.needs.length > 0 && (
+              <Panel
+                title="What is still needed"
+                lede="Itemised, so a company with a small budget can close one line."
+                right={
+                  <span className="mono text-[11px] font-semibold text-navy">
+                    {detail.gap.pctClosed}%
+                  </span>
+                }
+              >
+                <Meter
+                  value={detail.gap.pctClosed}
+                  colour={
+                    detail.gap.fullyPledged ? "var(--color-teal)" : "var(--color-navy)"
+                  }
+                  height={10}
+                />
+                <div className="mt-2">
+                  {detail.gap.needs.map((n) => (
+                    <NeedLineRow key={n.need_id} need={n} />
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <ButtonLink href="/needs" variant="secondary" size="sm" icon="box">
+                    See the needs board
+                  </ButtonLink>
+                </div>
+              </Panel>
+            )}
+
+            {detail?.assignments && detail.assignments.length > 0 && (
+              <Panel title="Who is on it">
+                <ul className="flex flex-col gap-2.5">
+                  {detail.assignments.map((a) => (
+                    <li key={`${a.org_id}-${a.role}`} className="up-s p-3.5">
+                      <div className="text-[13.5px] font-bold text-ink">
+                        {a.organizations?.name ?? a.org_id}
+                      </div>
+                      <div className="mono mt-1 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                        {humanise(a.role)}
+                        {a.organizations?.type ? ` · ${humanise(a.organizations.type)}` : ""}
+                        {a.organizations?.district ? ` · ${a.organizations.district}` : ""}
+                        {a.accepted_at ? ` · accepted ${dateOnly(a.accepted_at)}` : " · not accepted yet"}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {detail.team.length > 0 && (
+                  <div className="hairline mt-4 pt-4">
+                    <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      Seats
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {detail.team.map((t, i) => (
+                        <span
+                          key={`${t.seat}-${i}`}
+                          className={`chip ${t.filled ? "" : "opacity-70"}`}
+                          style={{
+                            color: t.filled ? "var(--color-teal-ink)" : "var(--color-mute)",
+                          }}
+                        >
+                          <span
+                            className="dot"
+                            style={{
+                              background: t.filled ? "var(--color-teal)" : "#8DA0B5",
+                            }}
+                          />
+                          {t.seat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Panel>
+            )}
+
+            <Panel title="Record" depth="in">
+              <dl className="flex flex-col">
+                <MetaRow label="Reference" value={c.ref} />
+                <MetaRow label="Opened" value={dateTime(c.created_at)} />
+                <MetaRow label="Last moved" value={relative(c.updated_at)} />
+                <MetaRow label="Mode" value={humanise(c.mode ?? "peace")} />
+                {c.is_simulated && <MetaRow label="Source" value="Seeded demonstration row" />}
+              </dl>
+              {c.ai_disclaimer && (
+                <p className="mt-3 text-[11.5px] leading-relaxed text-mute">{c.ai_disclaimer}</p>
+              )}
+              {detail?.redacted && (
+                <p className="mt-3 text-[11.5px] leading-relaxed text-mute">
+                  Some fields are hidden from your role. What you can see is complete for what it
+                  shows.
+                </p>
+              )}
+              <div className="mt-4">
+                <Link
+                  href="/challenges"
+                  className="mono text-[10.5px] uppercase tracking-[0.1em] text-navy hover:underline"
+                >
+                  All challenges →
+                </Link>
+              </div>
+            </Panel>
+          </aside>
+        </div>
+      </Main>
+    </>
+  );
+}
+
+function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="hairline flex items-baseline justify-between gap-3 py-2 first:border-t-0">
+      <dt className="mono text-[10px] uppercase tracking-[0.1em] text-mute">{label}</dt>
+      <dd className="mono text-right text-[11.5px] font-semibold text-ink">{value}</dd>
     </div>
   );
 }

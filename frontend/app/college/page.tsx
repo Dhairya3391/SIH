@@ -1,366 +1,341 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import {
-  AlertCircle,
-  ArrowRight,
-  Clock,
-  FileText,
-  GraduationCap,
-  Loader2,
-  RefreshCw,
-  Trophy,
-} from 'lucide-react';
-import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import { CountdownToClose } from '@/components/shared/CountdownToClose';
-import { fetchCollegeProblems, fetchMyProposals } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import React, { useMemo } from "react";
+import Link from "next/link";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Stat } from "@/components/ui/Surface";
+import { ButtonLink } from "@/components/ui/Button";
+import { BandChip, Chip, Tag } from "@/components/ui/Chip";
+import { Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import { VIABILITY_FLOOR } from "@/components/domain/Competition";
+import * as apiClient from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useResource } from "@/lib/useResource";
+import { bandOf, countdown, humanise, money, num, relative } from "@/lib/format";
 
 /**
- * The college's landing console: what needs attention first.
+ * The college's own front page.
  *
- * Ordered by urgency to the college rather than by database state - a window
- * about to close, or a rejection waiting to be fixed, matters more than a
- * project that is quietly on track.
+ * Answers the four questions a department head actually has: what am I
+ * leading, what is about to close, what have I been beaten on, and who is
+ * waiting for a reply from me.
  */
-
-interface Problem {
-  id: string;
-  ref: string;
-  title: string;
-  district: string;
-  priority: number;
-  competition: { state: string; closes_at?: string; leader_score?: number | null };
-  my_proposal: { state: string; score: number | null; is_leading: boolean | null } | null;
+export default function CollegeOverviewPage() {
+  return (
+    <RouteGuard>
+      <CollegeOverview />
+    </RouteGuard>
+  );
 }
 
-interface Proposal {
-  id: string;
-  version: number;
-  state: string;
-  ai_score: number | null;
-  ai_rubric: { required_changes?: string[] } | null;
-  challenge: { ref: string; title: string } | null;
-  window: { state: string; closes_at: string } | null;
-  score_to_beat: number | null;
-  is_leading: boolean | null;
-}
-
-export default function CollegeHomePage() {
+function CollegeOverview() {
   const { organisation, user } = useAuth();
-  const [problems, setProblems] = useState<Problem[]>([]);
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const proposals = useResource(() => apiClient.fetchMyProposals(), []);
+  const problems = useResource(() => apiClient.fetchCollegeProblems(), []);
+  const threads = useResource(() => apiClient.fetchThreads(), []);
 
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const [p, m] = await Promise.all([fetchCollegeProblems(), fetchMyProposals()]);
-      setProblems(p.problems as Problem[]);
-      setProposals(m.proposals as Proposal[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load your console.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Memoised so an unresolved fetch does not hand every useMemo below a
+  // brand-new empty array on each render.
+  const rows = useMemo(() => proposals.data?.proposals ?? [], [proposals.data]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const stats = useMemo(() => {
+    const leading = rows.filter((p) => p.is_leading === true);
+    const behind = rows.filter((p) => p.is_leading === false);
+    const awarded = rows.filter((p) => p.state === "awarded");
+    const closing = rows
+      .filter((p) => p.window?.state === "open" && p.window.closes_at)
+      .sort(
+        (a, b) =>
+          new Date(a.window!.closes_at!).getTime() - new Date(b.window!.closes_at!).getTime(),
+      );
+    const funding = rows
+      .filter((p) => p.state === "awarded" || p.is_leading === true)
+      .reduce((sum, p) => sum + (p.funding_required ?? 0), 0);
+    return { leading, behind, awarded, closing, funding };
+  }, [rows]);
 
-  const attention = useMemo(() => {
-    const items: { key: string; urgency: number; node: React.ReactNode }[] = [];
-
-    for (const p of proposals) {
-      if (p.state === 'rejected_not_viable') {
-        items.push({
-          key: `fix-${p.id}`,
-          urgency: 1,
-          node: (
-            <Link
-              href={`/college/problems/${p.challenge?.ref ?? ''}`}
-              className="block bg-white rounded-xl border border-red-300 p-4 hover:border-red-500"
-            >
-              <div className="font-mono text-[10px] font-bold tracking-wider uppercase text-red-800 mb-1">
-                Rejected · {p.ai_rubric?.required_changes?.length ?? 0} change(s) needed
-              </div>
-              <div className="font-semibold text-sm text-[#102027]">{p.challenge?.title}</div>
-              <div className="font-mono text-[10px] text-gray-500 mt-1">
-                {p.challenge?.ref} · v{p.version} · scored {p.ai_score}
-              </div>
-            </Link>
-          ),
-        });
-      } else if (p.score_to_beat !== null) {
-        items.push({
-          key: `beat-${p.id}`,
-          urgency: 2,
-          node: (
-            <Link
-              href={`/college/problems/${p.challenge?.ref ?? ''}`}
-              className="block bg-white rounded-xl border border-amber-300 p-4 hover:border-amber-500"
-            >
-              <div className="font-mono text-[10px] font-bold tracking-wider uppercase text-amber-800 mb-1">
-                Outscored · beat {p.score_to_beat}
-              </div>
-              <div className="font-semibold text-sm text-[#102027]">{p.challenge?.title}</div>
-              <div className="font-mono text-[10px] text-gray-500 mt-1 flex items-center gap-1.5">
-                yours {p.ai_score}
-                {p.window?.closes_at && (
-                  <>
-                    <Clock className="w-3 h-3" />
-                    <CountdownToClose closeDate={p.window.closes_at} compact />
-                  </>
-                )}
-              </div>
-            </Link>
-          ),
-        });
-      } else if (p.state === 'winner') {
-        items.push({
-          key: `won-${p.id}`,
-          urgency: 3,
-          node: (
-            <Link
-              href="/college/projects"
-              className="block bg-white rounded-xl border border-emerald-300 p-4 hover:border-emerald-500"
-            >
-              <div className="font-mono text-[10px] font-bold tracking-wider uppercase text-emerald-800 mb-1 flex items-center gap-1">
-                <Trophy className="w-3 h-3" /> Won · publish what you need
-              </div>
-              <div className="font-semibold text-sm text-[#102027]">{p.challenge?.title}</div>
-              <div className="font-mono text-[10px] text-gray-500 mt-1">
-                {p.challenge?.ref} · scored {p.ai_score}
-              </div>
-            </Link>
-          ),
-        });
-      } else if (p.state === 'submitted' || p.state === 'scoring') {
-        items.push({
-          key: `wait-${p.id}`,
-          urgency: 4,
-          node: (
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] font-bold tracking-wider uppercase text-gray-600 mb-1 flex items-center gap-1.5">
-                <Loader2 className="w-3 h-3 animate-spin" /> Being scored
-              </div>
-              <div className="font-semibold text-sm text-[#102027]">{p.challenge?.title}</div>
-              <div className="font-mono text-[10px] text-gray-500 mt-1">
-                {p.challenge?.ref} · v{p.version}
-              </div>
-            </div>
-          ),
-        });
-      }
-    }
-
-    return items.sort((a, b) => a.urgency - b.urgency);
-  }, [proposals]);
-
-  const openSoon = useMemo(
-    () =>
-      problems
-        .filter((p) => p.competition.state === 'open' && !p.my_proposal)
-        .sort(
-          (a, b) =>
-            new Date(a.competition.closes_at ?? 0).getTime() -
-            new Date(b.competition.closes_at ?? 0).getTime(),
-        )
-        .slice(0, 4),
-    [problems],
+  const openProblems = problems.data?.problems ?? [];
+  const unclaimed = openProblems.filter(
+    (p) => !p.competition || p.competition.state === "not_opened",
   );
+  const unread = (threads.data?.threads ?? []).reduce((s, t) => s + t.unread_count, 0);
 
-  const unclaimed = useMemo(
-    () =>
-      problems
-        .filter((p) => p.competition.state === 'not_opened')
-        .sort((a, b) => b.priority - a.priority)
-        .slice(0, 4),
-    [problems],
-  );
+  const loading = proposals.loading && !proposals.settled;
 
   return (
-    <RoleGuard allowedRoles={['university', 'coordinator', 'admin']} consoleTitle="College Console">
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Stage 3 · Academic solution portal
-              </div>
-              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
-                {organisation?.name ?? 'Your college'}
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                {user?.full_name ? `Signed in as ${user.full_name}. ` : ''}
-                Every district problem is a live R&amp;D brief.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/college/problems"
-                className="h-9 px-3 rounded-lg bg-[#102027] text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-[#1D3540]"
-              >
-                Browse problems <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <button
-                onClick={() => {
-                  setLoading(true);
-                  load();
-                }}
-                className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Refresh
-              </button>
-            </div>
+    <>
+      <PageHead
+        eyebrow="College"
+        title={organisation?.name ?? "Your department"}
+        lede={
+          user?.district
+            ? `Signed in for ${user.district}. What you are leading, what closes soonest, and what nobody has taken on yet.`
+            : "What you are leading, what closes soonest, and what nobody has taken on yet."
+        }
+        right={
+          <div className="flex flex-wrap gap-2.5">
+            <ButtonLink href="/college/problems" variant="primary" icon="list">
+              Open problems
+            </ButtonLink>
+            <ButtonLink href="/messages" variant="secondary" icon="chat">
+              Messages{unread > 0 ? ` (${unread})` : ""}
+            </ButtonLink>
           </div>
+        }
+      />
 
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
-            >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
+      <Main>
+        {loading ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={3} height={140} />
+          </>
+        ) : proposals.error ? (
+          <ErrorNote message={proposals.error} code={proposals.code} onRetry={proposals.reload} />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Leading"
+                value={num(stats.leading.length)}
+                sub={
+                  stats.leading.length === 0
+                    ? "Nothing in the lead right now"
+                    : "Highest viable score in the window"
+                }
+                tone={stats.leading.length > 0 ? "teal" : undefined}
+              />
+              <Stat
+                label="Awarded to you"
+                value={num(stats.awarded.length)}
+                sub="Window closed in your favour"
+                tone={stats.awarded.length > 0 ? "teal" : undefined}
+              />
+              <Stat
+                label="Beaten, window still open"
+                value={num(stats.behind.length)}
+                sub={
+                  stats.behind.length === 0
+                    ? "Nothing to retake"
+                    : "A revised version can retake the lead"
+                }
+                tone={stats.behind.length > 0 ? "alert" : undefined}
+              />
+              <Stat
+                label="Funding you have asked for"
+                value={money(stats.funding)}
+                sub="Across leading and awarded proposals"
+              />
             </div>
-          )}
 
-          {loading ? (
-            <LoadingSkeleton rows={3} />
-          ) : (
-            <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                  { k: 'Open to propose', v: problems.length },
-                  { k: 'Your submissions', v: proposals.length },
-                  { k: 'Leading', v: proposals.filter((p) => p.is_leading).length },
-                  { k: 'Won', v: proposals.filter((p) => p.state === 'winner').length },
-                ].map((s) => (
-                  <div key={s.k} className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-                    <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                      {s.k}
-                    </div>
-                    <div className="text-2xl font-extrabold font-mono text-[#102027]">{s.v}</div>
-                  </div>
-                ))}
-              </div>
+            {/* ---- closing soonest ---------------------------------------- */}
+            <Panel
+              title="Closing soonest"
+              lede="Windows you are in, ordered by how long is left. A closed window cannot be reopened by submitting."
+            >
+              {stats.closing.length === 0 ? (
+                <Empty
+                  icon="clock"
+                  title="No window of yours is running"
+                  why="Either your submissions are in windows that already closed, or you have not submitted into an open one. Either way there is no clock on you right now."
+                  action={
+                    <ButtonLink href="/college/problems" variant="primary" size="sm" icon="list">
+                      Find a problem
+                    </ButtonLink>
+                  }
+                />
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {stats.closing.slice(0, 5).map((p) => {
+                    const cd = countdown(p.window?.closes_at ?? null);
+                    const gapToLeader =
+                      p.score_to_beat !== null ? p.score_to_beat - (p.ai_score ?? 0) : null;
+                    return (
+                      <li key={p.id} className="up-s p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+                              {p.challenge?.ref} · v{p.version} · {humanise(p.state)}
+                            </div>
+                            <div className="mt-1 text-[14.5px] font-bold leading-snug text-navy-dark">
+                              {p.challenge?.title ?? "Challenge not resolved"}
+                            </div>
+                          </div>
+                          <div className="flex flex-none items-center gap-2">
+                            <Chip tone={cd.urgent ? "alert" : "moderate"}>
+                              <Icon name="clock" size={11} />
+                              {cd.text}
+                            </Chip>
+                            {p.is_leading === true ? (
+                              <Chip tone="teal">Leading</Chip>
+                            ) : gapToLeader !== null ? (
+                              <Chip tone="high">−{gapToLeader}</Chip>
+                            ) : null}
+                          </div>
+                        </div>
 
-              {attention.length > 0 && (
-                <section>
-                  <h2 className="font-bold text-[#102027] mb-2">Needs you first</h2>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    {attention.map((a) => (
-                      <div key={a.key}>{a.node}</div>
-                    ))}
-                  </div>
-                </section>
+                        {p.ai_score !== null && (
+                          <div className="mt-3">
+                            <div className="flex items-baseline justify-between">
+                              <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                                yours {p.ai_score}
+                                {p.window?.leader_score !== null &&
+                                p.window?.leader_score !== undefined
+                                  ? ` · leader ${p.window.leader_score}`
+                                  : ""}
+                              </span>
+                              <Link
+                                href={`/college/proposals/${p.id}`}
+                                className="mono text-[10.5px] uppercase tracking-[0.1em] text-navy hover:underline"
+                              >
+                                verdict →
+                              </Link>
+                            </div>
+                            <Meter
+                              value={p.ai_score}
+                              className="mt-2"
+                              height={7}
+                              colour={
+                                p.ai_score < VIABILITY_FLOOR
+                                  ? "var(--color-alert)"
+                                  : p.is_leading
+                                    ? "var(--color-teal)"
+                                    : "var(--color-navy)"
+                              }
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
+            </Panel>
 
-              {openSoon.length > 0 && (
-                <section>
-                  <h2 className="font-bold text-[#102027] mb-2">
-                    Windows closing soon that you are not in
-                  </h2>
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#DFE4DC]">
-                    {openSoon.map((p) => (
-                      <Link
-                        key={p.id}
-                        href={`/college/problems/${p.ref}`}
-                        className="flex flex-wrap items-center gap-3 p-3.5 hover:bg-[#F4F6F5]"
-                      >
-                        <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#E5A83B]/20 text-[#8A5A00]">
-                          BEAT {p.competition.leader_score ?? '—'}
-                        </span>
-                        <span className="flex-1 min-w-0 text-sm text-[#102027] leading-snug">
-                          {p.title}
-                        </span>
-                        <span className="font-mono text-[10px] text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {p.competition.closes_at && (
-                            <CountdownToClose closeDate={p.competition.closes_at} compact />
-                          )}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              <section>
-                <h2 className="font-bold text-[#102027] mb-2">
-                  Nobody has proposed for these yet
-                </h2>
-                {unclaimed.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] p-6 text-center text-xs text-gray-500">
-                    Every verified problem already has at least one proposal in.
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#DFE4DC]">
-                    {unclaimed.map((p) => (
-                      <Link
-                        key={p.id}
-                        href={`/college/problems/${p.ref}`}
-                        className="flex flex-wrap items-center gap-3 p-3.5 hover:bg-[#F4F6F5]"
-                      >
-                        <span
-                          className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded ${
-                            p.priority >= 75
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
+            {/* ---- nobody has taken these on ------------------------------ */}
+            <Panel
+              title="Nobody has taken these on"
+              lede="No window has opened on them. Your submission would start the clock — being first does not win, but it does mean you set the pace."
+              right={
+                <ButtonLink href="/college/problems" variant="secondary" size="sm" icon="list">
+                  All problems
+                </ButtonLink>
+              }
+            >
+              {problems.error ? (
+                <ErrorNote message={problems.error} code={problems.code} onRetry={problems.reload} />
+              ) : unclaimed.length === 0 ? (
+                <Empty
+                  icon="check"
+                  title="Every verified problem has a window open"
+                  why="That is a good state for the district: nothing verified is sitting unclaimed. You can still submit into any running window."
+                />
+              ) : (
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {unclaimed
+                    .slice()
+                    .sort((a, b) => b.priority - a.priority)
+                    .slice(0, 6)
+                    .map((p) => (
+                      <li key={p.id}>
+                        <Link
+                          href={`/college/problems/${p.ref}`}
+                          className="up-s up-hit flex h-full flex-col p-4"
                         >
-                          {p.priority}
-                        </span>
-                        <span className="flex-1 min-w-0 text-sm text-[#102027] leading-snug">
-                          {p.title}
-                        </span>
-                        <span className="font-mono text-[10px] text-gray-500">{p.district}</span>
-                        <span className="font-mono text-[10px] text-[#2E7180]">
-                          you would open the window
-                        </span>
-                      </Link>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="mono text-[10px] uppercase tracking-[0.1em] text-navy">
+                              {p.ref}
+                            </span>
+                            <span className="mono text-[16px] font-semibold leading-none text-ink">
+                              {p.priority}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-[14px] font-bold leading-snug text-navy-dark">
+                            {p.title}
+                          </div>
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            <BandChip band={p.band ?? bandOf(p.priority)} />
+                            <Tag>{p.district ?? "—"}</Tag>
+                            <Tag>{num(p.people_est)} people</Tag>
+                          </div>
+                          <span className="mono mt-auto pt-3 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                            verified {p.verified_at ? relative(p.verified_at) : "—"}
+                          </span>
+                        </Link>
+                      </li>
                     ))}
-                  </div>
-                )}
-              </section>
+                </ul>
+              )}
+            </Panel>
 
-              <section className="grid md:grid-cols-2 gap-3">
-                <Link
-                  href="/college/problems"
-                  className="bg-white rounded-xl border border-[#CCD1C7] p-4 hover:border-[#2E7180] flex items-start gap-3"
-                >
-                  <GraduationCap className="w-5 h-5 text-[#2E7180] shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold text-sm text-[#102027]">Verified problems</div>
-                    <div className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                      Every problem a human verifier has confirmed, with the
-                      score to beat and time left.
-                    </div>
-                  </div>
-                </Link>
-                <Link
-                  href="/college/projects"
-                  className="bg-white rounded-xl border border-[#CCD1C7] p-4 hover:border-[#2E7180] flex items-start gap-3"
-                >
-                  <FileText className="w-5 h-5 text-[#2E7180] shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold text-sm text-[#102027]">Your proposals</div>
-                    <div className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                      Grouped by what you can do about each one.
-                    </div>
-                  </div>
-                </Link>
-              </section>
-            </>
-          )}
-        </main>
-      </div>
-    </RoleGuard>
+            {/* ---- who is waiting on you ---------------------------------- */}
+            <Panel
+              title="Conversations"
+              lede="One thread per challenge with the organisation funding it."
+              right={
+                <ButtonLink href="/messages" variant="secondary" size="sm" icon="chat">
+                  Open messages
+                </ButtonLink>
+              }
+              depth="in"
+            >
+              {threads.error ? (
+                <ErrorNote message={threads.error} code={threads.code} onRetry={threads.reload} />
+              ) : (threads.data?.threads ?? []).length === 0 ? (
+                <p className="text-[13px] leading-relaxed text-body">
+                  No threads yet. One opens when a company or NGO pledges against a need on a
+                  challenge you are working on.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-2.5">
+                  {(threads.data?.threads ?? []).slice(0, 4).map((t) => (
+                    <li key={t.id}>
+                      <Link
+                        href="/messages"
+                        className="up-s up-hit flex items-center justify-between gap-3 p-3.5"
+                      >
+                        <div className="min-w-0">
+                          <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+                            {t.challenge.ref} · {t.contributor?.name ?? "—"}
+                          </div>
+                          <div className="mt-1 truncate text-[13.5px] font-semibold text-ink">
+                            {t.challenge.title}
+                          </div>
+                        </div>
+                        <div className="flex flex-none items-center gap-2">
+                          {t.unread_count > 0 && (
+                            <span className="mono rounded-full bg-navy px-2 py-0.5 text-[9.5px] font-semibold text-white">
+                              {t.unread_count}
+                            </span>
+                          )}
+                          <span className="text-navy">
+                            <Icon name="chevRight" size={15} />
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            {!organisation && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-alert-ink">
+                  <Icon name="alert" size={16} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">
+                  This account is not linked to a college organisation, so it cannot submit a
+                  proposal — the server refuses it rather than accepting a submission with no owner.
+                  An administrator has to attach the account to an organisation first.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+      </Main>
+    </>
   );
 }

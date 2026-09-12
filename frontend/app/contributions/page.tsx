@@ -1,366 +1,344 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import {
-  AlertCircle,
-  Archive,
-  CheckCircle2,
-  Clock,
-  Package,
-  RefreshCw,
-  Truck,
-} from 'lucide-react';
-import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
-import { fetchMyContributions } from '@/lib/api';
-import { formatIndianCurrency, formatIndianNumber } from '@/components/shared/ContributionSplitter';
-import { useAuth } from '@/lib/auth';
+import React from "react";
+import Link from "next/link";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Stat, Well } from "@/components/ui/Surface";
+import { ButtonLink } from "@/components/ui/Button";
+import { Chip, Tag } from "@/components/ui/Chip";
+import { Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import * as apiClient from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useResource } from "@/lib/useResource";
+import { dateOnly, humanise, money, num, relative } from "@/lib/format";
+import type { Contribution, FundedProject } from "@/types/database";
 
 /**
- * What this organisation gave, and what happened to it.
+ * What this organisation gave, and what became of it.
  *
- * Closed projects stay here on purpose. A company that funded something is
- * entitled to see how it finished; a project leaving the main list must not
- * take its funders' record of it away.
+ * Closed projects stay on this page deliberately. A company that funded
+ * something is entitled to see how it finished, and a project leaving the
+ * active list must not take its funders' record of it away — that record is
+ * the only thing that makes the next pledge credible.
  */
-
-interface Contribution {
-  id: string;
-  qty: number;
-  kind: string;
-  state: string;
-  note: string | null;
-  dispatched_at: string | null;
-  received_at: string | null;
-  receipt_note: string | null;
-  created_at: string;
-  awaiting: string | null;
-  need: { item: string; unit: string | null; qty_needed: number } | null;
-  challenge: {
-    id: string;
-    ref: string;
-    title: string;
-    district: string;
-    status: string;
-    closed: boolean;
-  } | null;
+export default function ContributionsPage() {
+  return (
+    <RouteGuard>
+      <Contributions />
+    </RouteGuard>
+  );
 }
 
-interface Project {
-  id: string;
-  ref: string;
-  title: string;
-  district: string;
-  status: string;
-  closed: boolean;
-  my_contributions: number;
-  my_money: number;
-  stages_total: number;
-  stages_done: number;
-  progress_pct: number | null;
-  latest_update: { note: string; at: string; photos: string[] } | null;
-  days_since_update: number | null;
-}
-
-const STATE_STYLE: Record<string, string> = {
-  offered: 'bg-gray-100 text-gray-700',
-  committed: 'bg-blue-50 text-blue-800 border border-blue-200',
-  dispatched: 'bg-amber-100 text-amber-800 border border-amber-300',
-  received: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
-  withdrawn: 'bg-red-50 text-red-700',
+const STATE_TONE: Record<string, "teal" | "high" | "neutral" | "alert"> = {
+  received: "teal",
+  dispatched: "high",
+  committed: "high",
+  offered: "neutral",
+  cancelled: "alert",
 };
 
-export default function MyContributionsPage() {
+function Contributions() {
   const { organisation } = useAuth();
-  const [data, setData] = useState<{
-    contributions: Contribution[];
-    projects: Project[];
-    totals: Record<string, number> | null;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const res = useResource(() => apiClient.fetchMyContributions(), []);
 
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      setData(await fetchMyContributions());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load your contributions.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const t = data?.totals;
-  const openProjects = (data?.projects ?? []).filter((p) => !p.closed);
-  const closedProjects = (data?.projects ?? []).filter((p) => p.closed);
+  const contributions = res.data?.contributions ?? [];
+  const projects = res.data?.projects ?? [];
+  const totals = res.data?.totals ?? null;
 
   return (
-    <RoleGuard
-      allowedRoles={['industry', 'university', 'admin']}
-      consoleTitle="My Contributions"
-    >
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Stage 4 and 5 · Sponsorship and delivery
-              </div>
-              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
-                What you have given
-              </h1>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
-                {organisation
-                  ? `Everything ${organisation.name} has pledged, its delivery state, and the projects it funded — including the finished ones.`
-                  : 'Everything your organisation has pledged and what happened to it.'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/needs"
-                className="h-9 px-3 rounded-lg bg-[#102027] text-white text-xs font-semibold flex items-center hover:bg-[#1D3540]"
-              >
-                Find something to fund
-              </Link>
-              <button
-                onClick={() => {
-                  setLoading(true);
-                  load();
-                }}
-                className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Refresh
-              </button>
-            </div>
-          </div>
+    <>
+      <PageHead
+        eyebrow="Company / NGO"
+        title="What you gave, and what it did"
+        lede={
+          organisation
+            ? `Everything ${organisation.name} has pledged, the stage each contribution unblocked, and the last thing the college filed about it.`
+            : "Everything this organisation has pledged, the stage each contribution unblocked, and the last thing the college filed about it."
+        }
+        right={
+          <ButtonLink href="/needs" variant="primary" icon="box">
+            Needs board
+          </ButtonLink>
+        }
+      />
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Funding given
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-[#102027]">
-                {t?.money ? formatIndianCurrency(t.money) : '—'}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Lines taken
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-[#102027]">
-                {t?.lines ?? '—'}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-emerald-700 mb-1">
-                Confirmed received
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-emerald-700">
-                {t?.delivered ?? '—'}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
-                Awaiting dispatch
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-[#102027]">
-                {t?.awaiting_dispatch ?? '—'}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
-              <div className="font-mono text-[10px] tracking-wider uppercase text-amber-800 mb-1">
-                With the college
-              </div>
-              <div className="text-2xl font-extrabold font-mono text-amber-800">
-                {t?.awaiting_confirmation ?? '—'}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">awaiting confirmation</div>
-            </div>
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+      <Main>
+        {res.loading && !res.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={3} height={160} />
+          </>
+        ) : res.error ? (
+          <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
+        ) : contributions.length === 0 ? (
+          <>
+            <Empty
+              icon="wallet"
+              title="You have not pledged anything yet"
+              why={
+                organisation
+                  ? "The needs board lists itemised lines from projects that a person verified and a college is building. You can take part of a line — most contributions here are partial."
+                  : "This account is not linked to an organisation, so it has nothing to show. Pledges belong to an organisation, not to an individual."
+              }
+              action={
+                <ButtonLink href="/needs" variant="primary" icon="box">
+                  See what is needed
+                </ButtonLink>
+              }
+            />
+            <Panel
+              title="Why this page exists"
+              lede="Most CSR reporting ends at the transfer. This is the other half."
+              depth="in"
             >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
+              <p className="text-[13px] leading-relaxed text-body">
+                Once you pledge, this page keeps the line permanently: what you gave, when it was
+                received, which execution stage it unblocked, and the photograph the college filed
+                when that stage was done. It stays after the project closes, because a closed
+                project is exactly when a funder most needs the record.
+              </p>
+            </Panel>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Contributions"
+                value={num(totals?.lines ?? contributions.length)}
+                sub={`Across ${num(projects.length)} project${projects.length === 1 ? "" : "s"}`}
+              />
+              <Stat
+                label="Money pledged"
+                value={money(totals?.money ?? 0)}
+                sub="Cash lines only; material is counted separately"
+              />
+              <Stat
+                label="Delivered and confirmed"
+                value={num(totals?.delivered ?? 0)}
+                sub="The college has signed for these"
+                tone={(totals?.delivered ?? 0) > 0 ? "teal" : undefined}
+              />
+              <Stat
+                label="Waiting on you"
+                value={num(totals?.awaiting_dispatch ?? 0)}
+                sub="Pledged but not dispatched"
+                tone={(totals?.awaiting_dispatch ?? 0) > 0 ? "alert" : undefined}
+              />
             </div>
-          )}
 
-          {loading ? (
-            <LoadingSkeleton rows={3} />
-          ) : (data?.contributions ?? []).length === 0 ? (
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-10 text-center">
-              <Package className="w-7 h-7 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-[#102027]">
-                You have not pledged anything yet
-              </p>
-              <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
-                Open lines across every funded project are on the marketplace.
-                You can take part of a line — another partner can take the rest.
-              </p>
-              <Link
-                href="/needs"
-                className="inline-flex mt-4 h-9 px-4 rounded-lg bg-[#102027] text-white text-xs font-semibold items-center hover:bg-[#1D3540]"
+            {(totals?.awaiting_dispatch ?? 0) > 0 && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-alert-ink">
+                  <Icon name="alert" size={16} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">
+                  <strong className="text-ink">
+                    {num(totals?.awaiting_dispatch ?? 0)} pledge
+                    {(totals?.awaiting_dispatch ?? 0) === 1 ? "" : "s"} not dispatched yet.
+                  </strong>{" "}
+                  A pledged-but-unsent line blocks the execution stage that depends on it exactly
+                  as an empty line does, so the college is waiting rather than working.
+                </p>
+              </Card>
+            )}
+
+            {projects.length > 0 && (
+              <Panel
+                title="The projects your material went into"
+                lede="Progress is the college's own stage record, not a percentage we invented."
               >
-                Browse open needs
-              </Link>
-            </div>
-          ) : (
-            <>
-              {/* contributions */}
-              <section>
-                <h2 className="font-bold text-[#102027] mb-2">Every pledge</h2>
-                <div className="bg-white rounded-xl border border-[#CCD1C7] divide-y divide-[#CCD1C7]">
-                  {(data?.contributions ?? []).map((c) => (
-                    <div key={c.id} className="p-4 flex flex-wrap items-start gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span
-                            className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded uppercase ${
-                              STATE_STYLE[c.state] ?? 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {c.state}
-                          </span>
-                          {c.challenge?.closed && (
-                            <span className="font-mono text-[10px] text-gray-500 flex items-center gap-1">
-                              <Archive className="w-3 h-3" /> project closed
-                            </span>
-                          )}
-                          {c.awaiting && (
-                            <span className="font-mono text-[10px] text-amber-800 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> waiting on {c.awaiting}
-                            </span>
-                          )}
-                        </div>
-                        <div className="font-semibold text-sm text-[#102027]">
-                          {c.kind === 'money'
-                            ? formatIndianCurrency(c.qty)
-                            : `${formatIndianNumber(c.qty)} ${c.need?.unit ?? ''}`}{' '}
-                          <span className="font-normal text-gray-600">
-                            {c.need?.item ? `· ${c.need.item}` : ''}
-                          </span>
-                        </div>
-                        {c.challenge && (
-                          <Link
-                            href={`/challenge/${c.challenge.ref}`}
-                            className="text-xs text-[#2E7180] hover:underline"
-                          >
-                            {c.challenge.ref} · {c.challenge.title}
-                          </Link>
-                        )}
-                        {c.receipt_note && (
-                          <p className="text-[11px] text-emerald-800 mt-1 flex items-start gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                            {c.receipt_note}
-                          </p>
-                        )}
-                      </div>
-                      <div className="font-mono text-[10px] text-gray-500 text-right shrink-0 leading-relaxed">
-                        <div>pledged {new Date(c.created_at).toLocaleDateString('en-IN')}</div>
-                        {c.dispatched_at && (
-                          <div className="flex items-center gap-1 justify-end">
-                            <Truck className="w-3 h-3" />
-                            {new Date(c.dispatched_at).toLocaleDateString('en-IN')}
-                          </div>
-                        )}
-                        {c.received_at && (
-                          <div className="text-emerald-700">
-                            received {new Date(c.received_at).toLocaleDateString('en-IN')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {projects.map((p) => (
+                    <ProjectCard key={p.id} project={p} />
                   ))}
                 </div>
-              </section>
+              </Panel>
+            )}
 
-              {/* projects */}
-              {[
-                { label: 'Projects you are funding', list: openProjects },
-                { label: 'Finished projects', list: closedProjects },
-              ]
-                .filter((g) => g.list.length > 0)
-                .map((g) => (
-                  <section key={g.label}>
-                    <h2 className="font-bold text-[#102027] mb-2">{g.label}</h2>
-                    <div className="grid md:grid-cols-2 gap-3">
-                      {g.list.map((p) => (
-                        <div
-                          key={p.id}
-                          className="bg-white rounded-xl border border-[#CCD1C7] p-4"
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <Link
-                              href={`/challenge/${p.ref}`}
-                              className="font-semibold text-sm text-[#102027] hover:text-[#2E7180] leading-snug"
-                            >
-                              {p.title}
-                            </Link>
-                            <span className="font-mono text-[10px] text-gray-500 shrink-0">
-                              {p.ref}
-                            </span>
-                          </div>
-                          <div className="font-mono text-[10px] text-gray-500 mb-2.5">
-                            {p.district} · {String(p.status).replace(/_/g, ' ')} ·{' '}
-                            {p.my_contributions} pledge{p.my_contributions === 1 ? '' : 's'} from you
-                          </div>
-
-                          {p.stages_total > 0 ? (
-                            <>
-                              <div className="flex items-center justify-between font-mono text-[10px] text-gray-500 mb-1">
-                                <span>
-                                  {p.stages_done} of {p.stages_total} stages done
-                                </span>
-                                <span>{p.progress_pct}%</span>
-                              </div>
-                              <div className="h-2 rounded-full bg-[#E9EEEB] overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-[#2E7180]"
-                                  style={{ width: `${p.progress_pct ?? 0}%` }}
-                                />
-                              </div>
-                            </>
-                          ) : (
-                            <p className="font-mono text-[10px] text-gray-500">
-                              No delivery plan published yet
-                            </p>
-                          )}
-
-                          {p.latest_update ? (
-                            <p className="text-[11px] text-gray-700 mt-2.5 leading-relaxed">
-                              <span className="font-mono text-[10px] text-gray-500">
-                                {p.days_since_update === 0
-                                  ? 'today'
-                                  : `${p.days_since_update}d ago`}
-                                {' · '}
-                              </span>
-                              {p.latest_update.note.slice(0, 130)}
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-gray-500 mt-2.5">
-                              No progress update posted yet.
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+            <Panel
+              title="Every contribution"
+              lede="Newest first. Each one names the need it went against and the project behind it."
+            >
+              <div className="flex flex-col gap-3">
+                {contributions.map((c) => (
+                  <ContributionRow key={c.id} contribution={c} />
                 ))}
-            </>
-          )}
-        </main>
+              </div>
+            </Panel>
+          </>
+        )}
+      </Main>
+    </>
+  );
+}
+
+function ProjectCard({ project: p }: { project: FundedProject }) {
+  const stale = (p.days_since_update ?? 0) > 21;
+  return (
+    <div className={`${p.closed ? "in" : "up-s"} p-4`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+            {p.ref} · {p.district ?? "—"}
+          </div>
+          <Link
+            href={`/challenge/${p.ref}`}
+            className="mt-1 block text-[14.5px] font-bold leading-snug text-navy-dark hover:text-navy"
+          >
+            {p.title}
+          </Link>
+        </div>
+        <div className="flex flex-none flex-col items-end gap-1.5">
+          <Chip tone={p.closed ? "teal" : "neutral"}>
+            {p.closed ? "Closed" : humanise(p.status)}
+          </Chip>
+          <span className="mono text-[10px] text-mute">
+            {num(p.my_contributions)} from you
+          </span>
+        </div>
       </div>
-    </RoleGuard>
+
+      {p.progress_pct !== null ? (
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between">
+            <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+              {p.stages_done} of {p.stages_total} stages done
+            </span>
+            <span className="mono text-[11px] font-semibold text-navy">{p.progress_pct}%</span>
+          </div>
+          <Meter
+            value={p.progress_pct}
+            className="mt-2"
+            height={8}
+            colour={p.progress_pct === 100 ? "var(--color-teal)" : "var(--color-navy)"}
+          />
+        </div>
+      ) : (
+        <p className="mt-3 text-[12.5px] leading-relaxed text-body">
+          No execution plan has been generated for this project yet, so there is no progress
+          figure to show. Stages are created when a proposal window is awarded.
+        </p>
+      )}
+
+      {p.latest_update ? (
+        <Well small className="mt-3">
+          <div className="mono text-[9.5px] uppercase tracking-[0.08em] text-mute">
+            last update {relative(p.latest_update.at)}
+            {stale ? " · overdue" : ""}
+          </div>
+          {p.latest_update.note && (
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink">
+              {p.latest_update.note}
+            </p>
+          )}
+          {p.latest_update.photos && p.latest_update.photos.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {p.latest_update.photos.map((ph, i) => (
+                <Tag key={i} icon={<Icon name="camera" size={11} />}>
+                  photo {i + 1}
+                </Tag>
+              ))}
+            </div>
+          )}
+        </Well>
+      ) : (
+        <p
+          className={`mt-3 text-[12.5px] leading-relaxed ${stale ? "text-alert-ink" : "text-body"}`}
+        >
+          The college has filed no progress update on this project. Nothing is inferred from that
+          silence here — it is shown as silence.
+        </p>
+      )}
+
+      {p.my_money > 0 && (
+        <div className="mono mt-3 text-[10px] uppercase tracking-[0.1em] text-mute">
+          your money in this project: {money(p.my_money)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContributionRow({ contribution: c }: { contribution: Contribution }) {
+  const tone = STATE_TONE[c.state] ?? "neutral";
+  return (
+    <div className="up-s p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mono flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] uppercase tracking-[0.1em] text-mute">
+            <span>{dateOnly(c.created_at)}</span>
+            {c.challenge && (
+              <>
+                <span>·</span>
+                <Link href={`/challenge/${c.challenge.ref}`} className="text-navy hover:underline">
+                  {c.challenge.ref}
+                </Link>
+              </>
+            )}
+            <span>·</span>
+            <span>{humanise(c.kind)}</span>
+          </div>
+
+          <div className="mt-1.5 text-[14.5px] font-bold text-navy-dark">
+            {c.need
+              ? `${num(c.qty)} ${c.need.unit} of ${c.need.item}`
+              : `${num(c.qty)} ${humanise(c.kind)}`}
+          </div>
+
+          {c.challenge && (
+            <div className="mt-1 text-[12.5px] leading-snug text-body">{c.challenge.title}</div>
+          )}
+
+          {c.note && (
+            <Well small className="mt-2.5">
+              <p className="text-[12.5px] leading-relaxed text-ink">{c.note}</p>
+            </Well>
+          )}
+
+          {c.receipt_note && (
+            <p className="mt-2 text-[12.5px] leading-relaxed text-teal-ink">
+              <span className="mono text-[9.5px] uppercase tracking-[0.1em]">college signed </span>
+              {c.receipt_note}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-none flex-col items-end gap-1.5">
+          <Chip tone={tone}>{humanise(c.state)}</Chip>
+          {c.awaiting && (
+            <span className="mono text-[9.5px] uppercase tracking-[0.08em] text-alert-ink">
+              awaiting {c.awaiting}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* the delivery chain, only the steps that actually happened */}
+      <div className="scroll-x mt-3.5">
+        <ol className="flex min-w-[420px] gap-2">
+          {[
+            { label: "Pledged", at: c.created_at },
+            { label: "Expected", at: c.expected_delivery_date },
+            { label: "Dispatched", at: c.dispatched_at },
+            { label: "Received", at: c.received_at },
+          ].map((s) => (
+            <li key={s.label} className={`flex-1 ${s.at ? "press" : "in-s"} p-2.5`}>
+              <div
+                className={`mono text-[9px] font-semibold uppercase tracking-[0.08em] ${
+                  s.at ? "text-navy" : "text-mute"
+                }`}
+              >
+                {s.label}
+              </div>
+              <div className={`mono mt-1 text-[10.5px] ${s.at ? "text-ink" : "text-mute"}`}>
+                {s.at ? dateOnly(s.at) : "—"}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
   );
 }

@@ -1,450 +1,345 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  RefreshCw, 
-  MapPin, 
-  Users, 
-  Flame, 
-  CheckCircle2, 
-  ChevronDown,
-  ShieldQuestion,
-  Wrench,
-  PlusCircle,
-  Loader2
-} from 'lucide-react';
-import { fetchChallenges, fetchChallengeDetail } from '@/lib/api';
-import { Challenge, ScoreBreakdown } from '@/types/database';
-import { RouteGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
+import React, { useMemo, useState } from "react";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Panel, Stat } from "@/components/ui/Surface";
+import { ButtonLink, Toggle } from "@/components/ui/Button";
+import { BandChip, Chip, ConfidenceChip, StatusChip, Tag } from "@/components/ui/Chip";
+import { Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import { ChallengeRow } from "@/components/domain/ChallengeRow";
+import { ScoreFactors } from "@/components/domain/ScoreFactors";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { useNow } from "@/lib/useNow";
+import { CATEGORY_LABEL, bandOf, humanise, num, relative } from "@/lib/format";
+import type { Challenge } from "@/types/database";
 
+/**
+ * Triage.
+ *
+ * The list ranks; it does not decide. Picking a row opens the eight factors
+ * that produced its number, with the real weights and the real caps — because
+ * a coordinator who cannot see why Gumla outranks Ranchi has no basis to
+ * defend the order to the people in Ranchi.
+ */
 export default function QueuePage() {
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  const loadData = async () => {
-    try {
-      let customList: any[] = [];
-      try {
-        const saved = localStorage.getItem('jharsetu_custom_challenges');
-        if (saved) customList = JSON.parse(saved);
-      } catch {}
-
-      const res = await fetchChallenges();
-      if (res.data) {
-        setChallenges([...customList, ...res.data]);
-      } else if (customList.length > 0) {
-        setChallenges(customList);
-      }
-    } catch (err) {
-      console.error('Failed to load queue:', err);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadData();
-  };
-
-  // Top 3 urgent challenges for "Needs Immediate Action" strip
-  const immediateActionChallenges = challenges.slice(0, 3);
-  const remainingChallenges = challenges.slice(3);
-
-  const getPriorityChip = (score: number) => {
-    if (score >= 75) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-bold bg-[#D94F45]/15 text-[#A8332A] border border-[#D94F45]/30">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#D94F45] animate-pulse" />
-          {score} · CRITICAL
-        </span>
-      );
-    }
-    if (score >= 50) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#E07B2E]/15 text-[#9A4A12] border border-[#E07B2E]/30">
-          {score} · HIGH
-        </span>
-      );
-    }
-    if (score >= 25) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#E5A83B]/15 text-[#8A5A00] border border-[#E5A83B]/30">
-          {score} · MODERATE
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#3867A6]/15 text-[#3867A6] border border-[#3867A6]/30">
-        {score} · LONG-TERM
-      </span>
-    );
-  };
-
   return (
-    <RouteGuard allowedRoles={['coordinator', 'admin']} consoleTitle="Coordinator Operations Console">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-        <RoleNav />
-      <header className="bg-white border-b border-[#CCD1C7] px-4 py-3 sticky top-0 z-20 shadow-xs">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="inline-flex items-center gap-1 text-xs font-bold text-gray-600 hover:text-[#102027]">
-              <ArrowLeft className="w-4 h-4" /> Home
-            </Link>
-            <span className="text-gray-300">|</span>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm">Coordinator Operations Console</span>
-              <span className="text-[11px] font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">
-                Live Queue
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="p-1.5 rounded-lg border border-[#CCD1C7] hover:bg-gray-100 transition text-gray-600 flex items-center gap-1 text-xs font-medium"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-            <Link
-              href="/report"
-              className="bg-[#2E7180] hover:bg-[#245A66] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
-            >
-              <PlusCircle className="w-3.5 h-3.5" /> Submit New
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-6">
-        {/* 1. "NEEDS IMMEDIATE ACTION" STRIP */}
-        <section className="bg-white rounded-2xl border-2 border-[#D94F45]/30 p-4 sm:p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3 border-b border-red-100 pb-2">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-[#D94F45]/10 rounded-lg text-[#D94F45]">
-                <Flame className="w-4 h-4" />
-              </span>
-              <div>
-                <h2 className="text-sm font-bold text-[#A8332A] uppercase tracking-wider font-mono">
-                  Needs Immediate Action (Top Priority Hotspots)
-                </h2>
-                <p className="text-[11px] text-gray-500">
-                  Ranked by multi-factor vulnerability and severity formula
-                </p>
-              </div>
-            </div>
-            <span className="text-xs font-mono font-bold text-[#D94F45] bg-red-50 px-2 py-0.5 rounded">
-              3 Critical Items
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {immediateActionChallenges.map((item) => (
-              <div 
-                key={item.id} 
-                className="bg-[#F4F6F5] p-3.5 rounded-xl border border-[#CCD1C7] flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    {getPriorityChip(item.priority)}
-                    <span className="text-[10px] font-mono text-gray-500 uppercase">{item.district}</span>
-                  </div>
-                  <h3 className="text-xs font-bold text-[#102027] line-clamp-2 mb-1.5">
-                    {item.title}
-                  </h3>
-                  <p className="text-[11px] text-gray-600 line-clamp-2 mb-2">
-                    {item.problem}
-                  </p>
-                </div>
-                <div className="pt-2 border-t border-gray-200 flex items-center justify-between text-[11px]">
-                  <span className="font-mono text-gray-500">{item.people_est} affected</span>
-                  <span className="font-bold text-[#2E7180] hover:underline cursor-pointer">
-                    Review Brief →
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 2. THE COMPLETE RANKED QUEUE */}
-        <section className="bg-white rounded-2xl border border-[#CCD1C7] overflow-hidden shadow-xs">
-          <div className="p-4 border-b border-[#CCD1C7] flex items-center justify-between">
-            <h2 className="font-bold text-sm text-[#102027]">
-              All Active Challenges ({challenges.length})
-            </h2>
-            <span className="text-xs text-gray-500 font-mono">
-              Auto-refreshes on ground intake
-            </span>
-          </div>
-
-          {isLoading ? (
-            <div className="p-12 text-center text-xs text-gray-500">
-              Loading queue...
-            </div>
-          ) : (
-            <div className="divide-y divide-[#CCD1C7]">
-              {challenges.map((challenge, idx) => (
-                <div key={challenge.id}>
-                <div className="p-4 hover:bg-[#F4F6F5]/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center font-mono text-xs font-bold text-gray-500 shrink-0 mt-0.5">
-                      {idx + 1}
-                    </span>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        {getPriorityChip(challenge.priority)}
-                        <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded capitalize">
-                          {String(challenge.category).replace(/_/g, " ")}
-                        </span>
-                        <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {challenge.district}
-                        </span>
-                      </div>
-                      <Link href={`/challenge/${challenge.ref}`} className="hover:underline">
-                        <h4 className="text-sm font-bold text-[#102027]">
-                          {challenge.title}
-                        </h4>
-                      </Link>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3 h-3" /> {challenge.people_est} people
-                        </span>
-                        <span>·</span>
-                        <span className="font-mono">{challenge.report_count} reports</span>
-                        <span>·</span>
-                        <span className="text-xs font-mono font-semibold text-[#2E7180]">
-                          {challenge.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    <button
-                      onClick={() => setOpenId(openId === challenge.id ? null : challenge.id)}
-                      aria-expanded={openId === challenge.id}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1 ${openId === challenge.id ? 'bg-[#2E7180] border-[#2E7180] text-white' : 'border-[#2E7180] text-[#2E7180] hover:bg-teal-50'}`}
-                    >
-                      {openId === challenge.id ? 'Hide Brief' : 'Inspect Brief'}
-                      <ChevronDown className={`w-3 h-3 transition-transform ${openId === challenge.id ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-                {openId === challenge.id && <ScoreBrief challenge={challenge} />}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-      </div>
+    <RouteGuard>
+      <TriageQueue />
     </RouteGuard>
   );
 }
 
-const FACTORS: { key: keyof Omit<ScoreBreakdown, 'why_critical'>; label: string; max: number }[] = [
-  { key: 'severity', label: 'Severity of harm', max: 25 },
-  { key: 'urgency', label: 'Time urgency', max: 15 },
-  { key: 'people_affected', label: 'People affected', max: 15 },
-  { key: 'vulnerability', label: 'Vulnerable groups', max: 15 },
-  { key: 'hazard_exposure', label: 'Hazard exposure', max: 10 },
-  { key: 'resource_gap', label: 'Resource gap', max: 10 },
-  { key: 'recurrence', label: 'Recurrence', max: 5 },
-  { key: 'community_signal', label: 'Community signal (capped)', max: 5 },
-];
+type Band = "all" | "critical" | "high" | "moderate" | "long_term";
 
-type Factor = { key: string; label: string; max: number; points: number; reason?: string };
+function TriageQueue() {
+  const res = useResource(() => apiClient.fetchChallenges({ limit: 200 }), []);
+  const [band, setBand] = useState<Band>("all");
+  const [district, setDistrict] = useState("");
+  const [category, setCategory] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
+  const now = useNow();
 
-/**
- * The backend stores score_breakdown as { total, factors:[{key,label,max,points,reason}] };
- * the older intake route wrote flat { severity: 25, urgency: 12, ... }. Read both, so the
- * panel keeps working whichever service answered.
- */
-function readFactors(sb: any): Factor[] {
-  if (!sb) return [];
-  if (Array.isArray(sb.factors)) {
-    return sb.factors.map((f: any) => ({
-      key: String(f.key),
-      label: String(f.label ?? f.key),
-      max: Number(f.max ?? 0),
-      points: Number(f.points ?? 0),
-      reason: f.reason ? String(f.reason) : undefined,
-    }));
-  }
-  return FACTORS.map((f) => ({
-    key: f.key as string,
-    label: f.label,
-    max: f.max,
-    points: Number(sb[f.key] ?? 0),
-  }));
-}
+  // Memoised so an unresolved fetch does not hand every useMemo below a
+  // brand-new empty array on each render.
+  const all = useMemo(() => res.data?.challenges ?? [], [res.data]);
 
-function ScoreBrief({ challenge }: { challenge: Challenge }) {
-  const [detail, setDetail] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const districts = useMemo(
+    () => [...new Set(all.map((c) => c.district).filter(Boolean) as string[])].sort(),
+    [all],
+  );
+  const categories = useMemo(
+    () => [...new Set(all.map((c) => c.category).filter(Boolean))].sort(),
+    [all],
+  );
 
-  useEffect(() => {
-    let active = true;
-    fetchChallengeDetail(challenge.ref || challenge.id)
-      .then((res) => {
-        if (active) {
-          setDetail(res);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load challenge detail:', err);
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
+  const rows = useMemo(() => {
+    return all
+      .filter((c) => (band === "all" ? true : (c.band ?? bandOf(c.priority)) === band))
+      .filter((c) => (district ? c.district === district : true))
+      .filter((c) => (category ? c.category === category : true))
+      .slice()
+      .sort((a, b) => b.priority - a.priority);
+  }, [all, band, district, category]);
+
+  // Derived rather than synced in an effect: the selection is always the row
+  // the officer picked if it survived the filter, and otherwise the top of the
+  // list. No effect means no frame where the panel shows a stale challenge.
+  const selected = useMemo(
+    () => rows.find((r) => r.id === picked) ?? rows[0] ?? null,
+    [rows, picked],
+  );
+  const selectedId = selected?.id ?? null;
+
+  const counts = useMemo(() => {
+    const by = (b: string) => all.filter((c) => (c.band ?? bandOf(c.priority)) === b).length;
+    const unverified = all.filter((c) => c.confidence === "unverified").length;
+    // Null until the clock is known, so the tile shows a dash for one frame
+    // instead of claiming nothing is stale.
+    const stale =
+      now === null
+        ? null
+        : all.filter((c) => now - new Date(c.updated_at).getTime() > 7 * 86_400_000).length;
+    return {
+      critical: by("critical"),
+      high: by("high"),
+      moderate: by("moderate"),
+      long_term: by("long_term"),
+      unverified,
+      stale,
     };
-  }, [challenge.ref, challenge.id]);
-
-  const sb = challenge.score_breakdown as any;
-  const factors = readFactors(sb);
-  const c = detail?.challenge || challenge;
+  }, [all, now]);
 
   return (
-    <div className="px-4 pb-4 pt-1 bg-[#F4F6F5] border-t border-dashed border-[#CCD1C7]">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        {/* Explainable score */}
-        <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
-          <div className="flex items-baseline justify-between mb-2.5">
-            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
-              Why this rank
-            </h5>
-            <span className="font-mono text-sm font-bold text-[#102027]">
-              {challenge.priority}<span className="text-gray-400 text-xs">/100</span>
-            </span>
+    <>
+      <PageHead
+        eyebrow="District officer"
+        title="Triage"
+        lede="Ranked by a score you can open. Nothing here is acted on automatically — the order is a recommendation and the reasoning behind every number is one click away."
+        right={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <select
+              className="field max-w-[190px]"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              aria-label="Filter by district"
+            >
+              <option value="">All districts</option>
+              {districts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <select
+              className="field max-w-[210px]"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-label="Filter by category"
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABEL[c] ?? humanise(c)}
+                </option>
+              ))}
+            </select>
           </div>
-          {factors.length > 0 ? (
-            <div className="space-y-2">
-              {factors.map((f) => {
-                const pct = f.max > 0 ? Math.max(0, Math.min(100, (f.points / f.max) * 100)) : 0;
-                return (
-                  <div key={f.key}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-gray-600 w-36 shrink-0">{f.label}</span>
-                      <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-[#2E7180]"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="font-mono text-[11px] text-gray-500 w-12 text-right tabular-nums">
-                        {Math.round(f.points * 10) / 10}/{f.max}
+        }
+      />
+
+      <Main>
+        {res.loading && !res.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={5} height={128} />
+          </>
+        ) : res.error ? (
+          <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="On the list"
+                value={num(all.length)}
+                sub={`${num(rows.length)} match your filters`}
+              />
+              <Stat
+                label="Critical band"
+                value={num(counts.critical)}
+                sub="Score 75 and above"
+                tone={counts.critical > 0 ? "alert" : undefined}
+              />
+              <Stat
+                label="Still unverified"
+                value={num(counts.unverified)}
+                sub="Blocked until a verifier confirms"
+                tone={counts.unverified > 0 ? "alert" : undefined}
+              />
+              <Stat
+                label="Untouched a week"
+                value={counts.stale === null ? "—" : num(counts.stale)}
+                sub={counts.stale === null ? "Measuring" : "No movement in seven days"}
+                tone={(counts.stale ?? 0) > 0 ? "alert" : undefined}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  ["all", `All bands (${all.length})`],
+                  ["critical", `Critical (${counts.critical})`],
+                  ["high", `High (${counts.high})`],
+                  ["moderate", `Moderate (${counts.moderate})`],
+                  ["long_term", `Long term (${counts.long_term})`],
+                ] as [Band, string][]
+              ).map(([key, label]) => (
+                <Toggle key={key} active={band === key} onClick={() => setBand(key)}>
+                  {label}
+                </Toggle>
+              ))}
+            </div>
+
+            {rows.length === 0 ? (
+              <Empty
+                icon="search"
+                title="Nothing matches those filters"
+                why="All the problems are still there — this combination of band, district and category has none. Clear a filter to widen the list."
+              />
+            ) : (
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+                {/* ---- the ranked list ------------------------------------- */}
+                <div className="flex flex-col gap-3">
+                  {rows.slice(0, 60).map((c, i) => (
+                    <div key={c.id} className="relative">
+                      <span className="mono absolute -left-0.5 top-0 z-10 hidden text-[10px] font-semibold text-mute xl:block xl:-left-6 xl:top-6">
+                        {String(i + 1).padStart(2, "0")}
                       </span>
+                      <ChallengeRow
+                        reference={c.ref}
+                        title={c.title}
+                        district={c.district}
+                        block={c.block}
+                        category={c.category}
+                        priority={c.priority}
+                        band={c.band}
+                        people={c.people_est}
+                        reports={c.report_count}
+                        reporters={c.reporter_count}
+                        confidence={c.confidence}
+                        status={c.status}
+                        hazards={c.hazard_tags}
+                        updatedAt={c.updated_at}
+                        selected={c.id === selectedId}
+                        onSelect={() => setPicked(c.id)}
+                      />
                     </div>
-                    {f.reason && (
-                      <p className="text-[10.5px] leading-snug text-gray-400 ml-[9.5rem] mt-0.5">
-                        {f.reason}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-[11px] text-gray-500">
-              No factor breakdown stored for this challenge yet.
-            </p>
-          )}
-          {sb?.why_critical && (
-            <p className="mt-2.5 pt-2.5 border-t border-gray-100 text-[11px] leading-relaxed text-[#102027]">
-              <span className="font-bold">Verdict: </span>{sb.why_critical}
-            </p>
-          )}
-        </div>
-
-        {/* Brief + honesty panel */}
-        <div className="space-y-3">
-          <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
-            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5 flex items-center justify-between">
-              <span>Compiled brief · {c.ref ?? challenge.id}</span>
-              {loading && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
-            </h5>
-            <p className="text-[11px] leading-relaxed text-gray-700">
-              {loading ? <span className="text-gray-400">Loading brief...</span> : c.problem}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
-              <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
-                confidence: {String(challenge.confidence || 'unverified').replace(/_/g, ' ')}
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
-                {challenge.report_count} reports merged
-              </span>
-              {c.compiler_source && (
-                <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
-                  compiled by: {c.compiler_source === 'fallback' ? 'rule engine' : c.compiler_source}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {(c.outcome || c.needs?.length > 0) && (
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
-              <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
-                What good looks like
-              </h5>
-              {c.outcome && (
-                <p className="text-[11px] leading-relaxed text-gray-700 mb-1.5">{c.outcome}</p>
-              )}
-              {c.needs?.length > 0 && (
-                <ul className="space-y-0.5">
-                  {c.needs.map((n: string) => (
-                    <li key={n} className="text-[11px] text-gray-600 flex gap-1.5">
-                      <span className="text-[#2E7180]">·</span>{n}
-                    </li>
                   ))}
-                </ul>
-              )}
-            </div>
-          )}
+                  {rows.length > 60 && (
+                    <p className="mono text-center text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                      showing the top 60 of {num(rows.length)} · narrow the filters to see the rest
+                    </p>
+                  )}
+                </div>
 
-          {challenge.capabilities_needed?.length > 0 && (
-            <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
-              <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5 flex items-center gap-1.5">
-                <Wrench className="w-3 h-3" /> Capabilities needed
-              </h5>
-              <div className="flex flex-wrap gap-1.5">
-                {challenge.capabilities_needed.map((c: string) => (
-                  <span
-                    key={c}
-                    className="px-2 py-0.5 rounded-full bg-teal-50 border border-[#2E7180]/30 text-[10px] font-semibold text-[#2E7180]"
-                  >
-                    {c}
-                  </span>
-                ))}
+                {/* ---- why that number --------------------------------------- */}
+                <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+                  {selected ? (
+                    <WhyPanel challenge={selected} />
+                  ) : (
+                    <Card depth="in" className="p-5">
+                      <p className="text-[13px] leading-relaxed text-body">
+                        Pick a row to see the factors behind its score.
+                      </p>
+                    </Card>
+                  )}
+                </aside>
               </div>
-            </div>
-          )}
+            )}
+          </>
+        )}
+      </Main>
+    </>
+  );
+}
 
-          <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
-            <h5 className="text-[11px] font-bold uppercase tracking-wide text-amber-800 mb-1 flex items-center gap-1.5">
-              <ShieldQuestion className="w-3 h-3" /> What the AI is unsure about
-            </h5>
-            <p className="text-[11px] leading-relaxed text-amber-900">
-              {challenge.ai_unsure_about ||
-                'Nothing flagged. A human coordinator must still confirm before resources move.'}
-            </p>
-          </div>
+function WhyPanel({ challenge }: { challenge: Challenge }) {
+  return (
+    <>
+      <Panel
+        title="Why this score"
+        lede="Eight factors, each with its own cap and its own sentence."
+        right={<BandChip band={challenge.band ?? bandOf(challenge.priority)} />}
+      >
+        <div className="mono mb-4 text-[10.5px] uppercase tracking-[0.1em] text-navy">
+          {challenge.ref}
         </div>
-      </div>
+        <ScoreFactors
+          breakdown={challenge.score_breakdown}
+          whyCritical={challenge.why_critical}
+        />
+      </Panel>
+
+      <Panel title="State" depth="up">
+        <div className="flex flex-wrap items-center gap-2">
+          <ConfidenceChip confidence={challenge.confidence} />
+          <StatusChip status={challenge.status} />
+          {challenge.is_simulated && (
+            <Chip tone="neutral" title="Seeded demonstration data, not a real report">
+              Seeded
+            </Chip>
+          )}
+        </div>
+
+        <dl className="mt-4 flex flex-col">
+          <Row label="District" value={[challenge.block, challenge.district].filter(Boolean).join(", ") || "—"} />
+          <Row label="People affected" value={num(challenge.people_est)} />
+          <Row
+            label="Reports"
+            value={`${num(challenge.report_count)} from ${num(challenge.reporter_count)} reporters`}
+          />
+          <Row label="Phase" value={humanise(challenge.dm_phase)} />
+          <Row label="Last moved" value={relative(challenge.updated_at)} />
+        </dl>
+
+        {challenge.capabilities?.length > 0 && (
+          <div className="mt-4">
+            <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+              Capabilities needed
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {challenge.capabilities.map((c) => (
+                <Tag key={c}>{humanise(c)}</Tag>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-2.5">
+          <ButtonLink
+            href={`/challenge/${challenge.ref}`}
+            variant="primary"
+            iconAfter="arrow"
+          >
+            Open the full brief
+          </ButtonLink>
+          {challenge.confidence === "unverified" && (
+            <ButtonLink href={`/verify/${challenge.id}`} variant="secondary" icon="shield">
+              Verify it
+            </ButtonLink>
+          )}
+        </div>
+      </Panel>
+
+      {challenge.ai_uncertainties?.length > 0 && (
+        <Panel
+          title="What the compiler was unsure about"
+          depth="in"
+          lede="The model's own caveats about this brief."
+        >
+          <ul className="flex flex-col gap-2">
+            {challenge.ai_uncertainties.map((u, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className="mt-0.5 flex-none text-high-ink">
+                  <Icon name="alert" size={13} />
+                </span>
+                <p className="text-[12.5px] leading-relaxed text-body">{u}</p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+    </>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="hairline flex items-baseline justify-between gap-3 py-2.5 first:border-t-0">
+      <dt className="mono text-[10px] uppercase tracking-[0.1em] text-mute">{label}</dt>
+      <dd className="text-right text-[13px] font-semibold text-ink">{value}</dd>
     </div>
   );
 }

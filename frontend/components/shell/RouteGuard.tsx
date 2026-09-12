@@ -1,145 +1,131 @@
-'use client';
+"use client";
 
-import React, { useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { ShieldAlert, ArrowLeft, ArrowRight, UserCheck } from 'lucide-react';
-import { useAuth, ROLE_HOME } from '@/lib/auth';
-import { UserRole } from '@/types/database';
-import { RoleNav } from './RoleNav';
+import React, { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { AppBar } from "@/components/shell/AppBar";
+import { GovStrip, Logo } from "@/components/shell/GovStrip";
+import { Skeleton } from "@/components/ui/States";
+import { ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { useAuth } from "@/lib/auth";
+import { ROLE_HOME, ROLE_PURPOSE, rolesFor } from "@/lib/nav";
+import { ROLE_LABEL } from "@/lib/format";
+import type { UserRole } from "@/types/database";
 
-interface RouteGuardProps {
-  allowedRoles: UserRole[];
-  /** Preferred. `title` is accepted as an alias so both call styles work. */
-  consoleTitle?: string;
-  title?: string;
-  description?: string;
-  children: React.ReactNode;
-}
-
-const roleDescriptions: Record<UserRole, string> = {
-  citizen: 'Citizen / Villager reporting local emergencies and tracking ground community resolution',
-  volunteer: 'Field Volunteer & Official Verifier verifying reports with photographic and meteorological evidence',
-  verifier: 'Verifier reviewing AI corroboration and confirming reports with sources, photos and links',
-  university: 'University / College R&D lab submitting engineering proposals and piloting solutions',
-  industry: 'Company / NGO CSR partner funding and dispatching material needs',
-  coordinator: 'District Officer reviewing triage queues and approving pilots',
-  admin: 'System Owner overseeing end-to-end SLA timings, ledger integrity, and statewide operations',
-};
-
-const roleConsoleMap: Record<UserRole, string> = {
-  citizen: '/my-reports',
-  volunteer: '/verify',
-  verifier: '/verify',
-  university: '/college',
-  industry: '/needs',
-  coordinator: '/queue',
-  admin: '/admin',
-};
-
+/**
+ * Wraps every signed-in console. Three jobs:
+ *
+ *  1. Wait for the session probe before rendering anything. Rendering a
+ *     console first and redirecting after is how a wrong-role user gets a
+ *     flash of data they should not see.
+ *  2. Send a signed-out visitor to /login, remembering where they wanted to go.
+ *  3. Tell a signed-in user with the wrong role which account this console
+ *     needs, instead of bouncing them somewhere with no explanation.
+ *
+ * This is navigation, not security. Every API call is authorised again
+ * server-side; the guard only decides what is worth drawing.
+ */
 export function RouteGuard({
-  allowedRoles,
-  consoleTitle,
-  title,
+  roles,
   children,
-}: RouteGuardProps) {
-  const heading = consoleTitle ?? title ?? 'this console';
-  const { role: activeRole, loading, isAuthenticated, signOut } = useAuth();
-  const router = useRouter();
+}: {
+  /** Override the map in lib/nav.ts. Rarely needed. */
+  roles?: UserRole[];
+  children: React.ReactNode;
+}) {
+  const { role, loading, isAuthenticated } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
-  // Nobody signed in? Send them to the door, remembering where they wanted to go.
+  const allowed = roles ?? rolesFor(pathname) ?? [];
+
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.replace(`/login?next=${encodeURIComponent(pathname || '/')}`);
+    if (loading) return;
+    if (!isAuthenticated) {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [loading, isAuthenticated, router, pathname]);
+  }, [loading, isAuthenticated, pathname, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
-        <RoleNav />
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center font-mono text-xs text-gray-500 space-y-2">
-            <div className="w-8 h-8 border-2 border-[#2E7180] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p>Verifying role credentials and permissions...</p>
-          </div>
-        </div>
-      </div>
-    );
+  if (loading) return <BootScreen />;
+
+  if (!isAuthenticated) {
+    // The redirect above is in flight. Show the frame, not a console.
+    return <BootScreen />;
   }
 
-  // If role is authorized, render children
-  if (activeRole && allowedRoles.includes(activeRole)) {
-    return <>{children}</>;
+  if (allowed.length > 0 && role && !allowed.includes(role)) {
+    return <WrongConsole role={role} allowed={allowed} />;
   }
-
-  // Otherwise, render honest, helpful refusal screen
-  const primaryAllowed = allowedRoles[0];
 
   return (
-    <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-      <RoleNav />
+    <>
+      <AppBar />
+      {children}
+    </>
+  );
+}
 
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-lg bg-white border-2 border-amber-300 rounded-2xl p-6 sm:p-8 shadow-sm space-y-5">
-          {/* Header icon */}
-          <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800">
-            <ShieldAlert className="w-6 h-6 text-amber-700" />
+function BootScreen() {
+  return (
+    <>
+      <GovStrip />
+      <div className="shell flex h-[78px] items-center">
+        <Logo href={null} />
+      </div>
+      <div className="shell flex flex-col gap-6 pt-8" role="status" aria-label="Loading">
+        <Skeleton height={30} rounded={8} className="max-w-[220px]" />
+        <Skeleton height={54} rounded={12} className="max-w-[560px]" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} height={104} rounded={18} />
+          ))}
+        </div>
+        <Skeleton height={260} rounded={18} />
+        <span className="sr-only">Checking your session</span>
+      </div>
+    </>
+  );
+}
+
+function WrongConsole({ role, allowed }: { role: UserRole; allowed: UserRole[] }) {
+  return (
+    <>
+      <AppBar />
+      <main className="shell pt-10 pb-20">
+        <div className="up mx-auto max-w-[640px] p-7 text-center">
+          <div className="up-s mx-auto grid h-12 w-12 place-items-center text-mute">
+            <Icon name="shield" size={20} />
           </div>
-
-          <div>
-            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-              Role Access Restricted
-            </span>
-            <h2 className="text-xl font-extrabold text-[#102027] mt-2">
-              {heading} requires authorization
-            </h2>
-          </div>
-
-          <div className="space-y-3 text-xs text-gray-600 leading-relaxed">
-            <p>
-              You are currently viewing JharSetu as a{' '}
-              <strong className="text-[#102027] capitalize font-bold font-mono">
-                {activeRole === 'volunteer' ? 'Verifier' : (activeRole ?? 'not signed in')}
-              </strong>{' '}
-              ({activeRole ? roleDescriptions[activeRole] : 'no active session'}).
+          <h1 className="mt-5 text-[24px] font-extrabold text-navy-dark">
+            This console is not for your account
+          </h1>
+          <p className="mt-3 text-[14.5px] leading-relaxed text-body">
+            You are signed in as{" "}
+            <strong className="text-ink">{ROLE_LABEL[role]}</strong>. This screen belongs to{" "}
+            {allowed.map((r, i) => (
+              <React.Fragment key={r}>
+                {i > 0 && (i === allowed.length - 1 ? " or " : ", ")}
+                <strong className="text-ink">{ROLE_LABEL[r]}</strong>
+              </React.Fragment>
+            ))}
+            .
+          </p>
+          <div className="in mt-6 p-4 text-left">
+            <p className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+              What your role does here
             </p>
-
-            <div className="p-3 bg-[#F4F6F5] rounded-lg border border-[#CCD1C7] text-gray-700 font-mono text-[11px]">
-              This console requires one of the following roles:{' '}
-              <strong className="text-[#2E7180]">
-                {allowedRoles.map((r) => (r === 'volunteer' ? 'Verifier' : r)).join(', ')}
-              </strong>
-            </div>
-
-            <p>
-              In production, permissions are enforced cryptographically via Supabase Row-Level Security (RLS) and auth tokens.
-              In this evaluation demo, you can instantly switch your role using the button below.
-            </p>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-body">{ROLE_PURPOSE[role]}</p>
           </div>
-
-          {/* Action buttons */}
-          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => router.push(`/login?next=${encodeURIComponent(pathname || '/')}`)}
-              className="touch-target px-4 py-2.5 bg-[#2E7180] hover:bg-[#245A66] text-white text-xs font-bold font-mono rounded-lg flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
-            >
-              <UserCheck className="w-4 h-4" />
-              Switch to {primaryAllowed === 'volunteer' ? 'Verifier' : primaryAllowed} (Demo)
-            </button>
-
-            <Link
-              href={(activeRole && ROLE_HOME[activeRole]) || '/overview'}
-              className="touch-target px-4 py-2.5 bg-white border border-[#CCD1C7] hover:bg-gray-50 text-gray-700 text-xs font-bold font-mono rounded-lg flex items-center justify-center gap-1.5 transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Return to My Console
-            </Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <ButtonLink href={ROLE_HOME[role]} variant="primary" iconAfter="arrow">
+              Go to my console
+            </ButtonLink>
+            <ButtonLink href="/login" variant="secondary" icon="login">
+              Sign in as someone else
+            </ButtonLink>
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }

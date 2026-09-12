@@ -1,427 +1,557 @@
-'use client';
+"use client";
 
-import React, { useRef, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { 
-  Mic, 
-  MapPin, 
-  Camera, 
-  Send, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowLeft,
-  Users,
-  ShieldAlert
-} from 'lucide-react';
-import { submitReport } from '@/lib/api';
-import { enqueueOfflineReport, QueuedReport } from '@/lib/offlineQueue';
+import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Chrome } from "@/components/shell/Chrome";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Well } from "@/components/ui/Surface";
+import { Button, ButtonLink, Toggle } from "@/components/ui/Button";
+import { BandChip, Chip } from "@/components/ui/Chip";
+import { Caveat } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import { VoiceRecorder } from "@/components/domain/VoiceRecorder";
+import { TraceSteps } from "@/components/domain/TraceSteps";
+import * as apiClient from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { DISTRICTS, VULNERABLE_GROUPS } from "@/lib/districts";
+import { rememberLocalReport } from "@/lib/localReports";
+import { bandOf, num } from "@/lib/format";
+import type { IntakeResult } from "@/types/database";
 
+/**
+ * The citizen intake.
+ *
+ * Signed out is the normal case here. Someone reporting a collapsed culvert
+ * must not meet a login wall, so this page is public; the only thing an
+ * account adds is that the report shows up in "My reports" on any device.
+ *
+ * Two screens in one: the form, then what the AI made of it. The second is not
+ * a receipt — it shows the compiled title, the band, the model's own
+ * uncertainties and the step-by-step trace, because a person who has just
+ * described a death in their village is owed a plain account of what the
+ * machine did with their words.
+ */
 export default function ReportPage() {
-  const router = useRouter();
-  const [text, setText] = useState('');
-  const [district, setDistrict] = useState('Gumla');
-  const [village, setVillage] = useState('Sisai Block');
-  const [peopleEst, setPeopleEst] = useState('100');
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingSecs, setRecordingSecs] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [micError, setMicError] = useState('');
-  const [offlineQueued, setOfflineQueued] = useState<QueuedReport | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [locationStatus, setLocationStatus] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [errorMessage, setErrorMessage] = useState('');
+  const { user, isAuthenticated } = useAuth();
 
-  const stopTracks = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
-  };
+  const [text, setText] = useState("");
+  // null means "the citizen has not chosen", so the account's own district can
+  // fill in without an effect that races the first render.
+  const [districtChoice, setDistrictChoice] = useState<string | null>(null);
+  const [village, setVillage] = useState("");
+  const [people, setPeople] = useState("");
+  const [urgency, setUrgency] = useState(3);
+  const [vulnerable, setVulnerable] = useState<string[]>([]);
+  const [audio, setAudio] = useState<Blob | null>(null);
 
-  const handleVoiceButton = async () => {
-    // Tap while recording stops and keeps the note.
-    if (isRecording && recorderRef.current) {
-      recorderRef.current.stop();
-      return;
-    }
-    setMicError('');
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setMicError('This device has no microphone input. Please type instead.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      chunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        if (audioUrl) URL.revokeObjectURL(audioUrl);
-        setAudioBlob(blob.size > 0 ? blob : null);
-        setAudioUrl(blob.size > 0 ? URL.createObjectURL(blob) : null);
-        setIsRecording(false);
-        stopTracks();
-      };
-      recorder.start();
-      setIsRecording(true);
-      setRecordingSecs(0);
-      timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
-    } catch {
-      setMicError('Microphone blocked. Allow access or type instead.');
-      stopTracks();
-    }
-  };
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<{ message: string; code: string | null } | null>(null);
+  const [result, setResult] = useState<IntakeResult | null>(null);
+  const [online, setOnline] = useState(true);
 
-  const clearAudio = () => {
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    setAudioBlob(null);
-    setAudioUrl(null);
-  };
+  const district = districtChoice ?? user?.district ?? "";
 
-  const handleGetLocation = () => {
-    setLocationStatus('Getting GPS...');
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocationStatus(`GPS: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
-        },
-        () => {
-          setLocationStatus('GPS: Gumla Sadar (Offline Fallback)');
-        }
-      );
-    } else {
-      setLocationStatus('GPS: 22.9904, 84.5450 (Gumla)');
-    }
-  };
+  useEffect(() => {
+    const sync = () => setOnline(navigator.onLine);
+    // The first read is deferred to a task: navigator is a browser API, and
+    // reading it synchronously inside the effect would both set state in the
+    // effect body and differ from what the server rendered.
+    const first = setTimeout(sync, 0);
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      clearTimeout(first);
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const canSubmit = useMemo(
+    () => (text.trim().length >= 12 || audio !== null) && !busy,
+    [text, audio, busy],
+  );
+
+  function toggleVulnerable(key: string) {
+    setVulnerable((v) => (v.includes(key) ? v.filter((k) => k !== key) : [...v, key]));
+  }
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim() && !audioBlob) {
-      setErrorMessage('Please describe the problem or record a voice note');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage('');
-    setOfflineQueued(null);
-
-    // If device is offline, store in offline outbox queue immediately
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      const queued = enqueueOfflineReport({
-        text,
-        district,
-        village,
-        people_est: parseInt(peopleEst, 10) || 100,
-      });
-      setOfflineQueued(queued);
-      setIsSubmitting(false);
-      setTimeout(() => {
-        router.push('/my-reports');
-      }, 3000);
-      return;
-    }
-
+    setError(null);
+    setBusy(true);
     try {
-      const res = await submitReport({
-        text,
-        district,
-        village,
-        people_est: parseInt(peopleEst, 10) || 100,
-        audio: audioBlob,
+      const intake = await apiClient.submitReport({
+        text: text.trim(),
+        district: district || undefined,
+        village: village.trim() || undefined,
+        people_est: people ? Number(people) : undefined,
+        urgency,
+        vulnerable: vulnerable.length ? vulnerable : undefined,
+        audio,
       });
-
-      setResult(res);
-      try {
-        const newReport = {
-          id: res.report_id || `rep-${Date.now().toString(36)}`,
-          client_id: `cli-${Date.now()}`,
-          region_id: 'jharkhand',
-          district: district || 'Gumla',
-          village: village || 'Sadar',
-          original_text: text || 'Voice grievance note',
-          lang: 'hi',
-          photo_urls: [],
-          lat: 23.3441,
-          lng: 85.3096,
-          people_est: parseInt(peopleEst, 10) || 100,
-          urgency: 4,
-          vulnerable: [],
-          category: (res.compiled?.category && typeof res.compiled.category === 'string' && !res.compiled.category.includes(' ')) ? res.compiled.category : 'water',
-          consent: true,
-          created_at: new Date().toISOString(),
-          reporter_name: 'Sunita Soren',
-        };
-        const existing = JSON.parse(localStorage.getItem('jharsetu_custom_reports') || '[]');
-        localStorage.setItem('jharsetu_custom_reports', JSON.stringify([newReport, ...existing]));
-      } catch (e) {
-        console.error('Failed to cache report locally', e);
-      }
-      setTimeout(() => {
-        router.push('/my-reports');
-      }, 2500);
-    } catch (err: any) {
-      // If network submission failed due to connection drop, fallback to offline queue
-      if (!navigator.onLine || err.message?.includes('fetch') || err.message?.includes('network')) {
-        const queued = enqueueOfflineReport({
-          text,
-          district,
-          village,
-          people_est: parseInt(peopleEst, 10) || 100,
-        });
-        setOfflineQueued(queued);
-        setTimeout(() => {
-          router.push('/my-reports');
-        }, 3000);
-      } else {
-        setErrorMessage(err.message || 'Failed to submit report');
-      }
+      setResult(intake);
+      rememberLocalReport({
+        report_id: intake.report_id,
+        challenge_ref: intake.challenge_ref,
+        challenge_id: intake.challenge_id,
+        text: (text.trim() || "Voice report").slice(0, 240),
+        district: district || null,
+        village: village.trim() || null,
+        decision: intake.decision,
+        priority: intake.priority ?? null,
+        filed_at: new Date().toISOString(),
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setError({
+        message: err instanceof Error ? err.message : "The report could not be sent.",
+        code: err instanceof ApiError ? err.code : null,
+      });
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
-  };
+  }
+
+  function fileAnother(keepPlace: boolean) {
+    setResult(null);
+    setText("");
+    setAudio(null);
+    setPeople("");
+    setVulnerable([]);
+    if (!keepPlace) {
+      setVillage("");
+      setDistrictChoice(null);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-      {/* Top Header */}
-      <header className="bg-white border-b border-[#CCD1C7] px-4 py-3 sticky top-0 z-20">
-        <div className="max-w-xl mx-auto flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center gap-1 text-xs font-bold text-gray-600 hover:text-[#102027]">
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-          </Link>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#2E7180] animate-pulse" />
-            <span className="text-xs font-mono font-bold text-[#2E7180]">JharSetu Citizen Link</span>
-          </div>
-        </div>
-      </header>
+    <>
+      <Chrome />
 
-      <main className="max-w-xl mx-auto w-full p-4 flex-1">
-        <div className="bg-white rounded-2xl border border-[#CCD1C7] p-5 sm:p-7 shadow-xs">
-          <div className="mb-5">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#2E7180]/10 text-[#2E7180] mb-2 border border-[#2E7180]/20">
-              <ShieldAlert className="w-3.5 h-3.5" /> Rapid Problem Intake
+      {result ? (
+        <Compiled
+          result={result}
+          onAnother={fileAnother}
+          signedIn={isAuthenticated}
+        />
+      ) : (
+        <>
+          <PageHead
+            eyebrow="Report a problem"
+            title="Tell us what you can see"
+            lede="Your words, in your language. You do not need an account, and you do not need to know what to call the problem — that part is ours."
+          />
+
+          <Main className="max-w-[560px]">
+            {!online && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-alert-ink">
+                  <Icon name="signal" size={16} />
+                </span>
+                <p className="text-[13px] leading-relaxed text-body">
+                  <strong className="text-ink">You are offline.</strong> Write the report now — when
+                  you press send it will fail, and you can press it again once there is signal.
+                  Nothing you have typed is lost in the meantime.
+                </p>
+              </Card>
+            )}
+
+            <form onSubmit={onSubmit} className="flex flex-col gap-5">
+              <VoiceRecorder onChange={(blob) => setAudio(blob)} disabled={busy} />
+
+              <div className="up p-5">
+                <label className="flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Or write it
+                  </span>
+                  <textarea
+                    className="field"
+                    rows={5}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="बिजली गिरने से खेत में काम करने वाले लोग मर रहे हैं। कोई आसरा नहीं है…"
+                    aria-describedby="text-help"
+                  />
+                </label>
+                <p id="text-help" className="mt-2.5 text-[12px] leading-relaxed text-body">
+                  Hindi, Santali, Khortha, Nagpuri or English. Say what happened, where, and who it
+                  is affecting. {text.trim().length > 0 && text.trim().length < 12 && (
+                    <span className="text-alert-ink">A few more words, please.</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="up p-5">
+                <h2 className="text-[15px] font-bold text-navy-dark">Where is it</h2>
+                <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
+                  <label className="flex flex-col gap-2">
+                    <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      District
+                    </span>
+                    <select
+                      className="field"
+                      value={district}
+                      onChange={(e) => setDistrictChoice(e.target.value)}
+                    >
+                      <option value="">Not sure</option>
+                      {DISTRICTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      Village or block
+                    </span>
+                    <input
+                      className="field"
+                      value={village}
+                      onChange={(e) => setVillage(e.target.value)}
+                      placeholder="Sisai"
+                    />
+                  </label>
+                </div>
+                <p className="mt-3 text-[12px] leading-relaxed text-body">
+                  Leave these blank if you are not sure. A report with no place still counts — a
+                  verifier will place it.
+                </p>
+              </div>
+
+              <div className="up p-5">
+                <h2 className="text-[15px] font-bold text-navy-dark">Who it affects</h2>
+
+                <label className="mt-4 flex flex-col gap-2">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Roughly how many people
+                  </span>
+                  <input
+                    className="field"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={people}
+                    onChange={(e) => setPeople(e.target.value)}
+                    placeholder="Your best guess"
+                  />
+                </label>
+
+                <div className="mt-4">
+                  <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                    Anyone in particular
+                  </span>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {VULNERABLE_GROUPS.map((g) => (
+                      <Toggle
+                        key={g.key}
+                        active={vulnerable.includes(g.key)}
+                        onClick={() => toggleVulnerable(g.key)}
+                      >
+                        {vulnerable.includes(g.key) && <Icon name="check" size={13} />}
+                        {g.label}
+                      </Toggle>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                      How urgent
+                    </span>
+                    <span className="mono text-[11px] font-semibold text-navy">
+                      {["", "Can wait", "This month", "This week", "Today", "Right now"][urgency]}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex gap-2">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setUrgency(n)}
+                        aria-label={`Urgency ${n} of 5`}
+                        aria-pressed={urgency === n}
+                        className={`mono h-11 flex-1 text-[14px] font-semibold ${
+                          urgency === n ? "press text-navy" : "up-s up-hit text-mute"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <IntakeRefusal message={error.message} code={error.code} />
+              )}
+
+              <Button type="submit" variant="primary" busy={busy} disabled={!canSubmit}>
+                {busy ? "Sending" : "Send this report"}
+              </Button>
+
+              <Caveat icon="shield">
+                Your name and number are not published. A verifier sees the report; the public map
+                sees only the problem and the block it is in.
+              </Caveat>
+
+              {!isAuthenticated && (
+                <p className="text-center text-[12.5px] leading-relaxed text-mute">
+                  Filing without an account keeps this report on this device only.{" "}
+                  <Link href="/login" className="font-semibold text-navy">
+                    Sign in
+                  </Link>{" "}
+                  to see it from anywhere.
+                </p>
+              )}
+            </form>
+          </Main>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * The submission was refused. The three refusals that matter to a citizen get
+ * a human sentence; anything else shows the service's own message.
+ */
+function IntakeRefusal({ message, code }: { message: string; code: string | null }) {
+  const known: Record<string, { title: string; body: string }> = {
+    no_speech_detected: {
+      title: "We could not hear any speech",
+      body: "The recording came through silent or too quiet, so nothing was filed. Rather than guess at words, we have thrown the audio away. Try again somewhere quieter, or type the report instead.",
+    },
+    stt_unavailable: {
+      title: "Voice notes are not working right now",
+      body: "The transcription service is unreachable, so we cannot read the recording. Nothing was filed. Please type the report — it goes to exactly the same place.",
+    },
+    transcription_failed: {
+      title: "The recording could not be read",
+      body: "Transcription failed on this file. Nothing was filed. Record it again, or type it instead.",
+    },
+    offline: {
+      title: "No connection",
+      body: "The report has not been sent. Nothing you typed is lost — press send again when there is signal.",
+    },
+  };
+
+  const hit = code ? known[code] : undefined;
+
+  return (
+    <div className="in p-5" role="alert">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 text-alert-ink">
+          <Icon name="alert" size={18} />
+        </span>
+        <div>
+          <h3 className="text-[14.5px] font-bold text-alert-ink">
+            {hit?.title ?? "The report was not sent"}
+          </h3>
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-body">{hit?.body ?? message}</p>
+          {hit && (
+            <p className="mono mt-2 text-[10.5px] uppercase tracking-[0.1em] text-mute">
+              {code}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** What the AI made of it. */
+function Compiled({
+  result,
+  onAnother,
+  signedIn,
+}: {
+  result: IntakeResult;
+  onAnother: (keepPlace: boolean) => void;
+  signedIn: boolean;
+}) {
+  const band = bandOf(result.priority);
+  const merged = result.decision === "merged";
+  const review = result.decision === "review";
+
+  return (
+    <>
+      <PageHead
+        eyebrow={result.already_received ? "Already received" : "Filed"}
+        title={
+          merged
+            ? "Others had reported this too"
+            : review
+              ? "This may be the same as something we have"
+              : "This is now on the district list"
+        }
+        lede={
+          merged
+            ? "Your report joined an existing problem rather than starting a new one. That makes the case stronger, not smaller — the number of separate people reporting it is part of how it is ranked."
+            : review
+              ? "It looked close to an existing problem, so a person will decide whether to merge them. Nothing is lost either way."
+              : "A new problem was opened from what you sent. Here is exactly what was done with your words."
+        }
+      />
+
+      <Main className="max-w-[560px]">
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mute">
+                Reference
+              </div>
+              <div className="mono mt-1 text-[26px] font-semibold leading-none text-navy-dark">
+                {result.challenge_ref}
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Report a Local Need</h1>
-            <p className="text-xs text-gray-500 mt-1">
-              Speak in Hindi or type. Works on any phone, with or without high-speed internet.
+            <div className="flex flex-col items-end gap-2">
+              <BandChip band={band} />
+              {result.degraded && (
+                <Chip tone="alert" title="No model was available; a rule wrote the brief">
+                  No AI
+                </Chip>
+              )}
+            </div>
+          </div>
+
+          <div className="in mt-4 p-4">
+            <p className="text-[12.5px] leading-relaxed text-body">
+              Write this reference down. It is how you follow the problem even from a different
+              phone, and how a block officer finds it if you ask in person.
             </p>
           </div>
 
-          {offlineQueued ? (
-            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-center space-y-2 animate-fade-in">
-              <CheckCircle2 className="w-10 h-10 text-amber-600 mx-auto" />
-              <h3 className="font-bold text-sm text-amber-900 font-mono">
-                Saved to Local Offline Outbox (No Network Required)
-              </h3>
-              <p className="text-xs text-amber-800 leading-relaxed">
-                Your report has been safely queued on this phone. It will automatically transmit to the district compiler the moment cellular or Wi-Fi connectivity returns.
-              </p>
-              <div className="p-2 bg-white/80 rounded border border-amber-200 text-[11px] font-mono text-gray-600">
-                Client Queue ID: <strong className="text-gray-900">{offlineQueued.clientId}</strong> · Status: <span className="font-bold text-amber-700">PENDING AUTO-SYNC</span>
-              </div>
-            </div>
-          ) : result ? (
-            <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl text-center animate-fade-in">
-              <CheckCircle2 className="w-10 h-10 text-[#3E8064] mx-auto mb-2" />
-              <h3 className="font-bold text-sm text-[#102027]">Report Submitted & Compiled!</h3>
-              <p className="text-xs text-gray-600 mt-1">
-                {result.compiled?.category} · priority{' '}
-                <strong>{result.compiled?.priority}</strong>
-                {result.challenge_ref ? <> · <span className="font-mono">{result.challenge_ref}</span></> : null}
-              </p>
-              {result.dedup_reason && (
-                <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
-                  {result.dedup_reason}
-                </p>
-              )}
-              {Array.isArray(result.trace) && result.trace.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {result.trace.map((t: { step: string; label: string; ms: number; usedAi: boolean }) => (
-                    <span
-                      key={t.step}
-                      title={t.label}
-                      className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-[10px] text-gray-600"
-                    >
-                      {t.label} {t.ms}ms{t.usedAi ? ' · ai' : ''}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs font-mono text-[#2E7180] mt-2">
-                Redirecting to Coordinator Queue in 2s...
-              </p>
-            </div>
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            <ButtonLink
+              href={`/challenge/${result.challenge_ref}`}
+              variant="primary"
+              iconAfter="arrow"
+            >
+              Follow {result.challenge_ref}
+            </ButtonLink>
+            <ButtonLink href="/my-reports" variant="secondary" icon="list">
+              My reports
+            </ButtonLink>
+          </div>
+        </Card>
+
+        <Panel
+          title="How it was ranked"
+          lede="A number, and the reason behind it. Nothing here is hidden from you."
+        >
+          {result.priority === null ? (
+            <p className="text-[13px] leading-relaxed text-body">
+              The score has not been computed yet. It appears on the problem page once the
+              compiler has finished, usually within a minute.
+            </p>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Voice Note Button */}
-              <div className="bg-[#F4F6F5] p-3.5 rounded-xl border border-[#CCD1C7] flex flex-col gap-3">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="text-xs">
-                    <div className="font-bold text-[#102027]">Voice Note (Hindi / Nagpuri)</div>
-                    <div className="text-gray-500 text-[11px]">
-                      {isRecording
-                        ? `Recording… ${Math.floor(recordingSecs / 60)}:${String(recordingSecs % 60).padStart(2, '0')} — tap stop when done`
-                        : audioBlob
-                          ? 'Voice note attached. It will be transcribed on submit.'
-                          : 'Tap to speak without typing'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleVoiceButton}
-                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
-                      isRecording
-                        ? 'bg-[#D94F45] text-white animate-pulse'
-                        : 'bg-[#2E7180] hover:bg-[#245A66] text-white shadow-xs'
-                    }`}
-                  >
-                    <Mic className="w-4 h-4" />
-                    {isRecording ? 'Stop' : audioBlob ? 'Re-record' : 'Record Voice Note'}
-                  </button>
-                </div>
-                {audioUrl && !isRecording && (
-                  <div className="flex items-center gap-2">
-                    <audio controls src={audioUrl} className="flex-1 h-8 min-w-0" />
-                    <button
-                      type="button"
-                      onClick={clearAudio}
-                      className="text-[11px] font-bold text-[#A8332A] hover:underline shrink-0"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-                {micError && (
-                  <p className="text-[11px] text-[#A8332A]">{micError}</p>
-                )}
-              </div>
-
-              {/* Text Description */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Describe what happened {audioBlob ? '(voice note attached)' : <span className="text-[#D94F45]">*</span>}
-                </label>
-                <textarea
-                  rows={4}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="उदा. खेत में बिजली गिरने से 2 लोग मर गए, शेल्टर नहीं है... (Describe problem in any language)"
-                  className="w-full text-sm p-3 rounded-xl bg-[#F4F6F5] border border-[#CCD1C7] focus:border-[#2E7180] outline-none transition"
-                />
-              </div>
-
-              {/* District & Village Block */}
-              <div className="grid grid-cols-2 gap-3">
+            <>
+              <div className="flex items-end justify-between gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">District</label>
-                  <select
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl bg-[#F4F6F5] border border-[#CCD1C7] font-semibold outline-none"
-                  >
-                    <option value="Gumla">Gumla</option>
-                    <option value="Sahebganj">Sahebganj</option>
-                    <option value="Dhanbad">Dhanbad</option>
-                    <option value="Palamu">Palamu</option>
-                    <option value="Ranchi">Ranchi</option>
-                  </select>
+                  <span className="mono text-[38px] font-semibold leading-none text-ink">
+                    {result.priority}
+                  </span>
+                  <span className="mono ml-1 text-[15px] text-mute">/100</span>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Village / Block</label>
-                  <input
-                    type="text"
-                    value={village}
-                    onChange={(e) => setVillage(e.target.value)}
-                    placeholder="Sisai Block"
-                    className="w-full text-xs p-2.5 rounded-xl bg-[#F4F6F5] border border-[#CCD1C7] outline-none"
-                  />
-                </div>
+                <BandChip band={band} />
               </div>
-
-              {/* People Affected & Location */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">
-                    People Affected
-                  </label>
-                  <div className="relative">
-                    <Users className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-3" />
-                    <input
-                      type="number"
-                      value={peopleEst}
-                      onChange={(e) => setPeopleEst(e.target.value)}
-                      className="w-full text-xs pl-8 pr-3 py-2.5 rounded-xl bg-[#F4F6F5] border border-[#CCD1C7] outline-none font-mono"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Location</label>
-                  <button
-                    type="button"
-                    onClick={handleGetLocation}
-                    className="w-full text-xs py-2.5 px-3 rounded-xl border border-[#CCD1C7] bg-[#F4F6F5] hover:bg-gray-200 flex items-center justify-center gap-1.5 font-semibold text-gray-700 transition truncate"
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-[#2E7180]" />
-                    {locationStatus || 'Use My GPS'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Photo upload is not built yet. An alert claiming it is "ready"
-                  is worse than an honest disabled control - a judge will click it. */}
-              <div className="pt-1">
-                <div
-                  aria-disabled="true"
-                  className="w-full py-2 px-3 rounded-xl border border-dashed border-[#CCD1C7] text-xs text-gray-400 flex items-center justify-center gap-1.5 font-medium cursor-not-allowed select-none"
+              <Meter
+                value={result.priority}
+                colour={`var(--color-${band === "long_term" ? "long" : band})`}
+                className="mt-3"
+              />
+              <p className="mt-3.5 text-[13px] leading-relaxed text-body">
+                The score weighs severity, urgency, how many people are affected, who they are,
+                whether the block sits in a mapped hazard zone, and whether anything has been
+                pledged. Every one of those lines, with its own sentence, is on{" "}
+                <Link
+                  href={`/challenge/${result.challenge_ref}`}
+                  className="font-semibold text-navy"
                 >
-                  <Camera className="w-4 h-4 text-gray-400" />
-                  Photo upload — not available yet
-                </div>
-              </div>
-
-              {errorMessage && (
-                <div className="text-xs text-[#A8332A] flex items-center gap-1 p-2 bg-red-50 rounded-lg">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  {errorMessage}
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 px-4 bg-[#2E7180] hover:bg-[#245A66] text-white font-bold text-sm rounded-xl shadow-sm flex items-center justify-center gap-2 transition"
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Submitting & Compiling Brief...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Submit Report
-                  </>
-                )}
-              </button>
-            </form>
+                  the problem page
+                </Link>
+                .
+              </p>
+            </>
           )}
-        </div>
-      </main>
-    </div>
+        </Panel>
+
+        {result.dedup_reason && (
+          <Panel title={merged ? "Why it was merged" : "Why a person will check"}>
+            <Well small>
+              <p className="text-[13.5px] leading-relaxed text-ink">{result.dedup_reason}</p>
+            </Well>
+            {result.possible_duplicates.length > 0 && (
+              <div className="mt-3 flex flex-col gap-2">
+                {result.possible_duplicates.map((d) => (
+                  <Link
+                    key={d.id}
+                    href={`/challenge/${d.ref}`}
+                    className="up-s up-hit flex items-center justify-between gap-3 p-3"
+                  >
+                    <span className="min-w-0">
+                      <span className="mono text-[11px] text-mute">{d.ref}</span>
+                      <span className="block truncate text-[13px] font-semibold text-ink">
+                        {d.title}
+                      </span>
+                    </span>
+                    <span className="text-mute">
+                      <Icon name="chevRight" size={14} />
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
+
+        <Panel
+          title="What the machine did"
+          lede="Each step, the model that answered it, and how long it took."
+        >
+          <TraceSteps
+            trace={result.trace}
+            totalMs={result.trace_total_ms}
+            degraded={result.degraded}
+          />
+        </Panel>
+
+        <Panel title="Something wrong with this?">
+          <p className="text-[13.5px] leading-relaxed text-body">
+            Send another report with the correction. Because it describes the same place and the
+            same problem, it will merge into {result.challenge_ref} and the extra detail goes to
+            the verifier along with the rest.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            <Button variant="secondary" icon="plus" onClick={() => onAnother(true)}>
+              Add more detail
+            </Button>
+            <Button variant="secondary" icon="mic" onClick={() => onAnother(false)}>
+              Report something else
+            </Button>
+          </div>
+        </Panel>
+
+        {!signedIn && (
+          <Card depth="in" className="p-4">
+            <p className="text-[12.5px] leading-relaxed text-body">
+              This report is remembered on this device only.{" "}
+              <Link href="/login" className="font-semibold text-navy">
+                Signing in
+              </Link>{" "}
+              links it to an account so you can see it anywhere. Either way,{" "}
+              <span className="mono text-ink">{result.challenge_ref}</span> keeps working.
+            </p>
+          </Card>
+        )}
+
+        <p className="mono text-center text-[10.5px] uppercase tracking-[0.1em] text-mute">
+          report {result.report_id.slice(0, 8)} · {num(result.trace?.length ?? 0)} pipeline steps
+        </p>
+      </Main>
+    </>
   );
 }

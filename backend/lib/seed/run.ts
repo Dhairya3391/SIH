@@ -276,7 +276,7 @@ async function seedDemoUsers(
 ): Promise<number> {
   const password = process.env.DEMO_PASSWORD;
   if (!password) {
-    console.warn("[seed] DEMO_PASSWORD is not set, so the six demo accounts were skipped.");
+    console.warn("[seed] DEMO_PASSWORD is not set, so the demo accounts were skipped.");
     return 0;
   }
   const domain = process.env.DEMO_EMAIL_DOMAIN ?? "jharsetu.demo";
@@ -284,6 +284,7 @@ async function seedDemoUsers(
   const orgForRole: Record<string, string | null> = {
     citizen: null,
     volunteer: orgIds.get("Gram Sahyog Samiti (fictional)") ?? null,
+    verifier: orgIds.get("Jharkhand State Disaster Management Authority (demo data)") ?? null,
     coordinator: orgIds.get("Jharkhand State Disaster Management Authority (demo data)") ?? null,
     university: orgIds.get("BIT Mesra, Department of Electronics and Communication") ?? null,
     industry: orgIds.get("Damodar Steel Works (fictional)") ?? null,
@@ -293,6 +294,7 @@ async function seedDemoUsers(
   const names: Record<string, string> = {
     citizen: "Somra Oraon (demo citizen)",
     volunteer: "Demo field volunteer",
+    verifier: "Demo verification officer",
     coordinator: "Demo district coordinator",
     university: "Demo university team lead",
     industry: "Demo CSR lead",

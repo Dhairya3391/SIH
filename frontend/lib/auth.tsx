@@ -1,29 +1,23 @@
-'use client';
+"use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { UserRole } from '@/types/database';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import * as api from "@/lib/api";
+import type { Organisation, User, UserRole } from "@/types/database";
 
-export interface User {
-  id: string;
-  role: UserRole;
-  org_id: string | null;
-  region_id: string;
-  district: string | null;
-  language: string;
-  full_name: string | null;
-}
+/**
+ * Session state, held once at the root.
+ *
+ * The rule that matters here: when the probe fails we stay signed OUT. An
+ * earlier version defaulted to "coordinator" when it could not reach the
+ * service, which meant an unauthenticated visitor was handed a district
+ * officer's console. Guessing a role is never the safe failure.
+ */
 
-export interface Organisation {
-  id: string;
-  name: string;
-  type: string;
-}
-
-interface AuthContextType {
+interface AuthState {
   user: User | null;
   organisation: Organisation | null;
-  /** The signed-in user's role, or null when nobody is signed in. */
   role: UserRole | null;
+  /** True until the first session probe settles. */
   loading: boolean;
   isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<User>;
@@ -32,47 +26,21 @@ interface AuthContextType {
   refresh: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
+const missing = () => {
+  throw new Error("AuthProvider is missing from the tree");
+};
+
+const AuthContext = createContext<AuthState>({
   user: null,
   organisation: null,
   role: null,
   loading: true,
   isAuthenticated: false,
-  signIn: async () => {
-    throw new Error('AuthProvider is missing');
-  },
-  demoSignIn: async () => {
-    throw new Error('AuthProvider is missing');
-  },
+  signIn: missing,
+  demoSignIn: missing,
   signOut: async () => {},
   refresh: async () => {},
 });
-
-/** The console each role lands on after signing in. */
-export const ROLE_HOME: Record<UserRole, string> = {
-  citizen: '/my-reports',
-  volunteer: '/verify',
-  verifier: '/verify',
-  university: '/college',
-  industry: '/needs',
-  coordinator: '/queue',
-  admin: '/admin',
-};
-
-async function post(path: string, body?: unknown) {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message =
-      json?.error?.message || json?.error || 'That did not work. Please try again.';
-    throw new Error(typeof message === 'string' ? message : 'Request failed');
-  }
-  return json?.data ?? json;
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -81,64 +49,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/login', { cache: 'no-store' });
-      const json = await res.json().catch(() => ({}));
-      const data = json?.data ?? json;
-      if (data?.user) {
-        setUser(data.user as User);
-        setOrganisation((data.organisation as Organisation) ?? null);
-      } else {
-        setUser(null);
-        setOrganisation(null);
-      }
+      const session = await api.fetchSession();
+      setUser(session.user);
+      setOrganisation(session.organisation);
     } catch {
-      // Offline or the backend is unreachable. Stay signed out rather than
-      // guessing a role - guessing is how an unauthenticated visitor ended up
-      // being treated as a district coordinator.
       setUser(null);
       setOrganisation(null);
     }
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    let live = true;
     (async () => {
       await refresh();
-      if (mounted) setLoading(false);
+      if (live) setLoading(false);
     })();
     return () => {
-      mounted = false;
+      live = false;
     };
   }, [refresh]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      const data = await post('/api/auth/login', { email, password });
-      setUser(data.user as User);
-      setOrganisation((data.organisation as Organisation) ?? null);
-      return data.user as User;
-    } finally {
-      setLoading(false);
+    const session = await api.signIn(email, password);
+    if (!session?.user) {
+      throw new Error("That sign-in did not return an account. Please try again.");
     }
+    setUser(session.user);
+    setOrganisation(session.organisation ?? null);
+    return session.user;
   }, []);
 
-  const demoSignIn = useCallback(async (role: UserRole) => {
-    setLoading(true);
-    try {
-      const data = await post('/api/auth/demo-login', { role });
-      setUser(data.user as User);
-      // demo-login does not resolve the organisation; pick it up on refresh.
+  const demoSignIn = useCallback(
+    async (role: UserRole) => {
+      const result = await api.demoSignIn(role);
+      setUser(result.user);
+      // demo-login does not resolve the organisation; the probe does.
       await refresh();
-      return data.user as User;
-    } finally {
-      setLoading(false);
-    }
-  }, [refresh]);
+      return result.user;
+    },
+    [refresh],
+  );
 
   const signOut = useCallback(async () => {
     try {
-      await post('/api/auth/logout');
+      await api.signOut();
     } catch {
       // Clearing local state matters more than the round trip succeeding.
     }
@@ -146,25 +100,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOrganisation(null);
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        organisation,
-        role: user?.role ?? null,
-        loading,
-        isAuthenticated: Boolean(user),
-        signIn,
-        demoSignIn,
-        signOut,
-        refresh,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthState>(
+    () => ({
+      user,
+      organisation,
+      role: user?.role ?? null,
+      loading,
+      isAuthenticated: Boolean(user),
+      signIn,
+      demoSignIn,
+      signOut,
+      refresh,
+    }),
+    [user, organisation, loading, signIn, demoSignIn, signOut, refresh],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthState {
   return useContext(AuthContext);
 }

@@ -1,595 +1,456 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { 
-  Shield, 
-  MessageSquare, 
-  Clock, 
-  Trophy, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Download, 
-  Users, 
-  Building2, 
-  ArrowRight, 
-  FileText, 
-  Search, 
-  Sparkles,
-  RefreshCw,
-  ExternalLink,
-  PlusCircle,
-  Ban,
-  Activity
-} from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
-import { RoleNav } from '@/components/shell/RoleNav';
-import { CitationList, Citation } from '@/components/shared/CitationList';
-import { fetchAdminMetrics } from '@/lib/api';
+import React, { useMemo } from "react";
+import Link from "next/link";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Stat } from "@/components/ui/Surface";
+import { ButtonLink } from "@/components/ui/Button";
+import { Chip, Tag } from "@/components/ui/Chip";
+import { Empty, ErrorNote, NotMeasured, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { STATUS_LABEL, hours, humanise, money, num } from "@/lib/format";
 
-interface NarratorQA {
-  question: string;
-  answer: string;
-  citations: Citation[];
+/**
+ * The command centre.
+ *
+ * Deliberately unflattering. It leads with what is stuck, what is silent and
+ * what nobody has touched, because a dashboard that opens with a large green
+ * number is a dashboard nobody uses to find problems.
+ *
+ * Where a figure is not computed, it prints an em dash and a sentence saying
+ * why. Nothing here is a plausible-looking default.
+ */
+export default function AdminPage() {
+  return (
+    <RouteGuard>
+      <Command />
+    </RouteGuard>
+  );
 }
 
-export default function AdminConsolePage() {
-  // Live readout from /api/admin/metrics. Anything the record cannot answer
-  // stays null and renders as an em dash - never a number we invented.
-  const [metrics, setMetrics] = useState<any>(null);
-  const [metricsError, setMetricsError] = useState('');
-  const loadMetrics = useCallback(async () => {
-    try {
-      setMetrics(await fetchAdminMetrics());
-    } catch (err) {
-      setMetricsError(err instanceof Error ? err.message : 'Could not load metrics.');
-    }
-  }, []);
-  useEffect(() => {
-    loadMetrics();
-    const t = setInterval(loadMetrics, 30000);
-    return () => clearInterval(t);
-  }, [loadMetrics]);
+function Command() {
+  const metrics = useResource(() => apiClient.fetchAdminMetrics(), []);
+  const health = useResource(() => apiClient.fetchHealth(), []);
 
-  // THE NARRATOR STATE
-  const [narratorQuestion, setNarratorQuestion] = useState('');
-  const [isNarratorThinking, setIsNarratorThinking] = useState(false);
-  const [narratorHistory, setNarratorHistory] = useState<NarratorQA[]>([
-    {
-      question: 'Which district currently has the highest verification backlog and why?',
-      answer: 'Sahebganj district currently has the highest backlog with 14 unverified flood reports in Rajmahal Diara. Verification is delayed due to high Ganga flood water levels (+1.4m above danger level) preventing volunteer boat access.',
-      citations: [
-        {
-          title: 'CWC Ganga River Stage Telemetry — Rajmahal Station',
-          publisher: 'Central Water Commission (CWC)',
-          date: '11-09-2026',
-          supports: 'Water level +1.4m above danger level',
-          url: 'https://cwc.gov.in',
-          type: 'weather',
-        },
-        {
-          title: 'Challenge Record C-SAH-204 Ground Queue',
-          publisher: 'JharSetu District Ingestion',
-          date: '11-09-2026',
-          supports: '14 unverified reports clustered in Diara villages',
-          url: '/admin/challenges/CH-SAH-002',
-          type: 'government',
-        },
-      ],
-    },
-  ]);
+  const m = metrics.data;
 
-  // Quiet Projects (Overdue against locked stage plan)
-  const quietProjects = [
-    {
-      ref: 'CH-SAH-002',
-      title: 'Ganga riverbank flood water filtration units',
-      leadOrg: 'IIT-ISM Dhanbad Environmental Lab',
-      overdueDays: 4,
-      expectedStage: 'Mobile Filtration Assembly',
-      district: 'Sahebganj',
-    },
-  ];
+  const statuses = useMemo(() => {
+    if (!m?.by_status) return [];
+    const order = [
+      "REPORTED",
+      "REFINED",
+      "VERIFIED",
+      "OPEN",
+      "TEAM_FORMED",
+      "SOLUTION_PROPOSED",
+      "PILOT",
+      "DEPLOYED",
+      "IMPACT_VERIFIED",
+    ];
+    const max = Math.max(...Object.values(m.by_status), 1);
+    return order
+      .filter((k) => m.by_status[k] !== undefined)
+      .map((k) => ({ key: k, value: m.by_status[k], max }));
+  }, [m]);
 
-  // Proposal Competition Metrics
-  const competitionStats = [
-    {
-      ref: 'CH-GUM-001',
-      title: 'Gumla Lightning Siren Relay Network',
-      proposalsCount: 2,
-      scoreSpread: '48 to 84 (36 pt spread)',
-      leadChanges: 1,
-      windowDuration: '14 days',
-      winnerStatus: 'Delivered to Pilot Phase (BIT Mesra)',
-    },
-    {
-      ref: 'CH-SAH-002',
-      title: 'Sahebganj Flood Water Purification Cart',
-      proposalsCount: 3,
-      scoreSpread: '62 to 84 (22 pt spread)',
-      leadChanges: 2,
-      windowDuration: 'Closes in 3d 4h',
-      winnerStatus: 'Competitive Window Active',
-    },
-  ];
+  const districts = useMemo(() => {
+    if (!m?.by_district) return [];
+    return Object.entries(m.by_district)
+      .filter(([k]) => k && k !== "null")
+      .sort((a, b) => b[1] - a[1]);
+  }, [m]);
 
-  // Org & User Admin
-  const [orgs, setOrgs] = useState([
-    { id: 'org-1', name: 'BIT Mesra ECE Lab', type: 'College / University', district: 'Ranchi', status: 'active' },
-    { id: 'org-2', name: 'Tata Steel CSR Foundation', type: 'Corporate Partner', district: 'Ranchi', status: 'active' },
-    { id: 'org-3', name: 'Aapda Mitra Volunteer Corps', type: 'Field Verifier NGO', district: 'Gumla', status: 'active' },
-  ]);
-  const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgDistrict, setNewOrgDistrict] = useState('Ranchi');
-  const [auditLogNotice, setAuditLogNotice] = useState<string | null>(null);
-
-  const handleAskNarrator = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!narratorQuestion.trim() || isNarratorThinking) return;
-
-    setIsNarratorThinking(true);
-    const q = narratorQuestion.trim();
-
-    setTimeout(() => {
-      setIsNarratorThinking(false);
-      setNarratorHistory([
-        {
-          question: q,
-          answer: `Based on verified cryptographic ledger entries: Lightning hazard in Gumla (CH-GUM-001) has reached 100% funding with ₹1,40,000 pledged by Tata Steel and CCL CSR. Prototype sirens are currently undergoing lab acoustic frequency validation.`,
-          citations: [
-            {
-              title: 'Cryptographic Ledger Block #7 (Pledge Fulfillment)',
-              publisher: 'JharSetu Ledger Engine',
-              date: '12-09-2026',
-              supports: '100% material & budget pledged',
-              url: '/admin/challenges/CH-GUM-001',
-              type: 'government',
-            },
-          ],
-        },
-        ...narratorHistory,
-      ]);
-      setNarratorQuestion('');
-    }, 900);
-  };
-
-  const handleCreateOrg = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newOrgName.trim()) return;
-    const item = {
-      id: `org-${Date.now()}`,
-      name: newOrgName.trim(),
-      type: 'College / University',
-      district: newOrgDistrict,
-      status: 'active',
-    };
-    setOrgs([...orgs, item]);
-    setNewOrgName('');
-    setAuditLogNotice(`Organization "${item.name}" registered and logged on admin audit trail.`);
-    setTimeout(() => setAuditLogNotice(null), 3000);
-  };
-
-  const handleToggleSuspend = (id: string) => {
-    setOrgs((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status: o.status === 'active' ? 'suspended' : 'active' } : o))
-    );
-    setAuditLogNotice(`Account status updated and logged on system audit ledger.`);
-    setTimeout(() => setAuditLogNotice(null), 3000);
-  };
-
-  const handleExportAudit = (format: 'csv' | 'json') => {
-    const data = JSON.stringify(competitionStats, null, 2);
-    const blob = new Blob([data], { type: format === 'json' ? 'application/json' : 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `jharsetu_audit_trail.${format}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const worstSevereAge = m?.severe_open_ages_days?.length
+    ? Math.max(...m.severe_open_ages_days)
+    : null;
 
   return (
-    <RouteGuard allowedRoles={['admin']} consoleTitle="System Owner Admin Console">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
-        <RoleNav />
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-          {/* Header */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                Stage 6 · System Owner & Governance
-              </span>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#102027] mt-1">
-                Statewide Command Center & AI Narrator
-              </h1>
-              <p className="text-xs text-gray-600 mt-1">
-                Full-read visibility across all 24 districts, competition dynamics, SLA bottlenecks, and verified cryptographic impact records.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/admin/sla"
-                className="touch-target px-3.5 py-2 bg-white border border-[#CCD1C7] hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition"
-              >
-                <Clock className="w-3.5 h-3.5 text-[#2E7180]" />
-                SLA Gauges & Timelines
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => handleExportAudit('json')}
-                className="touch-target px-3.5 py-2 bg-[#2E7180] hover:bg-[#245A66] text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-xs transition"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Export Audit Trail
-              </button>
-            </div>
+    <>
+      <PageHead
+        eyebrow="System owner"
+        title="Command centre"
+        lede="Every role, every table, every timing. This screen is written to show what is stuck rather than what looks good — the flattering numbers are on the impact page."
+        right={
+          <div className="flex flex-wrap gap-2.5">
+            <ButtonLink href="/admin/sla" variant="primary" icon="clock">
+              SLA &amp; timings
+            </ButtonLink>
+            <ButtonLink href="/admin/ledger" variant="secondary" icon="shield">
+              Ledger
+            </ButtonLink>
           </div>
+        }
+      />
 
-          {/* ── live, from the record ── */}
-          <section aria-label="Live system metrics">
-            <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700">
-                Live from the record
-              </span>
-              {metricsError && (
-                <span className="text-[10px] font-mono text-[#A8332A]">{metricsError}</span>
-              )}
+      <Main>
+        {metrics.loading && !metrics.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={3} height={200} />
+          </>
+        ) : metrics.error ? (
+          <ErrorNote message={metrics.error} code={metrics.code} onRetry={metrics.reload} />
+        ) : !m ? null : (
+          <>
+            {/* ---- what is wrong, first --------------------------------- */}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Open problems"
+                value={num(m.totals.open)}
+                sub={`of ${num(m.totals.challenges)} on record`}
+              />
+              <Stat
+                label="Severe and still open"
+                value={num(m.totals.severe_open)}
+                sub={
+                  worstSevereAge === null
+                    ? "None open"
+                    : `oldest has been open ${num(worstSevereAge)} days`
+                }
+                tone={m.totals.severe_open > 0 ? "alert" : undefined}
+              />
+              {/* A median of exactly zero is a timestamp artifact, not a
+                  record-breaking verification time. Say which it is. */}
+              <Stat
+                label="Median time to verify"
+                value={
+                  m.median_verification_hours === null ||
+                  m.median_verification_hours === undefined ||
+                  m.median_verification_hours === 0
+                    ? "—"
+                    : hours(m.median_verification_hours)
+                }
+                sub={
+                  m.median_verification_hours === null ||
+                  m.median_verification_hours === undefined
+                    ? "Not enough verified rows to take a median"
+                    : m.median_verification_hours === 0
+                      ? "Computes to zero: the seeded rows carry the same timestamp for the report and the verification, so this is not a real measurement"
+                      : "Report to a human confirming it"
+                }
+              />
+              <Stat
+                label="Solved"
+                value={num(m.totals.solved)}
+                sub="Deployed or impact verified"
+                tone={m.totals.solved > 0 ? "teal" : undefined}
+              />
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">Challenges</div>
-                <div className="text-2xl font-extrabold font-mono">{metrics?.totals?.challenges ?? '—'}</div>
-                <div className="text-[11px] text-gray-500 mt-0.5">{metrics?.totals?.open ?? '—'} still open</div>
-              </div>
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#A8332A] mb-1">Severe and open</div>
-                <div className="text-2xl font-extrabold font-mono text-[#A8332A]">{metrics?.totals?.severe_open ?? '—'}</div>
-                <div className="text-[11px] text-gray-500 mt-0.5">
-                  {metrics?.severe_open_ages_days?.length
-                    ? `oldest ${metrics.severe_open_ages_days[0]}d`
-                    : 'none outstanding'}
-                </div>
-              </div>
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 mb-1">Solved</div>
-                <div className="text-2xl font-extrabold font-mono text-emerald-700">{metrics?.totals?.solved ?? '—'}</div>
-                <div className="text-[11px] text-gray-500 mt-0.5">deployed or impact verified</div>
-              </div>
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">Verification lead time</div>
-                <div className="text-2xl font-extrabold font-mono">
-                  {metrics?.median_verification_hours != null
-                    ? `${metrics.median_verification_hours}h`
-                    : '—'}
-                </div>
-                <div className="text-[11px] text-gray-500 mt-0.5">
-                  {metrics?.median_verification_hours != null
-                    ? 'median, report to verified'
-                    : 'not enough verified reports yet'}
-                </div>
-              </div>
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">Proposal windows</div>
-                <div className="text-2xl font-extrabold font-mono">
-                  {metrics?.competition
-                    ? metrics.competition.windows_open + metrics.competition.windows_awarded
-                    : '—'}
-                </div>
-                <div className="text-[11px] text-gray-500 mt-0.5">
-                  {metrics?.competition
-                    ? `${metrics.competition.windows_open} open, ${metrics.competition.windows_awarded} awarded`
-                    : 'awaiting migration 0010'}
-                </div>
-              </div>
-            </div>
-            {metrics?.quiet_projects?.length > 0 && (
-              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-800 mb-1.5">
-                  {metrics.quiet_projects.length} project{metrics.quiet_projects.length === 1 ? '' : 's'} overdue an update
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {metrics.quiet_projects.slice(0, 6).map((q: any) => (
-                    <span key={q.challenge_id} className="font-mono text-[11px] bg-white border border-amber-200 rounded px-2 py-0.5">
-                      {q.ref ?? q.challenge_id.slice(0, 8)} · {q.days_since}d
-                    </span>
+
+            {/* ---- quiet projects -------------------------------------- */}
+            <Panel
+              title="Nobody has touched these"
+              lede="Awarded work with no progress update. Silence is not read as success anywhere in this system."
+            >
+              {m.quiet_projects.length === 0 ? (
+                <Empty
+                  icon="check"
+                  title="Every awarded project has been updated recently"
+                  why="No project has gone quiet. This panel fills up when a college stops filing progress, which is the first sign a project is stalling."
+                />
+              ) : (
+                <ul className="flex flex-col gap-2.5">
+                  {m.quiet_projects.map((q) => (
+                    <li key={q.id}>
+                      <Link
+                        href={`/admin/challenges/${q.ref}`}
+                        className="up-s up-hit flex items-center justify-between gap-3 p-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="mono text-[10px] uppercase tracking-[0.1em] text-mute">
+                            {q.ref}
+                          </div>
+                          <div className="mt-1 truncate text-[13.5px] font-semibold text-ink">
+                            {q.title}
+                          </div>
+                        </div>
+                        <div className="flex flex-none items-center gap-2.5">
+                          <Chip tone={q.days_since_update > 21 ? "alert" : "high"}>
+                            {num(q.days_since_update)} days quiet
+                          </Chip>
+                          <span className="text-navy">
+                            <Icon name="chevRight" size={15} />
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
                   ))}
-                </div>
-              </div>
-            )}
-          </section>
+                </ul>
+              )}
+            </Panel>
 
-          {/* Statewide Metrics Strip (Data honesty: no fabricated numbers) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono">
-            <div className="bg-white p-3.5 rounded-xl border border-[#CCD1C7]">
-              <span className="text-gray-500 uppercase text-[10px] block font-bold">Total Challenges</span>
-              <div className="text-xl font-bold text-[#102027] mt-0.5">25</div>
-              <span className="text-[10px] text-gray-500">Across 24 districts</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-xl border border-[#CCD1C7]">
-              <span className="text-gray-500 uppercase text-[10px] block font-bold">Critical (Sev 5)</span>
-              <div className="text-xl font-bold text-[#D94F45] mt-0.5">8</div>
-              <span className="text-[10px] text-[#A8332A]">Rapid routing</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-xl border border-[#CCD1C7]">
-              <span className="text-gray-500 uppercase text-[10px] block font-bold">In Pilot R&D</span>
-              <div className="text-xl font-bold text-[#2E7180] mt-0.5">6</div>
-              <span className="text-[10px] text-gray-500">Campuses matched</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-xl border border-[#CCD1C7]">
-              <span className="text-gray-500 uppercase text-[10px] block font-bold">Verified Solved</span>
-              <div className="text-xl font-bold text-emerald-700 mt-0.5">7</div>
-              <span className="text-[10px] text-emerald-800">Ledger confirmed</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-xl border border-[#CCD1C7]">
-              <span className="text-gray-500 uppercase text-[10px] block font-bold">Verification Lead</span>
-              <div className="text-xl font-bold text-gray-800 mt-0.5">4.2h</div>
-              <span className="text-[10px] text-gray-500">Avg state time</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-xl border border-[#CCD1C7]">
-              <span className="text-gray-500 uppercase text-[10px] block font-bold">CSR Funding</span>
-              <div className="text-xl font-bold text-purple-700 mt-0.5">84%</div>
-              <span className="text-[10px] text-purple-800">Pledged vs needed</span>
-            </div>
-          </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              {/* ---- the funnel ---------------------------------------- */}
+              <Panel
+                title="Where everything is sitting"
+                lede="The whole pipeline by status. A pile-up at one stage is the bottleneck."
+              >
+                <ul className="flex flex-col gap-3">
+                  {statuses.map((s) => (
+                    <li key={s.key}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[13px] font-semibold text-ink">
+                          {STATUS_LABEL[s.key] ?? humanise(s.key)}
+                        </span>
+                        <span className="mono text-[12px] font-semibold text-navy">
+                          {num(s.value)}
+                        </span>
+                      </div>
+                      <Meter value={s.value} max={s.max} height={7} className="mt-1.5" />
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
 
-          {/* ========================================================================= */}
-          {/* SECTION 1: THE NARRATOR (Conversational AI Assistant with Cited Answers) */}
-          {/* ========================================================================= */}
-          <div className="bg-white border-2 border-[#2E7180] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-[#2E7180]/10 rounded-lg text-[#2E7180]">
-                  <Sparkles className="w-5 h-5 text-[#2E7180]" />
+              {/* ---- funding ------------------------------------------- */}
+              <Panel
+                title="Funding"
+                lede="Pledged is a promise; received is a fact. The gap between them is the number that matters."
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="up-s p-4">
+                    <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                      Money pledged
+                    </div>
+                    <div className="mono mt-1.5 text-[22px] font-semibold text-ink">
+                      {money(m.funding.money_pledged)}
+                    </div>
+                  </div>
+                  <div className="up-s p-4">
+                    <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                      Money received
+                    </div>
+                    <div className="mono mt-1.5 text-[22px] font-semibold text-teal-ink">
+                      {money(m.funding.money_received)}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-[#102027]">
-                    The Narrator — Statewide Conversational Query Engine
-                  </h3>
-                  <p className="text-xs text-gray-500 font-mono">
-                    Plain-language question in, cited answer out. Every claim is linked to source evidence.
+
+                <div className="mt-4">
+                  <div className="flex items-baseline justify-between">
+                    <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                      material lines received
+                    </span>
+                    <span className="mono text-[12px] font-semibold text-navy">
+                      {num(m.funding.material_lines_received)} / {num(m.funding.material_lines)}
+                    </span>
+                  </div>
+                  <Meter
+                    value={m.funding.material_lines_received}
+                    max={Math.max(m.funding.material_lines, 1)}
+                    height={8}
+                    className="mt-2"
+                    colour="var(--color-teal)"
+                  />
+                </div>
+
+                {m.funding.money_pledged === 0 && m.funding.material_lines > 0 && (
+                  <p className="mt-4 text-[12.5px] leading-relaxed text-body">
+                    Nothing has been pledged in cash yet — every contribution so far is material.
+                    That is shown as it is rather than converted into a rupee figure nobody
+                    committed to.
+                  </p>
+                )}
+              </Panel>
+            </div>
+
+            {/* ---- competition --------------------------------------- */}
+            <Panel
+              title="The proposal competition"
+              lede="Windows are opened by the first submission and closed by the clock, not by a person."
+            >
+              <div className="grid grid-cols-3 gap-3">
+                <div className="up-s p-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                    Open now
+                  </div>
+                  <div className="mono mt-1.5 text-[24px] font-semibold text-ink">
+                    {num(m.competition.windows_open)}
+                  </div>
+                  <p className="mt-1 text-[11.5px] leading-snug text-body">
+                    Colleges can still submit
+                  </p>
+                </div>
+                <div className="up-s p-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                    Awarded
+                  </div>
+                  <div className="mono mt-1.5 text-[24px] font-semibold text-teal-ink">
+                    {num(m.competition.windows_awarded)}
+                  </div>
+                  <p className="mt-1 text-[11.5px] leading-snug text-body">
+                    Closed with a viable winner
+                  </p>
+                </div>
+                <div className="up-s p-4">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                    Reopened
+                  </div>
+                  <div className="mono mt-1.5 text-[24px] font-semibold text-ink">
+                    {num(m.competition.windows_reopened)}
+                  </div>
+                  <p className="mt-1 text-[11.5px] leading-snug text-body">
+                    Closed with nothing above the floor
                   </p>
                 </div>
               </div>
-              <span className="ai-provenance-tag">CITED NARRATOR</span>
-            </div>
+              <p className="mt-4 text-[12.5px] leading-relaxed text-body">
+                A window that closes with no proposal at or above the viability floor reopens
+                rather than awarding the least-bad document. A reopened window is a signal that the
+                brief may be unbuildable as written, not that colleges are lazy.
+              </p>
+            </Panel>
 
-            {/* Input Form */}
-            <form onSubmit={handleAskNarrator} className="flex gap-2">
-              <input
-                type="text"
-                value={narratorQuestion}
-                onChange={(e) => setNarratorQuestion(e.target.value)}
-                placeholder="Ask anything (e.g., 'Which district has the longest verification backlog?' or 'What is the status of the lightning siren project in Gumla?')..."
-                className="flex-1 text-xs px-4 py-2.5 rounded-xl border border-[#CCD1C7] outline-none focus:border-[#2E7180] focus:ring-1 focus:ring-[#2E7180] font-sans"
-              />
-              <button
-                type="submit"
-                disabled={isNarratorThinking || !narratorQuestion.trim()}
-                className="touch-target px-5 py-2.5 bg-[#2E7180] hover:bg-[#245A66] disabled:opacity-40 text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-              >
-                {isNarratorThinking ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <MessageSquare className="w-4 h-4" />
-                    Query
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Q&A Stream with Citations */}
-            <div className="space-y-4 pt-2">
-              {narratorHistory.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-xl bg-[#F4F6F5] border border-[#CCD1C7]/80 space-y-3"
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="font-mono font-bold text-xs text-[#2E7180] shrink-0">Q:</span>
-                    <strong className="text-xs text-gray-900 font-sans">{item.question}</strong>
-                  </div>
-
-                  <div className="flex flex-col lg:flex-row gap-4 pt-2 border-t border-gray-200">
-                    {/* Answer text (Left) */}
-                    <div className="flex-1 text-xs text-gray-800 leading-relaxed font-sans">
-                      {item.answer}
-                    </div>
-
-                    {/* Citations List (Right) */}
-                    <div className="lg:w-80 shrink-0">
-                      <CitationList citations={item.citations} title="Verified Citations" compact />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* SECTION 2: PROPOSAL COMPETITION VIEW */}
-          {/* ========================================================================= */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                  Competition Dynamics
-                </span>
-                <h3 className="text-base font-extrabold text-[#102027] mt-0.5">
-                  Proposal Competition Mechanic Evaluation
-                </h3>
-              </div>
-              <span className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-[#CCD1C7]">
-                Evaluates if competition produces better proposals
-              </span>
-            </div>
-
-            <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden text-xs">
-              {competitionStats.map((item, i) => (
-                <div key={i} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-gray-800">{item.ref}</span>
-                      <h4 className="font-bold text-sm text-[#102027]">{item.title}</h4>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-600 font-mono text-[11px]">
-                      <span>Proposals: <strong>{item.proposalsCount}</strong></span>
-                      <span>·</span>
-                      <span>Score Spread: <strong>{item.scoreSpread}</strong></span>
-                      <span>·</span>
-                      <span>Lead Changes: <strong>{item.leadChanges}</strong></span>
-                      <span>·</span>
-                      <span>Window Duration: <strong>{item.windowDuration}</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
-                      {item.winnerStatus}
-                    </span>
-                    <Link
-                      href={`/admin/challenges/${item.ref}`}
-                      className="text-xs font-mono font-bold text-[#2E7180] hover:underline flex items-center gap-1"
-                    >
-                      Whole Life <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* SECTION 3: QUIET PROJECTS MONITOR */}
-          {/* ========================================================================= */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                <h3 className="text-base font-extrabold text-[#102027]">
-                  Quiet Projects (Update Overdue Against Locked Stage Plan)
-                </h3>
-              </div>
-              <span className="text-xs font-mono text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded font-bold">
-                {quietProjects.length} Project Alert
-              </span>
-            </div>
-
-            <div className="divide-y divide-amber-100 border border-amber-200 rounded-xl overflow-hidden text-xs bg-amber-50/40">
-              {quietProjects.map((qp, i) => (
-                <div key={i} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-gray-800">{qp.ref}</span>
-                      <h4 className="font-bold text-sm text-[#102027]">{qp.title}</h4>
-                      <span className="text-xs font-mono text-red-700 bg-red-100 px-2 py-0.5 rounded font-bold">
-                        {qp.overdueDays} days overdue
+            {/* ---- districts ---------------------------------------- */}
+            <Panel
+              title="By district"
+              lede="Volume, not need. A district with more problems on the list may simply have more people reporting."
+            >
+              <div className="scroll-x">
+                <div className="grid min-w-[560px] grid-cols-2 gap-x-8 gap-y-2.5 sm:grid-cols-3">
+                  {districts.map(([name, count]) => (
+                    <div key={name} className="flex items-center gap-3">
+                      <span className="mono w-[52px] flex-none text-right text-[12px] font-semibold text-ink">
+                        {num(count)}
+                      </span>
+                      <span className="flex-1">
+                        <Meter
+                          value={count}
+                          max={districts[0]?.[1] ?? 1}
+                          height={6}
+                        />
+                      </span>
+                      <span className="w-[130px] flex-none truncate text-[12.5px] text-body">
+                        {name}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-600 font-mono">
-                      Lead: <strong>{qp.leadOrg}</strong> · Expected Milestone: <strong>{qp.expectedStage}</strong> · {qp.district}
-                    </p>
-                  </div>
-
-                  <Link
-                    href={`/admin/challenges/${qp.ref}`}
-                    className="touch-target px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-1 shrink-0"
-                  >
-                    <span>Trigger Reminder</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* SECTION 4: ORG AND USER ADMINISTRATION */}
-          {/* ========================================================================= */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                  Governance & Access Control
-                </span>
-                <h3 className="text-base font-extrabold text-[#102027] mt-0.5">
-                  Organization & Stakeholder Administration
-                </h3>
               </div>
-              <span className="text-xs font-mono text-gray-500">Every Action Logged</span>
-            </div>
+            </Panel>
 
-            {auditLogNotice && (
-              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-mono text-emerald-900 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{auditLogNotice}</span>
-              </div>
-            )}
+            {/* ---- what is not running ------------------------------ */}
+            <Panel
+              title="What this deployment can and cannot do"
+              lede="Read live from the service. Missing capabilities are named, not hidden."
+            >
+              {health.loading && !health.settled ? (
+                <SkeletonRows rows={2} height={64} />
+              ) : health.error ? (
+                <ErrorNote message={health.error} code={health.code} onRetry={health.reload} />
+              ) : health.data ? (
+                <>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <Capability
+                      on={health.data.database.connected}
+                      label="Database"
+                      detail={`${num(health.data.database.challenges)} challenges · ${num(health.data.database.regions)} regions`}
+                    />
+                    <Capability
+                      on={health.data.ai.enabled}
+                      label="Compiler and scoring"
+                      detail={`${health.data.ai.provider} · ${health.data.ai.gemini_keys_count} keys · ${health.data.ai.model_cascade.length}-model cascade`}
+                    />
+                    <Capability
+                      on={health.data.ai.speech_to_text}
+                      label="Voice transcription"
+                      detail={
+                        health.data.ai.speech_to_text
+                          ? "Whisper, with silence refused rather than invented"
+                          : "No key: voice reports are refused, not guessed at"
+                      }
+                    />
+                    <Capability
+                      on={health.data.ai.remote_embeddings}
+                      label="Semantic deduplication"
+                      detail={
+                        health.data.ai.remote_embeddings
+                          ? "Embeddings from the model"
+                          : "Falling back to lexical matching, so near-duplicates in different words may be missed"
+                      }
+                    />
+                    <Capability
+                      on={health.data.sms.inbound_secret_set}
+                      label="SMS in"
+                      detail={
+                        health.data.sms.inbound_secret_set
+                          ? "Gateway secret set"
+                          : "No secret: inbound SMS is rejected"
+                      }
+                    />
+                    <Capability
+                      on={health.data.sms.outbound_gateway}
+                      label="SMS out"
+                      detail={
+                        health.data.sms.outbound_gateway
+                          ? `Sending from ${health.data.sms.number ?? "the configured number"}`
+                          : "No gateway: nobody is notified by SMS yet"
+                      }
+                    />
+                  </div>
+                  <div className="mono mt-4 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.1em] text-mute">
+                    <span>health check {health.data.ms} ms</span>
+                    {health.data.demo.role_switcher && (
+                      <Tag>demo role switcher enabled</Tag>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </Panel>
 
-            {/* Create Org Form */}
-            <form onSubmit={handleCreateOrg} className="p-3.5 bg-gray-50 rounded-xl border border-[#CCD1C7] flex flex-col sm:flex-row gap-2 items-center text-xs">
-              <span className="font-mono font-bold text-gray-700 shrink-0">Register Organization:</span>
-              <input
-                type="text"
-                value={newOrgName}
-                onChange={(e) => setNewOrgName(e.target.value)}
-                placeholder="e.g., Central University of Jharkhand (CUJ) Renewable Lab"
-                className="flex-1 px-3 py-1.5 rounded-lg border border-[#CCD1C7] bg-white font-semibold"
-              />
-              <select
-                value={newOrgDistrict}
-                onChange={(e) => setNewOrgDistrict(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg border border-[#CCD1C7] bg-white font-mono"
-              >
-                <option value="Ranchi">Ranchi</option>
-                <option value="Dhanbad">Dhanbad</option>
-                <option value="Gumla">Gumla</option>
-                <option value="Sahebganj">Sahebganj</option>
-              </select>
-              <button
-                type="submit"
-                className="touch-target px-4 py-1.5 bg-[#2E7180] text-white rounded-lg font-mono font-bold hover:bg-[#245A66] transition shrink-0"
-              >
-                Register & Audit Log
-              </button>
-            </form>
-
-            {/* Existing Orgs List */}
-            <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden text-xs">
-              {orgs.map((org) => (
-                <div key={org.id} className="p-3 bg-white flex items-center justify-between gap-3">
+            {Object.keys(m.sla ?? {}).length === 0 && (
+              <Card depth="in" className="p-5">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 text-mute">
+                    <Icon name="clock" size={17} />
+                  </span>
                   <div>
-                    <span className="font-bold text-gray-900">{org.name}</span>
-                    <div className="text-[11px] font-mono text-gray-500">
-                      {org.type} · {org.district} District
+                    <h3 className="text-[14.5px] font-bold text-navy-dark">
+                      Stage timings are not summarised here
+                    </h3>
+                    <div className="mt-2">
+                      <NotMeasured
+                        what="SLA attainment"
+                        why="this endpoint returns it empty; the full per-stage breakdown is on the SLA page, computed from the timing table directly"
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ButtonLink href="/admin/sla" variant="secondary" size="sm" icon="clock">
+                        Open SLA &amp; timings
+                      </ButtonLink>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
-                        org.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {org.status}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleSuspend(org.id)}
-                      className="touch-target px-2.5 py-1 text-xs font-mono font-bold text-gray-600 hover:text-red-700 hover:bg-red-50 rounded border border-gray-300"
-                    >
-                      {org.status === 'active' ? 'Suspend' : 'Reactivate'}
-                    </button>
-                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </main>
+              </Card>
+            )}
+          </>
+        )}
+      </Main>
+    </>
+  );
+}
+
+function Capability({
+  on,
+  label,
+  detail,
+}: {
+  on: boolean;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <div className={`${on ? "up-s" : "in-s"} flex items-start gap-3 p-3.5`}>
+      <span className={`mt-0.5 flex-none ${on ? "text-teal-ink" : "text-alert-ink"}`}>
+        <Icon name={on ? "check" : "x"} size={15} />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[13.5px] font-bold text-ink">{label}</div>
+        <p className="mt-0.5 text-[12px] leading-relaxed text-body">{detail}</p>
       </div>
-    </RouteGuard>
+    </div>
   );
 }

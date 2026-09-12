@@ -1,117 +1,493 @@
 @import "tailwindcss";
 
-:root {
-  --ground: #F4F6F5;
-  --ink: #102027;
-  --line: #CCD1C7;
-  --teal: #2E7180;
-  --teal-dark: #245A66;
-  --critical: #D94F45;
-  --critical-text: #A8332A;
-  --high: #E07B2E;
-  --high-text: #9A4A12;
-  --moderate: #E5A83B;
-  --moderate-text: #8A5A00;
-  --longterm: #3867A6;
-  --resolved: #3E8064;
-  --resolved-text: #2F6B52;
-}
+/* ===========================================================================
+   JharSetu — soft UI, hard contrast.
+
+   The palette, type and structure come from the government design system:
+   navy #164B7A carries every action, Mukta + IBM Plex Mono, a 1200px shell,
+   the government identity strip above the app bar. What differs is the
+   surface: flat cards with 1px borders are replaced by extruded and inset
+   forms on a single #E6EBF2 ground, lit from the top left.
+
+   ONE DELIBERATE DEPARTURE FROM TEXTBOOK NEUMORPHISM: primary actions are not
+   soft. They are solid navy with white text. Soft UI's weakness is that
+   everything looks equally pressable, which on a disaster platform used
+   one-handed in monsoon light is a safety problem, not a style choice. So the
+   one thing a user must find is the one thing with real contrast.
+   =========================================================================== */
 
 @theme {
-  --color-ground: #F4F6F5;
-  --color-ink: #102027;
-  --color-line: #CCD1C7;
-  --color-brand-teal: #2E7180;
-  --color-brand-teal-dark: #245A66;
-  --color-critical: #D94F45;
-  --color-critical-text: #A8332A;
-  --color-high: #E07B2E;
-  --color-high-text: #9A4A12;
-  --color-moderate: #E5A83B;
-  --color-moderate-text: #8A5A00;
-  --color-longterm: #3867A6;
-  --color-resolved: #3E8064;
-  --color-resolved-text: #2F6B52;
-  --font-mukta: var(--font-mukta), sans-serif;
-  --font-mono: var(--font-ibm-mono), monospace;
+  /* The single surface colour, and the two lights that shape it. */
+  --color-ground: #e6ebf2;
+  --color-ground-sunk: #dfe5ee;
+  --color-shade: #c5cfdc;
+  --color-shade-deep: #c0cad8;
+  --color-lift: #ffffff;
+
+  /* Ink. Body text is 6.4:1 on the ground; mute is for labels, never prose. */
+  --color-navy: #164b7a;
+  --color-navy-dark: #0b2a4a;
+  --color-navy-pale: #c7ddec;
+  --color-ink: #14263a;
+  --color-body: #3e5470;
+  --color-mute: #6e8098;
+  --color-hair: #d3dbe6;
+
+  /* Severity bands, re-stepped for colourblind separation. Each one always
+     travels with its word — see <Band> in components/ui/Chip.tsx. */
+  --color-critical: #6842a6;
+  --color-critical-ink: #4e3080;
+  --color-high: #d9a514;
+  --color-high-ink: #8a6a0a;
+  --color-moderate: #256fa8;
+  --color-moderate-ink: #1b5580;
+  --color-long: #42bcbc;
+  --color-long-ink: #1f7f80;
+
+  /* Confirmed / delivered, and refused / breached / silent. */
+  --color-teal: #0b969b;
+  --color-teal-ink: #1f7f80;
+  --color-alert: #c0392b;
+  --color-alert-ink: #9b2c2c;
+
+  --font-sans: var(--font-mukta), Mukta, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
 
-body {
-  background-color: #F4F6F5;
-  color: #102027;
-  font-family: var(--font-mukta), system-ui, -apple-system, sans-serif;
-  margin: 0;
-  padding: 0;
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  :root {
+    /* The design commits to one look: a government service read outdoors in
+       daylight. There is no dark variant to fall back to. */
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  a {
+    color: var(--color-navy);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-navy-dark);
+  }
+
+  /* Focus is never removed. A soft button with no ring is invisible to a
+     keyboard, which is exactly the failure mode neumorphism invites. */
+  :focus-visible {
+    outline: 3px solid var(--color-navy);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: #c7ddec;
+    color: var(--color-navy-dark);
+  }
+
+  /* Inset wells scroll often; keep the scrollbar in the palette. */
+  * {
+    scrollbar-color: var(--color-shade) transparent;
+    scrollbar-width: thin;
+  }
 }
 
-/* Custom scrollbars, animations and accessibility utilities */
-* {
-  box-sizing: border-box;
+@layer components {
+  /* ---- structure ------------------------------------------------------- */
+  .shell {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: 20px;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum" 1;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-mute);
+  }
+
+  /* ---- the three surfaces --------------------------------------------- */
+
+  /* Raised: the object sits above the ground. Cards, chips, nav pills. */
+  .up {
+    background: var(--color-ground);
+    border-radius: 18px;
+    box-shadow:
+      7px 7px 14px var(--color-shade),
+      -7px -7px 14px var(--color-lift);
+  }
+
+  .up-s {
+    background: var(--color-ground);
+    border-radius: 12px;
+    box-shadow:
+      4px 4px 9px var(--color-shade),
+      -4px -4px 9px var(--color-lift);
+  }
+
+  /* Inset: the ground is carved into. Inputs, wells, progress tracks. */
+  .in {
+    background: var(--color-ground);
+    border-radius: 16px;
+    box-shadow:
+      inset 5px 5px 10px var(--color-shade),
+      inset -5px -5px 10px var(--color-lift);
+  }
+
+  .in-s {
+    background: var(--color-ground);
+    border-radius: 10px;
+    box-shadow:
+      inset 3px 3px 7px var(--color-shade),
+      inset -3px -3px 7px var(--color-lift);
+  }
+
+  /* Pressed: a raised thing being used. Selected tabs, active filters. */
+  .press {
+    background: var(--color-ground-sunk);
+    border-radius: 12px;
+    box-shadow:
+      inset 3px 3px 7px var(--color-shade-deep),
+      inset -2px -2px 6px var(--color-lift);
+  }
+
+  /* A raised card that is also a link. It lifts on hover and sinks when held,
+     which is the only motion in the system. */
+  .up-hit {
+    transition:
+      box-shadow 140ms ease,
+      transform 140ms ease;
+  }
+
+  .up-hit:hover {
+    box-shadow:
+      9px 9px 18px var(--color-shade),
+      -9px -9px 18px var(--color-lift);
+  }
+
+  .up-hit:active {
+    background: var(--color-ground-sunk);
+    box-shadow:
+      inset 4px 4px 9px var(--color-shade-deep),
+      inset -3px -3px 8px var(--color-lift);
+  }
+
+  /* ---- actions --------------------------------------------------------- */
+
+  /* Primary. Solid navy on white, 7.8:1. Deliberately not soft. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 44px;
+    padding: 0 20px;
+    background: var(--color-navy);
+    color: #fff;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    box-shadow:
+      5px 5px 11px var(--color-shade),
+      -4px -4px 10px var(--color-lift);
+    transition:
+      background 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: var(--color-navy-dark);
+  }
+
+  .btn:active:not(:disabled) {
+    box-shadow:
+      inset 3px 3px 8px #0a2f4f,
+      inset -2px -2px 6px #2a6699;
+  }
+
+  /* Secondary. Raised, navy text. */
+  .btn-2 {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 18px;
+    background: var(--color-ground);
+    color: var(--color-navy);
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow:
+      4px 4px 9px var(--color-shade),
+      -4px -4px 9px var(--color-lift);
+    transition: box-shadow 140ms ease;
+  }
+
+  .btn-2:hover:not(:disabled) {
+    box-shadow:
+      6px 6px 12px var(--color-shade),
+      -6px -6px 12px var(--color-lift);
+  }
+
+  .btn-2:active:not(:disabled) {
+    background: var(--color-ground-sunk);
+    box-shadow:
+      inset 3px 3px 7px var(--color-shade-deep),
+      inset -2px -2px 6px var(--color-lift);
+  }
+
+  /* Destructive. Raised with red text, never filled red — a filled red
+     button in a queue of soft cards reads as the primary action. */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 18px;
+    background: var(--color-ground);
+    color: var(--color-alert-ink);
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow:
+      4px 4px 9px var(--color-shade),
+      -4px -4px 9px var(--color-lift);
+    transition: box-shadow 140ms ease;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    box-shadow:
+      6px 6px 12px var(--color-shade),
+      -6px -6px 12px var(--color-lift);
+  }
+
+  /* Unavailable is said plainly: sunk, dimmed, and never hidden. */
+  .btn:disabled,
+  .btn-2:disabled,
+  .btn-danger:disabled {
+    background: var(--color-ground);
+    color: var(--color-mute);
+    cursor: not-allowed;
+    opacity: 0.75;
+    box-shadow:
+      inset 3px 3px 7px var(--color-shade),
+      inset -3px -3px 7px var(--color-lift);
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  /* ---- status ---------------------------------------------------------- */
+
+  /* Colour never speaks alone: a chip is always a dot plus a word. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--color-ground);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    box-shadow:
+      inset 2px 2px 5px var(--color-shade),
+      inset -2px -2px 5px var(--color-lift);
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    flex: none;
+  }
+
+  /* ---- form controls --------------------------------------------------- */
+
+  .field {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 15px;
+    background: var(--color-ground);
+    color: var(--color-ink);
+    border: 0;
+    border-radius: 12px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    box-shadow:
+      inset 4px 4px 9px var(--color-shade),
+      inset -4px -4px 9px var(--color-lift);
+  }
+
+  .field::placeholder {
+    color: var(--color-mute);
+  }
+
+  .field:focus {
+    outline: 3px solid var(--color-navy);
+    outline-offset: 2px;
+  }
+
+  select.field {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, #6e8098 50%),
+      linear-gradient(135deg, #6e8098 50%, transparent 50%);
+    background-position:
+      calc(100% - 19px) calc(50% + 1px),
+      calc(100% - 14px) calc(50% + 1px);
+    background-size:
+      5px 5px,
+      5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 36px;
+  }
+
+  textarea.field {
+    resize: vertical;
+    min-height: 120px;
+  }
+
+  /* ---- data ------------------------------------------------------------ */
+
+  /* An inset track with a raised fill: the bar looks poured into the ground. */
+  .track {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-ground);
+    box-shadow:
+      inset 3px 3px 6px var(--color-shade),
+      inset -2px -2px 5px var(--color-lift);
+    overflow: hidden;
+  }
+
+  .track-fill {
+    height: 100%;
+    border-radius: 999px;
+    box-shadow: 2px 2px 4px rgba(11, 42, 74, 0.16);
+    transition: width 400ms ease;
+  }
+
+  /* Wide content — tables, timelines, code — scrolls inside its own box.
+     The page body never scrolls sideways. */
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .hairline {
+    border-top: 1px solid var(--color-hair);
+  }
+
+  /* ---- loading --------------------------------------------------------- */
+
+  .skeleton {
+    background: var(--color-ground);
+    border-radius: 12px;
+    box-shadow:
+      inset 3px 3px 7px var(--color-shade),
+      inset -3px -3px 7px var(--color-lift);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    transform: translateX(-100%);
+    animation: sheen 1.4s ease-in-out infinite;
+  }
 }
 
-/* Accessibility: 44px touch targets */
-.touch-target {
-  min-height: 44px;
-  min-width: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Sohrai mural border accents (Peace Mode) */
-.sohrai-border {
-  border-image: repeating-linear-gradient(45deg, #2E7180, #2E7180 8px, #CCD1C7 8px, #CCD1C7 16px) 1;
+@keyframes sheen {
+  to {
+    transform: translateX(100%);
+  }
 }
 
-.sohrai-strip {
-  background: repeating-linear-gradient(
-    -45deg,
-    #2E7180 0,
-    #2E7180 4px,
-    transparent 4px,
-    transparent 12px
-  );
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .skeleton::after {
+    animation: none;
+  }
+
+  .up-hit,
+  .btn,
+  .btn-2,
+  .btn-danger,
+  .track-fill {
+    transition: none;
+  }
 }
 
-/* Khovar scratch texture (Crisis Mode) */
-.khovar-scratched {
-  background-color: #102027;
-  background-image: radial-gradient(#D94F45 0.75px, transparent 0.75px), radial-gradient(#CCD1C7 0.75px, #102027 0.75px);
-  background-size: 30px 30px;
-  background-position: 0 0, 15px 15px;
-}
+/* Print the brief, not the chrome: a coordinator takes paper to a block
+   meeting where there is no signal. */
+@media print {
+  body {
+    background: #fff;
+  }
 
-/* AI Attribution Badge */
-.ai-provenance-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-family: var(--font-ibm-mono), monospace;
-  font-size: 0.65rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: rgba(46, 113, 128, 0.12);
-  color: #245A66;
-  border: 1px solid rgba(46, 113, 128, 0.25);
-  border-radius: 9999px;
-  padding: 0.1rem 0.45rem;
-  font-weight: 700;
-}
+  .no-print {
+    display: none !important;
+  }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  .up,
+  .up-s,
+  .in,
+  .in-s,
+  .press {
+    box-shadow: none !important;
+    border: 1px solid #b9c5d4 !important;
+    border-radius: 6px !important;
+  }
 }
-::-webkit-scrollbar-track {
-  background: #F4F6F5;
-}
-::-webkit-scrollbar-thumb {
-  background: #CCD1C7;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #2E7180;
-}
-

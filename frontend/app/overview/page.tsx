@@ -1,330 +1,420 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
-import { 
-  AlertTriangle, 
-  Shield, 
-  Building2, 
-  GraduationCap, 
-  Users, 
-  MapPin, 
-  Filter, 
-  CheckCircle2, 
-  Radio, 
-  Activity, 
-  ArrowRight,
-  Zap,
-  PhoneCall,
-  Flame,
-  Droplets,
-  BookOpen,
-  Wheat,
-  EyeOff,
-  Clock,
-  Sparkles
-} from 'lucide-react';
-import { 
-  SEED_CHALLENGES, 
-  SEED_REGIONS, 
-  SEED_ORGANIZATIONS, 
-  SEED_REPORTS 
-} from '@/data/seedData';
-import { Category, Challenge, PriorityBand, UserRole } from '@/types/database';
-import { fetchChallenges, fetchSilentZones, verifyLedger, fetchDashboardMetrics } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { RoleNav } from '@/components/shell/RoleNav';
+import React, { useMemo } from "react";
+import { RouteGuard } from "@/components/shell/RouteGuard";
+import { Main, PageHead } from "@/components/shell/PageHead";
+import { Card, Meter, Panel, Stat } from "@/components/ui/Surface";
+import { Chip, Tag } from "@/components/ui/Chip";
+import { ErrorNote, NotMeasured, SkeletonRows, SkeletonStats } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
+import * as apiClient from "@/lib/api";
+import { useResource } from "@/lib/useResource";
+import { CATEGORY_LABEL, STATUS_LABEL, dateOnly, hours, humanise, num, pct } from "@/lib/format";
 
+/**
+ * Impact.
+ *
+ * The rule that governs this page: a headline figure with a sample size of
+ * zero is not rendered as a number. It prints an em dash and the sentence
+ * explaining what is missing, because "median time to team formed: 0 minutes"
+ * is a lie that looks like an achievement.
+ */
 export default function OverviewPage() {
-  const [challenges, setChallenges] = useState<Challenge[]>(SEED_CHALLENGES);
-  const [isLive, setIsLive] = useState<boolean>(false);
-  const [selectedRegionId, setSelectedRegionId] = useState<string>('jharkhand');
-  const { role: activeRole } = useAuth();
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [districtFilter, setDistrictFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isCrisisMode, setIsCrisisMode] = useState<boolean>(false);
-  const [metricsData, setMetricsData] = useState<any>(null);
-  const [ledgerStatus, setLedgerStatus] = useState<{ ok: boolean; entries_checked?: number; explanation?: string } | null>(null);
-  const [silentZonesData, setSilentZonesData] = useState<any>(null);
+  return (
+    <RouteGuard>
+      <Overview />
+    </RouteGuard>
+  );
+}
 
-  const silentZones = useMemo(() => {
-    const zones = silentZonesData?.silent_zones;
-    if (!Array.isArray(zones)) return [];
-    return [...zones]
-      .sort((a, b) => (b.intensity - a.intensity) || (b.expected_reports - a.expected_reports))
-      .slice(0, 3);
-  }, [silentZonesData]);
-  const [showSilentZones, setShowSilentZones] = useState<boolean>(false);
+const FUNNEL: { key: string; label: string }[] = [
+  { key: "reported", label: "Reported" },
+  { key: "refined", label: "Compiled" },
+  { key: "verified", label: "Verified" },
+  { key: "team_formed", label: "Team formed" },
+  { key: "piloted", label: "Piloted" },
+  { key: "deployed", label: "Deployed" },
+  { key: "impact_verified", label: "Impact verified" },
+];
 
-  const availableDistricts = useMemo(() => {
-    if (selectedRegionId === 'rajkot') return ['Rajkot'];
-    return ['Gumla', 'Sahebganj', 'Dhanbad', 'Palamu', 'Ranchi'];
-  }, [selectedRegionId]);
+function Overview() {
+  const res = useResource(() => apiClient.fetchDashboardMetrics(), []);
+  const d = res.data;
 
-  const filteredChallenges = useMemo(() => {
-    return challenges.filter(c => {
-      if (c.region_id !== selectedRegionId) return false;
-      if (isCrisisMode && c.mode !== 'crisis') return false;
-      if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
-      if (districtFilter !== 'all' && c.district.toLowerCase() !== districtFilter.toLowerCase()) return false;
-      if (priorityFilter !== 'all' && c.priority_band !== priorityFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          c.title.toLowerCase().includes(q) ||
-          c.problem.toLowerCase().includes(q) ||
-          c.district.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [challenges, selectedRegionId, isCrisisMode, categoryFilter, districtFilter, priorityFilter, searchQuery]);
+  const funnel = useMemo(() => {
+    if (!d?.funnel) return [];
+    const top = d.funnel.reported ?? 1;
+    return FUNNEL.filter((f) => d.funnel[f.key] !== undefined).map((f) => ({
+      ...f,
+      value: d.funnel[f.key] as number,
+      share: top > 0 ? ((d.funnel[f.key] as number) / top) * 100 : 0,
+    }));
+  }, [d]);
 
-  const stats = useMemo(() => {
-    const regionChallenges = challenges.filter(c => c.region_id === selectedRegionId);
-    const criticalCount = regionChallenges.filter(c => c.priority >= 75).length;
-    const orgCount = SEED_ORGANIZATIONS.filter(o => o.region_id === selectedRegionId).length;
-    const deployedCount = regionChallenges.filter(c => ['PILOT', 'DEPLOYED', 'IMPACT_VERIFIED'].includes(c.status)).length;
-    const peopleReached = regionChallenges.reduce((acc, c) => acc + c.people_est, 0);
+  const categories = useMemo(
+    () =>
+      d?.by_category
+        ? Object.entries(d.by_category as Record<string, number>).sort((a, b) => b[1] - a[1])
+        : [],
+    [d],
+  );
 
-    return {
-      total: regionChallenges.length,
-      critical: criticalCount,
-      orgs: orgCount || 7,
-      deployed: deployedCount,
-      people: peopleReached ? peopleReached.toLocaleString() : '—',
-      reports: regionChallenges.reduce((acc, c) => acc + (c.report_count || 0), 0)
-        || SEED_REPORTS.filter(r => r.region_id === selectedRegionId).length
-        || 25
-    };
-  }, [challenges, selectedRegionId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [res, metricsRes, ledgerRes, zonesRes] = await Promise.allSettled([
-          fetchChallenges(selectedRegionId, 500),
-          fetchDashboardMetrics(selectedRegionId),
-          verifyLedger(),
-          fetchSilentZones(selectedRegionId),
-        ]);
-        let customList: any[] = [];
-        try {
-          const saved = localStorage.getItem('jharsetu_custom_challenges');
-          if (saved) customList = JSON.parse(saved);
-        } catch {}
-
-        if (res.status === 'fulfilled' && res.value.data && res.value.data.length > 0) {
-          setChallenges([...customList, ...res.value.data]);
-          setIsLive(true);
-        } else if (customList.length > 0) {
-          setChallenges([...customList, ...SEED_CHALLENGES]);
-        }
-        if (metricsRes.status === 'fulfilled' && metricsRes.value) {
-          setMetricsData(metricsRes.value);
-        }
-        if (ledgerRes.status === 'fulfilled' && ledgerRes.value) {
-          setLedgerStatus(ledgerRes.value);
-        }
-        if (zonesRes.status === 'fulfilled' && zonesRes.value) {
-          setSilentZonesData(zonesRes.value);
-        }
-      } catch {
-        // preserve state
-      }
-    };
-    load();
-    const t = setInterval(load, 25000);
-    return () => { cancelled = true; clearInterval(t); };
-  }, [selectedRegionId]);
-
-  const getPriorityBadge = (priority: number, band: PriorityBand) => {
-    if (priority >= 75) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#D94F45]/15 text-[#A8332A] border border-[#D94F45]/30">
-          <span className="w-2 h-2 rounded-full bg-[#D94F45] animate-pulse"></span>
-          PRIORITY {priority} · CRITICAL
-        </span>
-      );
-    }
-    if (priority >= 50) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-[#E07B2E]/15 text-[#9A4A12] border border-[#E07B2E]/30">
-          PRIORITY {priority} · HIGH
-        </span>
-      );
-    }
-    if (priority >= 25) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-[#E5A83B]/15 text-[#8A5A00] border border-[#E5A83B]/30">
-          PRIORITY {priority} · MODERATE
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-[#3867A6]/15 text-[#3867A6] border border-[#3867A6]/30">
-        PRIORITY {priority} · LONG-TERM
-      </span>
-    );
-  };
-
-  const getCategoryIcon = (category: Category) => {
-    switch (category) {
-      case 'disaster': return <Zap className="w-3.5 h-3.5 text-[#D94F45]" />;
-      case 'water': return <Droplets className="w-3.5 h-3.5 text-[#2E7180]" />;
-      case 'education': return <BookOpen className="w-3.5 h-3.5 text-[#3867A6]" />;
-      case 'agriculture': return <Wheat className="w-3.5 h-3.5 text-[#E07B2E]" />;
-      case 'health': return <Activity className="w-3.5 h-3.5 text-[#D94F45]" />;
-      default: return <AlertTriangle className="w-3.5 h-3.5 text-[#2E7180]" />;
-    }
-  };
+  const sampleZero = (d?.headline?.sample_size ?? 0) === 0;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F5] text-[#102027]">
-      <RoleNav 
-        isCrisisMode={isCrisisMode}
-        onToggleCrisisMode={() => setIsCrisisMode(!isCrisisMode)}
-        selectedRegion={selectedRegionId}
-        onSelectRegion={(reg) => {
-          setSelectedRegionId(reg);
-          setDistrictFilter('all');
-        }}
+    <>
+      <PageHead
+        eyebrow="District officer"
+        title="Impact"
+        lede="What the platform has actually moved, and what it cannot measure yet. Figures with no sample behind them are shown as blank with a reason, never as a zero."
+        right={
+          d?.simulated ? <Chip tone="neutral">Includes seeded rows</Chip> : undefined
+        }
       />
 
-      {/* Hero Header */}
-      <section className="bg-white border-b border-[#CCD1C7] py-6 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                Full Statewide Directory · All Categories
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#102027] mt-1">
-                Jharkhand Societal Challenge Exchange
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-600 mt-1 max-w-2xl">
-                Communities raise it. Campuses solve it. Industry scales it. Every university becomes the R&D department of its district.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowSilentZones(!showSilentZones)}
-                className={`touch-target px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition ${
-                  showSilentZones
-                    ? 'bg-[#102027] text-white border-gray-900'
-                    : 'bg-white text-[#2E7180] border-[#2E7180] hover:bg-teal-50'
-                }`}
-              >
-                <EyeOff className="w-3.5 h-3.5 mr-1" />
-                {showSilentZones ? 'Hide Silent Zones' : 'Silent Zones'}
-              </button>
-            </div>
-          </div>
-
-          {/* Cryptographic Ledger Banner */}
-          <div className="mt-4 p-3 bg-emerald-50/70 border border-emerald-300/60 rounded-xl text-xs text-emerald-900 font-mono flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-              <span>{ledgerStatus?.explanation || "Cryptographic Impact Ledger: All entries recompute to their stored SHA-256 hashes."}</span>
-            </div>
-            <span className="text-[10px] text-emerald-800 bg-white/80 px-2 py-0.5 rounded border border-emerald-200">
-              TAMPER-EVIDENT
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* Main List */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-5">
-        {/* Filter bar */}
-        <div className="bg-white p-3 rounded-xl border border-[#CCD1C7] flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-gray-500 font-bold">Filters:</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-[#F4F6F5] px-2.5 py-1.5 rounded border border-[#CCD1C7] font-semibold"
-            >
-              <option value="all">All Categories</option>
-              <option value="disaster">Disaster & Safety</option>
-              <option value="water">Drinking Water</option>
-              <option value="agriculture">Agriculture & Drought</option>
-              <option value="health">Health Facilities</option>
-              <option value="education">Education</option>
-            </select>
-
-            <select
-              value={districtFilter}
-              onChange={(e) => setDistrictFilter(e.target.value)}
-              className="bg-[#F4F6F5] px-2.5 py-1.5 rounded border border-[#CCD1C7] font-semibold"
-            >
-              <option value="all">All Districts</option>
-              {availableDistricts.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="text-xs font-mono text-gray-500">
-            Showing <strong>{filteredChallenges.length}</strong> problems
-          </div>
-        </div>
-
-        {/* Challenges Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredChallenges.map((c) => (
-            <div
-              key={c.id}
-              className="bg-white border border-[#CCD1C7] rounded-xl p-4 flex flex-col justify-between hover:border-[#2E7180] transition shadow-xs group"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-[11px] font-mono text-gray-400 font-bold">
-                    {c.ref || c.id}
-                  </span>
-                  {getPriorityBadge(c.priority, c.priority_band)}
+      <Main>
+        {res.loading && !res.settled ? (
+          <>
+            <SkeletonStats />
+            <SkeletonRows rows={3} height={200} />
+          </>
+        ) : res.error ? (
+          <ErrorNote message={res.error} code={res.code} onRetry={res.reload} />
+        ) : !d ? null : (
+          <>
+            {/* ---- headline, honestly ------------------------------------ */}
+            <div className="grid gap-3 lg:grid-cols-4">
+              <Card className="p-5">
+                <div className="mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                  Report to a team on it
                 </div>
-
-                <h3 className="font-bold text-sm text-[#102027] group-hover:text-[#2E7180] transition line-clamp-2">
-                  {c.title}
-                </h3>
-
-                <p className="text-xs text-gray-600 mt-2 line-clamp-3 leading-relaxed">
-                  {c.problem}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-2 mt-3 text-[11px] font-mono text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-[#2E7180]" />
-                    {c.district}
-                  </span>
-                  <span>·</span>
-                  <span>{c.people_est ? `${c.people_est.toLocaleString()} people` : '—'}</span>
-                  <span>·</span>
-                  <span className="capitalize">{c.status.replace('_', ' ')}</span>
+                <div className="mt-2">
+                  {d.headline?.median_hours_to_team_formed === null ||
+                  d.headline?.median_hours_to_team_formed === undefined ? (
+                    <NotMeasured
+                      what="Median time to a team"
+                      why={
+                        sampleZero
+                          ? "no challenge has both a report timestamp and a team-formed timestamp yet"
+                          : "the sample is too small to take a median"
+                      }
+                    />
+                  ) : (
+                    <>
+                      <div className="mono text-[26px] font-semibold leading-none text-ink">
+                        {hours(d.headline.median_hours_to_team_formed)}
+                      </div>
+                      <div className="mt-1.5 text-[12.5px] text-body">
+                        median over {num(d.headline.sample_size)} challenges
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
+              </Card>
 
-              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-[10px] font-mono text-gray-400">
-                  {c.report_count || 1} ground reports
+              <Stat
+                label="Reached a pilot or deployment"
+                value={pct(d.headline?.pct_reaching_pilot_or_deployment)}
+                sub="Of everything on the register"
+              />
+              <Stat
+                label="University–industry pairs"
+                value={num(d.headline?.university_industry_collaborations)}
+                sub="A college and a company on the same challenge"
+                tone={
+                  (d.headline?.university_industry_collaborations ?? 0) > 0 ? "teal" : undefined
+                }
+              />
+              <Stat
+                label="Median time to resolution"
+                value={hours(d.speed?.median_hours_to_resolution)}
+                sub={
+                  d.speed?.median_hours_to_resolution
+                    ? "Report to the work being finished"
+                    : "Nothing resolved yet"
+                }
+              />
+            </div>
+
+            {d.data_warnings && Object.keys(d.data_warnings).length > 0 && (
+              <Card depth="in" className="flex items-start gap-3 p-4">
+                <span className="mt-px text-alert-ink">
+                  <Icon name="alert" size={16} />
                 </span>
-                <Link
-                  href={`/challenge/${c.ref || c.id}`}
-                  className="text-xs font-mono font-bold text-[#2E7180] hover:underline flex items-center gap-1"
-                >
-                  View Details <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
+                <div>
+                  <p className="text-[13px] leading-relaxed text-body">
+                    <strong className="text-ink">The data has known problems.</strong> These are
+                    printed rather than smoothed over, because a metric computed from a bad row is
+                    worse than a missing metric.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {Object.entries(d.data_warnings as Record<string, number>).map(([k, v]) => (
+                      <Tag key={k}>
+                        {humanise(k)}: {num(v)}
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* ---- the funnel ------------------------------------------- */}
+            <Panel
+              title="From a report to delivered work"
+              lede="Each stage as a share of everything reported. The steepest drop is where the platform is failing."
+            >
+              <ul className="flex flex-col gap-3.5">
+                {funnel.map((f, i) => {
+                  const prev = i > 0 ? funnel[i - 1].value : null;
+                  const drop = prev && prev > 0 ? 100 - (f.value / prev) * 100 : null;
+                  return (
+                    <li key={f.key}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-[13.5px] font-semibold text-ink">{f.label}</span>
+                        <div className="flex items-baseline gap-2.5">
+                          {drop !== null && drop > 50 && (
+                            <span className="mono text-[10px] font-semibold uppercase tracking-[0.08em] text-alert-ink">
+                              −{Math.round(drop)}% here
+                            </span>
+                          )}
+                          <span className="mono text-[12px] font-semibold text-navy">
+                            {num(f.value)}
+                          </span>
+                          <span className="mono text-[10.5px] text-mute">
+                            {pct(f.share)}
+                          </span>
+                        </div>
+                      </div>
+                      <Meter
+                        value={f.share}
+                        className="mt-1.5"
+                        height={9}
+                        colour={
+                          drop !== null && drop > 50
+                            ? "var(--color-alert)"
+                            : i >= 4
+                              ? "var(--color-teal)"
+                              : "var(--color-navy)"
+                        }
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              {/* ---- outcome --------------------------------------------- */}
+              <Panel
+                title="People"
+                lede="Counted from the estimates on the challenges that reached delivery."
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="up-s p-4">
+                    <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                      Served
+                    </div>
+                    <div className="mono mt-1.5 text-[22px] font-semibold text-teal-ink">
+                      {num(d.outcome?.people_served)}
+                    </div>
+                  </div>
+                  <div className="up-s p-4">
+                    <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                      Of whom vulnerable
+                    </div>
+                    <div className="mono mt-1.5 text-[22px] font-semibold text-ink">
+                      {num(d.outcome?.vulnerable_served)}
+                    </div>
+                  </div>
+                </div>
+                <div className="in mt-3 p-4">
+                  <div className="flex items-baseline justify-between">
+                    <span className="mono text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                      challenges with nothing pledged
+                    </span>
+                    <span className="mono text-[15px] font-semibold text-alert-ink">
+                      {num(d.outcome?.unmet_challenges)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[12.5px] leading-relaxed text-body">
+                    These are verified problems that no organisation has put anything against.
+                    They are the backlog the needs board exists to clear.
+                  </p>
+                </div>
+              </Panel>
+
+              {/* ---- quality --------------------------------------------- */}
+              <Panel
+                title="Evidence quality"
+                lede="How much of the register has been confirmed by somebody, and how much duplication the compiler caught."
+              >
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[13px] font-semibold text-ink">
+                        Verified by a person
+                      </span>
+                      <span className="mono text-[12px] font-semibold text-navy">
+                        {pct(d.quality?.pct_verified)}
+                      </span>
+                    </div>
+                    <Meter
+                      value={d.quality?.pct_verified ?? 0}
+                      className="mt-2"
+                      height={8}
+                      colour="var(--color-teal)"
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="in-s p-3.5">
+                      <div className="mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
+                        Community confirmed
+                      </div>
+                      <div className="mono mt-1 text-[17px] font-semibold text-ink">
+                        {num(d.quality?.community_confirmed)}
+                      </div>
+                    </div>
+                    <div className="in-s p-3.5">
+                      <div className="mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
+                        Duplicates merged
+                      </div>
+                      <div className="mono mt-1 text-[17px] font-semibold text-ink">
+                        {num(d.quality?.duplicates_merged)}
+                      </div>
+                    </div>
+                  </div>
+                  {(d.quality?.duplicates_merged ?? 0) === 0 && (
+                    <p className="text-[12.5px] leading-relaxed text-body">
+                      Nothing has been merged as a duplicate. With semantic embeddings unavailable
+                      on this deployment the deduplicator is matching lexically, so two reports of
+                      the same event in different words will be missed — that is a known gap, not
+                      evidence that no duplicates exist.
+                    </p>
+                  )}
+                </div>
+              </Panel>
             </div>
-          ))}
-        </div>
-      </main>
-    </div>
+
+            {/* ---- crisis ---------------------------------------------- */}
+            {d.crisis?.active > 0 && (
+              <Panel
+                title="Crisis mode"
+                lede="While a crisis is live, ranking switches from planning weights to response weights."
+              >
+                <ul className="flex flex-col gap-2.5">
+                  {(d.crisis.events as Record<string, unknown>[]).map((e) => (
+                    <li key={String(e.id)} className="up-s p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[14px] font-bold text-ink">
+                            {String(e.headline)}
+                          </div>
+                          <div className="mono mt-1 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                            {humanise(String(e.hazard))} · severity {String(e.severity)}/5 ·
+                            started {dateOnly(String(e.started_at))} · via{" "}
+                            {humanise(String(e.source))}
+                          </div>
+                        </div>
+                        <div className="flex flex-none flex-wrap items-center gap-2">
+                          {Boolean(e.is_drill) && <Chip tone="neutral">Drill</Chip>}
+                          {(e.districts as string[])?.slice(0, 3).map((x) => (
+                            <Tag key={x}>{x}</Tag>
+                          ))}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+
+            {/* ---- breakdown ------------------------------------------- */}
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Panel title="By category" lede="What kind of problem the state is dealing with.">
+                <ul className="flex flex-col gap-2.5">
+                  {categories.map(([cat, count]) => (
+                    <li key={cat}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[13px] text-body">
+                          {CATEGORY_LABEL[cat] ?? humanise(cat)}
+                        </span>
+                        <span className="mono text-[12px] font-semibold text-navy">
+                          {num(count)}
+                        </span>
+                      </div>
+                      <Meter
+                        value={count}
+                        max={categories[0]?.[1] ?? 1}
+                        height={6}
+                        className="mt-1.5"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+
+              <Panel
+                title="Organisations on the platform"
+                lede="Verified partners by type. An unverified organisation cannot be assigned work."
+              >
+                {d.organisations ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="up-s p-4">
+                        <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                          Total
+                        </div>
+                        <div className="mono mt-1.5 text-[22px] font-semibold text-ink">
+                          {num(d.organisations.total)}
+                        </div>
+                      </div>
+                      <div className="up-s p-4">
+                        <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                          Verified
+                        </div>
+                        <div className="mono mt-1.5 text-[22px] font-semibold text-teal-ink">
+                          {num(d.organisations.verified)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {Object.entries(
+                        (d.organisations.by_type ?? {}) as Record<string, number>,
+                      ).map(([t, n]) => (
+                        <Tag key={t}>
+                          {humanise(t)}: {num(n)}
+                        </Tag>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-[13px] leading-relaxed text-body">
+                    The organisation breakdown is not part of this response.
+                  </p>
+                )}
+              </Panel>
+            </div>
+
+            {d.by_status && (
+              <Panel title="Status of everything on the register" depth="in">
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(d.by_status as Record<string, number>)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([s, n]) => (
+                      <span
+                        key={s}
+                        className="up-s mono inline-flex items-center gap-2 px-3 py-2 text-[11px] text-body"
+                      >
+                        {STATUS_LABEL[s] ?? humanise(s)}
+                        <span className="font-semibold text-navy">{num(n)}</span>
+                      </span>
+                    ))}
+                </div>
+              </Panel>
+            )}
+          </>
+        )}
+      </Main>
+    </>
   );
 }

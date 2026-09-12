@@ -30,12 +30,13 @@ export type ConfidenceLevel =
 
 export type PriorityBand = 'critical' | 'high' | 'moderate' | 'long-term';
 
-export type UserRole = 
-  | 'citizen' 
-  | 'volunteer' 
-  | 'coordinator' 
-  | 'university' 
-  | 'industry' 
+export type UserRole =
+  | 'citizen'
+  | 'volunteer'
+  | 'verifier'      // desk role: reviews evidence and AI corroboration
+  | 'coordinator'
+  | 'university'
+  | 'industry'
   | 'admin';
 
 export type OrgType = 'univ' | 'company' | 'ngo' | 'govt' | 'volunteers';

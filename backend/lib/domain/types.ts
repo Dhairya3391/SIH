@@ -6,6 +6,9 @@
 export const USER_ROLES = [
   "citizen",
   "volunteer",
+  // A verifier is a desk role: reviews evidence and AI corroboration. That is
+  // a different job from a volunteer, who goes to the village and photographs it.
+  "verifier",
   "coordinator",
   "university",
   "industry",

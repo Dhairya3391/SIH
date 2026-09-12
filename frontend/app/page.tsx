@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { UserRole } from '@/types/database';
-import { Loader2, ArrowRight, Shield, FileText, ClipboardCheck, GraduationCap, Building2 } from 'lucide-react';
+import { Loader2, ArrowRight, Shield, FileText, ClipboardCheck, GraduationCap, Building2 , ShieldCheck } from 'lucide-react';
 
 const roleConsoleMap: Record<UserRole, { path: string; label: string; icon: any }> = {
   citizen: { path: '/my-reports', label: 'Citizen Console (Ground Reports)', icon: FileText },
   volunteer: { path: '/verify', label: 'Verifier Console (Field Verification)', icon: ClipboardCheck },
+  verifier: { path: '/verify', label: 'Verifier Desk', icon: ShieldCheck },
   university: { path: '/college', label: 'College Console (R&D & Proposals)', icon: GraduationCap },
   industry: { path: '/needs', label: 'Company/NGO Console (Needs & CSR)', icon: Building2 },
   coordinator: { path: '/queue', label: 'District Coordinator Console (Triage)', icon: ClipboardCheck },

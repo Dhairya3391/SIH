@@ -80,7 +80,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ ref:
     coordinator: { href: '/queue', label: 'Triage Queue' },
     admin: { href: '/admin', label: 'Command Center' },
   };
-  const backTarget = roleBackLinks[role] || { href: '/overview', label: 'Overview' };
+  const backTarget = (role ? roleBackLinks[role] : null) || { href: '/overview', label: 'Overview' };
 
   const handleAdopt = async () => {
     if (!user?.org_id) return alert('No organisation associated with this user.');

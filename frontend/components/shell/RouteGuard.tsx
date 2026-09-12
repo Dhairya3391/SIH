@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import { ShieldAlert, ArrowLeft, ArrowRight, UserCheck } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { useAuth, ROLE_HOME } from '@/lib/auth';
 import { UserRole } from '@/types/database';
 import { RoleNav } from './RoleNav';
 
@@ -16,6 +17,7 @@ interface RouteGuardProps {
 const roleDescriptions: Record<UserRole, string> = {
   citizen: 'Citizen / Villager reporting local emergencies and tracking ground community resolution',
   volunteer: 'Field Volunteer & Official Verifier verifying reports with photographic and meteorological evidence',
+  verifier: 'Verifier reviewing AI corroboration and confirming reports with sources, photos and links',
   university: 'University / College R&D lab submitting engineering proposals and piloting solutions',
   industry: 'Company / NGO CSR partner funding and dispatching material needs',
   coordinator: 'District Officer reviewing triage queues and approving pilots',
@@ -25,6 +27,7 @@ const roleDescriptions: Record<UserRole, string> = {
 const roleConsoleMap: Record<UserRole, string> = {
   citizen: '/my-reports',
   volunteer: '/verify',
+  verifier: '/verify',
   university: '/college',
   industry: '/needs',
   coordinator: '/queue',
@@ -36,7 +39,16 @@ export function RouteGuard({
   consoleTitle,
   children,
 }: RouteGuardProps) {
-  const { role: activeRole, updateRole, loading } = useAuth();
+  const { role: activeRole, loading, isAuthenticated, signOut } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Nobody signed in? Send them to the door, remembering where they wanted to go.
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace(`/login?next=${encodeURIComponent(pathname || '/')}`);
+    }
+  }, [loading, isAuthenticated, router, pathname]);
 
   if (loading) {
     return (
@@ -53,7 +65,7 @@ export function RouteGuard({
   }
 
   // If role is authorized, render children
-  if (allowedRoles.includes(activeRole)) {
+  if (activeRole && allowedRoles.includes(activeRole)) {
     return <>{children}</>;
   }
 
@@ -84,9 +96,9 @@ export function RouteGuard({
             <p>
               You are currently viewing JharSetu as a{' '}
               <strong className="text-[#102027] capitalize font-bold font-mono">
-                {activeRole === 'volunteer' ? 'Verifier' : activeRole}
+                {activeRole === 'volunteer' ? 'Verifier' : (activeRole ?? 'not signed in')}
               </strong>{' '}
-              ({roleDescriptions[activeRole]}).
+              ({activeRole ? roleDescriptions[activeRole] : 'no active session'}).
             </p>
 
             <div className="p-3 bg-[#F4F6F5] rounded-lg border border-[#CCD1C7] text-gray-700 font-mono text-[11px]">
@@ -106,7 +118,7 @@ export function RouteGuard({
           <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             <button
               type="button"
-              onClick={() => updateRole(primaryAllowed)}
+              onClick={() => router.push(`/login?next=${encodeURIComponent(pathname || '/')}`)}
               className="touch-target px-4 py-2.5 bg-[#2E7180] hover:bg-[#245A66] text-white text-xs font-bold font-mono rounded-lg flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
             >
               <UserCheck className="w-4 h-4" />
@@ -114,7 +126,7 @@ export function RouteGuard({
             </button>
 
             <Link
-              href={roleConsoleMap[activeRole] || '/'}
+              href={(activeRole && ROLE_HOME[activeRole]) || '/overview'}
               className="touch-target px-4 py-2.5 bg-white border border-[#CCD1C7] hover:bg-gray-50 text-gray-700 text-xs font-bold font-mono rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <ArrowLeft className="w-3.5 h-3.5" />

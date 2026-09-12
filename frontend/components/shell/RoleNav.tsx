@@ -23,7 +23,7 @@ import {
   Eye,
   AlertTriangle
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { useAuth, ROLE_HOME } from '@/lib/auth';
 import { UserRole } from '@/types/database';
 
 interface RoleNavProps {
@@ -41,23 +41,20 @@ export function RoleNav({
 }: RoleNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { role: activeRole, updateRole, user } = useAuth();
+  const { role: activeRole, user, organisation, demoSignIn, signOut } = useAuth();
   const [isSwitching, setIsSwitching] = useState(false);
 
-  // Role default console landing destinations
-  const roleDefaultRoutes: Record<UserRole, string> = {
-    citizen: '/my-reports',
-    volunteer: '/verify',
-    university: '/college',
-    industry: '/needs',
-    coordinator: '/queue',
-    admin: '/admin',
+  const roleDefaultRoutes = ROLE_HOME;
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
   };
 
   const handleRoleSwitch = async (newRole: UserRole) => {
     setIsSwitching(true);
     try {
-      await updateRole(newRole);
+      await demoSignIn(newRole);
       // Navigate to the target role console
       router.push(roleDefaultRoutes[newRole]);
     } finally {
@@ -113,6 +110,7 @@ export function RoleNav({
   const roleLabelMap: Record<UserRole, string> = {
     citizen: 'Citizen (Villager)',
     volunteer: 'Verifier / Field Volunteer',
+    verifier: 'Verifier Desk',
     university: 'College / University',
     industry: 'Company / NGO (CSR)',
     coordinator: 'District Coordinator',
@@ -204,7 +202,7 @@ export function RoleNav({
           <div className="hidden sm:flex items-center gap-1 pl-3 border-l border-[#CCD1C7]">
             <span className="text-[10px] font-mono text-gray-400 uppercase">Role:</span>
             <span className="text-xs font-mono font-bold text-[#2E7180] bg-[#2E7180]/10 px-2 py-0.5 rounded border border-[#2E7180]/20">
-              {roleLabelMap[activeRole]}
+              {activeRole ? roleLabelMap[activeRole] : 'Signed out'}
             </span>
           </div>
         </div>

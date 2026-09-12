@@ -39,7 +39,7 @@ export default function OverviewPage() {
   const [challenges, setChallenges] = useState<Challenge[]>(SEED_CHALLENGES);
   const [isLive, setIsLive] = useState<boolean>(false);
   const [selectedRegionId, setSelectedRegionId] = useState<string>('jharkhand');
-  const { role: activeRole, updateRole } = useAuth();
+  const { role: activeRole } = useAuth();
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [districtFilter, setDistrictFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');

@@ -52,29 +52,57 @@ export const POST = route(
       });
     }
 
-    const result = await transition(supabase, {
-      challengeId: id,
-      to: "VERIFIED",
-      actorId: actor.id,
-      actorRole: actor.role,
-      reason: body.note,
-      patch,
-    });
+    const { data: current } = await supabase
+      .from("challenges")
+      .select("status")
+      .eq("id", id)
+      .single();
 
-    // Approving opens it to partners straight away. Parking it in VERIFIED
-    // where nobody can act on it would be a queue, not a platform.
-    const opened = await transition(supabase, {
-      challengeId: id,
-      to: "OPEN",
-      actorId: actor.id,
-      actorRole: actor.role,
-    });
+    let fromStatus = current?.status ?? "REPORTED";
+    let toStatus = current?.status ?? "OPEN";
+
+    if (current?.status === "REPORTED") {
+      const result = await transition(supabase, {
+        challengeId: id,
+        to: "VERIFIED",
+        actorId: actor.id,
+        actorRole: actor.role,
+        reason: body.note,
+        patch,
+      });
+      fromStatus = result.from;
+
+      // Approving opens it to partners straight away.
+      const opened = await transition(supabase, {
+        challengeId: id,
+        to: "OPEN",
+        actorId: actor.id,
+        actorRole: actor.role,
+      });
+      toStatus = opened.to;
+    } else if (current?.status === "VERIFIED") {
+      const opened = await transition(supabase, {
+        challengeId: id,
+        to: "OPEN",
+        actorId: actor.id,
+        actorRole: actor.role,
+        reason: body.note,
+        patch,
+      });
+      fromStatus = "VERIFIED";
+      toStatus = opened.to;
+    } else {
+      // Already OPEN or further along: apply any coordinator overrides directly
+      if (Object.keys(patch).length > 0) {
+        await supabase.from("challenges").update(patch).eq("id", id);
+      }
+    }
 
     const scored = await rescoreChallenge(supabase, id);
 
     return ok({
-      from: result.from,
-      status: opened.to,
+      from: fromStatus,
+      status: toStatus,
       priority: scored.priority,
       confidence: scored.confidence,
       why_critical: scored.whyCritical,

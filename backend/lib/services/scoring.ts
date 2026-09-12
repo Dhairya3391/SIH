@@ -77,8 +77,9 @@ export async function rescoreChallenge(
       urgency,
       peopleAffected: challenge.people_est ?? 0,
       vulnerable,
-      hazardExposure: hazard,
+      hazardExposure: hazard.value,
       resourceGap: gap,
+      hazardIsDistrictEstimate: hazard.isDistrictEstimate,
       recurrenceCount: recurrence,
       uniqueReporters: challenge.reporter_count ?? 1,
       crisisMode: challenge.mode === "crisis",
@@ -125,25 +126,54 @@ export async function rescoreChallenge(
   };
 }
 
-async function hazardExposure(supabase: SupabaseClient, challengeId: string): Promise<number> {
+/**
+ * Hazard exposure for a challenge, and whether it had to be estimated.
+ *
+ * A report filed without GPS - the common case on the web form - leaves geom
+ * null, so there is no point to test against the hazard layer. Rather than
+ * score a genuinely dangerous place at zero, fall back to the highest
+ * intensity among the mapped cells covering its district. The caller passes
+ * the flag through so the breakdown says which it was.
+ */
+async function hazardExposure(
+  supabase: SupabaseClient,
+  challengeId: string,
+): Promise<{ value: number; isDistrictEstimate: boolean }> {
   const { data } = await supabase
     .from("challenges")
-    .select("region_id, geom")
+    .select("region_id, district, geom")
     .eq("id", challengeId)
     .single();
-  if (!data) return 0;
+  if (!data) return { value: 0, isDistrictEstimate: false };
 
-  // geom comes back as GeoJSON through PostgREST; pull the point out of it.
   const point = extractPoint(data.geom);
-  if (!point) return 0;
 
-  const { data: exposure } = await supabase.rpc("hazard_exposure", {
-    p_region: data.region_id,
-    p_lng: point.lng,
-    p_lat: point.lat,
-  });
-  return typeof exposure === "number" ? exposure : 0;
+  if (point) {
+    const { data: exposure } = await supabase.rpc("hazard_exposure", {
+      p_region: data.region_id,
+      p_lng: point.lng,
+      p_lat: point.lat,
+    });
+    if (typeof exposure === "number" && exposure > 0) {
+      return { value: exposure, isDistrictEstimate: false };
+    }
+  }
+
+  if (!data.district) return { value: 0, isDistrictEstimate: false };
+
+  const { data: cells } = await supabase
+    .from("hazard_cells")
+    .select("intensity")
+    .eq("region_id", data.region_id)
+    .eq("district", data.district);
+
+  const peak = (cells ?? []).reduce(
+    (max, c) => Math.max(max, Number((c as { intensity: number }).intensity ?? 0)),
+    0,
+  );
+  return { value: peak, isDistrictEstimate: peak > 0 };
 }
+
 
 /**
  * Share of the stated need that is still unpledged, 1 when nothing is covered.

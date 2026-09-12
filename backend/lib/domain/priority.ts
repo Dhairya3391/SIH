@@ -52,6 +52,12 @@ export interface PriorityInput {
   vulnerable: VulnerabilityTag[];
   /** 0-1 from hazard_cells; 0 when we have no layer for that point. */
   hazardExposure: number;
+  /**
+   * True when hazardExposure came from the district's mapped cells rather than
+   * the report's own coordinates, because the report carried no GPS. The
+   * number is still real; the reason string must not claim point precision.
+   */
+  hazardIsDistrictEstimate?: boolean;
   /** 0-1, share of the listed need that nobody has pledged yet. */
   resourceGap: number;
   /** How many times this has recurred, seasonally or otherwise. */
@@ -180,7 +186,9 @@ export function computePriority(
       max: weights.hazard,
       points: hazardRaw * weights.hazard,
       reason: hazardRaw > 0
-        ? `Inside a mapped hazard zone at ${Math.round(hazardRaw * 100)}% intensity.`
+        ? input.hazardIsDistrictEstimate
+          ? `District-level estimate: the mapped cells covering this district peak at ${Math.round(hazardRaw * 100)}% intensity. No GPS on the report, so this is not a point reading.`
+          : `Inside a mapped hazard zone at ${Math.round(hazardRaw * 100)}% intensity.`
         : "Not inside a mapped hazard zone.",
     },
     {

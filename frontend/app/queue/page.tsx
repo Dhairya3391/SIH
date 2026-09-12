@@ -9,16 +9,19 @@ import {
   Users, 
   Flame, 
   CheckCircle2, 
-  ExternalLink,
+  ChevronDown,
+  ShieldQuestion,
+  Wrench,
   PlusCircle
 } from 'lucide-react';
 import { fetchChallenges } from '@/lib/api';
-import { Challenge } from '@/types/database';
+import { Challenge, ScoreBreakdown } from '@/types/database';
 
 export default function QueuePage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -183,10 +186,8 @@ export default function QueuePage() {
           ) : (
             <div className="divide-y divide-[#CCD1C7]">
               {challenges.map((challenge, idx) => (
-                <div 
-                  key={challenge.id}
-                  className="p-4 hover:bg-[#F4F6F5]/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
+                <div key={challenge.id}>
+                <div className="p-4 hover:bg-[#F4F6F5]/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center font-mono text-xs font-bold text-gray-500 shrink-0 mt-0.5">
                       {idx + 1}
@@ -219,19 +220,132 @@ export default function QueuePage() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    <button 
-                      onClick={() => alert(`Reviewing Brief ${challenge.id}\n\nProblem: ${challenge.problem}\n\nUnsure about: ${challenge.ai_unsure_about || 'None'}`)}
-                      className="px-3 py-1.5 rounded-lg border border-[#2E7180] text-[#2E7180] hover:bg-teal-50 text-xs font-bold transition flex items-center gap-1"
+                    <button
+                      onClick={() => setOpenId(openId === challenge.id ? null : challenge.id)}
+                      aria-expanded={openId === challenge.id}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1 ${openId === challenge.id ? 'bg-[#2E7180] border-[#2E7180] text-white' : 'border-[#2E7180] text-[#2E7180] hover:bg-teal-50'}`}
                     >
-                      Inspect Brief <ExternalLink className="w-3 h-3" />
+                      {openId === challenge.id ? 'Hide Brief' : 'Inspect Brief'}
+                      <ChevronDown className={`w-3 h-3 transition-transform ${openId === challenge.id ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
+                </div>
+                {openId === challenge.id && <ScoreBrief challenge={challenge} />}
                 </div>
               ))}
             </div>
           )}
         </section>
       </main>
+    </div>
+  );
+}
+
+const FACTORS: { key: keyof Omit<ScoreBreakdown, 'why_critical'>; label: string; max: number }[] = [
+  { key: 'severity', label: 'Severity of harm', max: 25 },
+  { key: 'urgency', label: 'Time urgency', max: 15 },
+  { key: 'people_affected', label: 'People affected', max: 15 },
+  { key: 'vulnerability', label: 'Vulnerable groups', max: 15 },
+  { key: 'hazard_exposure', label: 'Hazard exposure', max: 10 },
+  { key: 'resource_gap', label: 'Resource gap', max: 10 },
+  { key: 'recurrence', label: 'Recurrence', max: 5 },
+  { key: 'community_signal', label: 'Community signal (capped)', max: 5 },
+];
+
+function ScoreBrief({ challenge }: { challenge: Challenge }) {
+  const sb = challenge.score_breakdown;
+  return (
+    <div className="px-4 pb-4 pt-1 bg-[#F4F6F5] border-t border-dashed border-[#CCD1C7]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* Explainable score */}
+        <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+              Why this rank
+            </h5>
+            <span className="font-mono text-sm font-bold text-[#102027]">
+              {challenge.priority}<span className="text-gray-400 text-xs">/100</span>
+            </span>
+          </div>
+          {sb ? (
+            <div className="space-y-1.5">
+              {FACTORS.map((f) => {
+                const val = Number(sb[f.key] ?? 0);
+                const pct = Math.max(0, Math.min(100, (val / f.max) * 100));
+                return (
+                  <div key={f.key} className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-600 w-40 shrink-0">{f.label}</span>
+                    <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#2E7180]"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-[11px] text-gray-500 w-10 text-right">
+                      {val}/{f.max}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-500">
+              No factor breakdown stored for this challenge yet.
+            </p>
+          )}
+          {sb?.why_critical && (
+            <p className="mt-2.5 pt-2.5 border-t border-gray-100 text-[11px] leading-relaxed text-[#102027]">
+              <span className="font-bold">Verdict: </span>{sb.why_critical}
+            </p>
+          )}
+        </div>
+
+        {/* Brief + honesty panel */}
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
+            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+              Compiled brief · {challenge.id}
+            </h5>
+            <p className="text-[11px] leading-relaxed text-gray-700">{challenge.problem}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+              <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
+                confidence: {String(challenge.confidence || 'unverified').replace(/_/g, ' ')}
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-gray-600">
+                {challenge.report_count} reports merged
+              </span>
+            </div>
+          </div>
+
+          {challenge.capabilities_needed?.length > 0 && (
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-3">
+              <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5 flex items-center gap-1.5">
+                <Wrench className="w-3 h-3" /> Capabilities needed
+              </h5>
+              <div className="flex flex-wrap gap-1.5">
+                {challenge.capabilities_needed.map((c) => (
+                  <span
+                    key={c}
+                    className="px-2 py-0.5 rounded-full bg-teal-50 border border-[#2E7180]/30 text-[10px] font-semibold text-[#2E7180]"
+                  >
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
+            <h5 className="text-[11px] font-bold uppercase tracking-wide text-amber-800 mb-1 flex items-center gap-1.5">
+              <ShieldQuestion className="w-3 h-3" /> What the AI is unsure about
+            </h5>
+            <p className="text-[11px] leading-relaxed text-amber-900">
+              {challenge.ai_unsure_about ||
+                'Nothing flagged. A human coordinator must still confirm before resources move.'}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -17,5 +17,8 @@
     "db:seed": "npm --prefix backend run db:seed",
     "db:reset": "npm --prefix backend run db:reset",
     "smoke": "npm --prefix backend run smoke"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5"
   }
 }

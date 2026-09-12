@@ -183,7 +183,7 @@ export async function compile(input: CompileInput): Promise<CompileResult> {
     ms: embedding.ms,
     detail:
       embedding.source === "gemini"
-        ? "text-embedding-004, 768 dimensions"
+        ? "gemini-embedding-001, 768 dimensions"
         : "Local hashing vectoriser, 768 dimensions (no network call)",
     usedAi: embedding.source === "gemini",
   });

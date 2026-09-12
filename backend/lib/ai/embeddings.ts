@@ -9,7 +9,8 @@ import { EMBEDDING_DIM, localEmbed, l2Normalise, toPgVector } from "./local-embe
  * languages inside one vector space makes duplicate detection unreliable. The
  * original text is kept for display; only the translation is embedded.
  *
- * Two backends, same 768-wide output: Gemini text-embedding-004, which has a
+ * Two backends, same 768-wide output: Gemini gemini-embedding-001 (truncated
+ * to 768 dimensions, which matches the vector(768) columns), which has a
  * usable free tier, and the deterministic local vectoriser in ./local-embed,
  * which needs no network at all.
  */
@@ -61,14 +62,16 @@ export async function embedMany(texts: string[]): Promise<EmbeddingResult[]> {
 async function geminiEmbed(text: string): Promise<number[]> {
   const key = process.env.GEMINI_API_KEY!;
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${key}`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: "models/text-embedding-004",
+        model: "models/gemini-embedding-001",
         content: { parts: [{ text: text.slice(0, 8000) }] },
         taskType: "SEMANTIC_SIMILARITY",
+        // Matryoshka truncation: keep the DB's vector(768) shape.
+        outputDimensionality: EMBEDDING_DIM,
       }),
     },
   );

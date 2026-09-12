@@ -96,7 +96,13 @@ export function ChallengeRow({
         </div>
 
         <h3 className="mt-1.5 text-[15px] font-bold leading-snug text-navy-dark sm:text-[16px]">
-          {title}
+          {right && href ? (
+            <Link href={href} className="hover:underline">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
         </h3>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -147,7 +153,7 @@ export function ChallengeRow({
     );
   }
 
-  if (!href) return <div className={`up ${shape}`}>{body}</div>;
+  if (!href || right) return <div className={`up ${shape}`}>{body}</div>;
 
   return (
     <Link href={href} className={`up up-hit ${shape}`}>

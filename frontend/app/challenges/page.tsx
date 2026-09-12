@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
 import { Panel, Stat } from "@/components/ui/Surface";
-import { ButtonLink, Toggle } from "@/components/ui/Button";
+import { Button, ButtonLink, Toggle } from "@/components/ui/Button";
 import { Empty, ErrorNote, SkeletonRows, SkeletonStats } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import { ChallengeRow } from "@/components/domain/ChallengeRow";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { useAuth } from "@/lib/auth";
+import type { Challenge } from "@/types/database";
 import { CATEGORY_LABEL, STATUS_LABEL, bandOf, humanise, num } from "@/lib/format";
 
 /**
@@ -32,16 +33,43 @@ export default function ChallengesPage() {
 type Sort = "priority" | "recent" | "reports";
 
 function AllChallenges() {
-  const { role } = useAuth();
+  const { role, demoSignIn } = useAuth();
   const res = useResource(() => apiClient.fetchChallenges({ limit: 300 }), []);
   const [q, setQ] = useState("");
   const [district, setDistrict] = useState("");
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState<Sort>("priority");
 
-  // Memoised so an unresolved fetch does not hand every useMemo below a
-  // brand-new empty array on each render.
-  const all = useMemo(() => res.data?.challenges ?? [], [res.data]);
+  const [localChallenges, setLocalChallenges] = useState<Challenge[] | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (res.data?.challenges && !localChallenges) {
+      setLocalChallenges(res.data.challenges);
+    }
+  }, [res.data?.challenges, localChallenges]);
+
+  const all = useMemo(() => localChallenges ?? res.data?.challenges ?? [], [localChallenges, res.data]);
+
+  async function handleDelete(id: string, ref: string) {
+    setDeletingId(id);
+    setActionMsg(null);
+    try {
+      if (role !== "admin") {
+        await demoSignIn("admin");
+      }
+      await apiClient.deleteChallenge(id);
+      setLocalChallenges((prev) => (prev ?? all).filter((c) => c.id !== id));
+      setDeleteTarget(null);
+      setActionMsg(`Problem ${ref} was permanently removed.`);
+    } catch (err) {
+      setActionMsg(err instanceof Error ? err.message : "Failed to delete problem.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const districts = useMemo(
     () => [...new Set(all.map((c) => c.district).filter(Boolean) as string[])].sort(),
@@ -124,6 +152,9 @@ function AllChallenges() {
                 </option>
               ))}
             </select>
+            <ButtonLink href="/admin" variant="secondary" icon="gauge">
+              Admin console
+            </ButtonLink>
           </div>
         }
       />
@@ -208,33 +239,93 @@ function AllChallenges() {
                 }
               />
             ) : (
-              <div className="flex flex-col gap-3">
-                {rows.slice(0, 80).map((c) => (
-                  <ChallengeRow
-                    key={c.id}
-                    href={`/challenge/${c.ref}`}
-                    reference={c.ref}
-                    title={c.title}
-                    district={c.district}
-                    block={c.block}
-                    category={c.category}
-                    priority={c.priority}
-                    band={c.band ?? bandOf(c.priority)}
-                    people={c.people_est}
-                    reports={c.report_count}
-                    reporters={c.reporter_count}
-                    confidence={c.confidence}
-                    status={c.status}
-                    hazards={c.hazard_tags}
-                    updatedAt={c.updated_at}
-                  />
-                ))}
-                {rows.length > 80 && (
-                  <p className="mono text-center text-[10.5px] uppercase tracking-[0.1em] text-mute">
-                    showing 80 of {num(rows.length)} matches · narrow the search to see the rest
-                  </p>
+              <>
+                {actionMsg && (
+                  <div className="in-s mb-4 flex items-center justify-between p-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-moderate">
+                        <Icon name="check" size={15} />
+                      </span>
+                      <span className="text-[13px] font-medium text-ink">{actionMsg}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActionMsg(null)}
+                      className="text-mute hover:text-ink"
+                      aria-label="Dismiss message"
+                    >
+                      <Icon name="x" size={14} />
+                    </button>
+                  </div>
                 )}
-              </div>
+
+                <div className="flex flex-col gap-3">
+                  {rows.slice(0, 80).map((c) => {
+                    const isDeleting = deletingId === c.id;
+                    const isTarget = deleteTarget === c.id;
+
+                    return (
+                      <ChallengeRow
+                        key={c.id}
+                        href={`/challenge/${c.ref}`}
+                        reference={c.ref}
+                        title={c.title}
+                        district={c.district}
+                        block={c.block}
+                        category={c.category}
+                        priority={c.priority}
+                        band={c.band ?? bandOf(c.priority)}
+                        people={c.people_est}
+                        reports={c.report_count}
+                        reporters={c.reporter_count}
+                        confidence={c.confidence}
+                        status={c.status}
+                        hazards={c.hazard_tags}
+                        updatedAt={c.updated_at}
+                        right={
+                          !isTarget ? (
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              icon="trash"
+                              onClick={() => setDeleteTarget(c.id)}
+                            >
+                              Delete
+                            </Button>
+                          ) : (
+                            <div className="in-s flex flex-wrap items-center gap-1.5 rounded-xl p-1.5">
+                              <span className="px-1 text-[11px] font-bold text-alert-ink">
+                                Permanently delete?
+                              </span>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                busy={isDeleting}
+                                onClick={() => handleDelete(c.id, c.ref)}
+                              >
+                                Yes, delete
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={isDeleting}
+                                onClick={() => setDeleteTarget(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          )
+                        }
+                      />
+                    );
+                  })}
+                  {rows.length > 80 && (
+                    <p className="mono text-center text-[10.5px] uppercase tracking-[0.1em] text-mute">
+                      showing 80 of {num(rows.length)} matches · narrow the search to see the rest
+                    </p>
+                  )}
+                </div>
+              </>
             )}
 
             <Panel

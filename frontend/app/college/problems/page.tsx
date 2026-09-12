@@ -23,7 +23,10 @@ export default function CollegeProblemsCatalogPage() {
 
   const problems = SEED_CHALLENGES.filter(c => {
     if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
-    if (search && !c.title.toLowerCase().includes(search.toLowerCase()) && !c.problem.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (c.title || '').toLowerCase().includes(q) || (c.problem || '').toLowerCase().includes(q);
+    }
     return true;
   });
 

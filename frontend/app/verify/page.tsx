@@ -22,8 +22,8 @@ export default function VerifyQueuePage() {
   const [search, setSearch] = useState('');
 
   const reports = SEED_REPORTS.filter(r => {
-    if (districtFilter !== 'all' && r.district.toLowerCase() !== districtFilter.toLowerCase()) return false;
-    if (search && !r.original_text.toLowerCase().includes(search.toLowerCase())) return false;
+    if (districtFilter !== 'all' && (r.district || '').toLowerCase() !== districtFilter.toLowerCase()) return false;
+    if (search && !(r.original_text || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 

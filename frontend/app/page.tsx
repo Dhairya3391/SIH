@@ -78,22 +78,22 @@ export default function HomePage() {
   const filteredChallenges = useMemo(() => {
     return challenges.filter(c => {
       // Region check
-      if (c.region_id !== selectedRegionId) return false;
+      if (c.region_id && c.region_id !== selectedRegionId) return false;
       // Crisis check if in crisis mode
       if (isCrisisMode && c.mode !== 'crisis') return false;
       // Category check
       if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
       // District check
-      if (districtFilter !== 'all' && c.district.toLowerCase() !== districtFilter.toLowerCase()) return false;
+      if (districtFilter !== 'all' && (c.district || '').toLowerCase() !== districtFilter.toLowerCase()) return false;
       // Priority check
       if (priorityFilter !== 'all' && c.priority_band !== priorityFilter) return false;
       // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
-          c.title.toLowerCase().includes(q) ||
-          c.problem.toLowerCase().includes(q) ||
-          c.district.toLowerCase().includes(q)
+          (c.title || '').toLowerCase().includes(q) ||
+          (c.problem || '').toLowerCase().includes(q) ||
+          (c.district || '').toLowerCase().includes(q)
         );
       }
       return true;

@@ -2,6 +2,7 @@ import { ok, route, readQuery } from "@/lib/http";
 import { z } from "zod";
 import { requireRole } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { opportunisticTick } from "@/lib/services/tick";
 
 const query = z.object({
   district: z.string().optional(),
@@ -24,6 +25,10 @@ export const GET = route(async (request: Request) => {
   const actor = await requireRole("university", "coordinator", "admin");
   const { district, category, limit } = readQuery(request, query);
   const supabase = supabaseAdmin();
+
+  // Hobby plan allows one cron a day, so the timed work also runs here: this
+  // is the page that shows "closes in 4 hours", and it must not be lying.
+  await opportunisticTick(supabase);
 
   let q = supabase
     .from("challenges")

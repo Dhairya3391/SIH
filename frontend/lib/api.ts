@@ -53,8 +53,8 @@ function normaliseChallenge(raw: any): Challenge {
   } as Challenge;
 }
 
-export async function fetchChallenges(regionId: string = 'jharkhand') {
-  const res = await fetch(`/api/challenges?region_id=${regionId}`, { cache: 'no-store' });
+export async function fetchChallenges(regionId: string = 'jharkhand', limit: number = 500) {
+  const res = await fetch(`/api/challenges?region_id=${regionId}&limit=${limit}`, { cache: 'no-store' });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = json?.error?.message || json?.error || 'Failed to fetch challenges';
@@ -62,7 +62,7 @@ export async function fetchChallenges(regionId: string = 'jharkhand') {
   }
   const payload = unwrap(json);
   const rows: any[] = Array.isArray(payload) ? payload : payload?.challenges ?? payload?.items ?? [];
-  return { data: rows.map(normaliseChallenge), count: rows.length };
+  return { data: rows.map(normaliseChallenge), count: payload?.total ?? rows.length };
 }
 
 export async function submitReport(payload: {

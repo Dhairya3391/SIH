@@ -29,13 +29,18 @@ export const POST = route(async (request: NextRequest) => {
 
   const provided =
     request.headers.get("x-jharsetu-secret") ??
+    request.headers.get("x-demo-reset-secret") ??
+    request.headers.get("demo_reset_secret") ??
+    request.headers.get("demo-reset-secret") ??
+    request.headers.get("DEMO_RESET_SECRET") ??
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     new URL(request.url).searchParams.get("secret");
   if (provided !== expected) {
     return fail(401, "Bad or missing reset secret.", "unauthorised");
   }
 
   const started = Date.now();
-  const result = await seedDatabase(supabaseAdmin(), { wipe: true });
+  const result = await seedDatabase(supabaseAdmin(), { wipe: true, skipUsers: true });
 
   return ok({
     reset: true,

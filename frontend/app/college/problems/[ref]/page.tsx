@@ -1,334 +1,551 @@
 'use client';
 
-import React, { useState, use } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  MapPin, 
-  Users, 
-  Flame, 
-  CheckCircle2, 
-  Sparkles, 
-  Upload, 
-  FileText, 
-  Clock, 
-  AlertTriangle,
-  ArrowRight,
-  ShieldCheck,
-  RefreshCw,
-  Layers,
-  Wrench,
-  Loader2
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Loader2,
+  Send,
+  Trophy,
+  Upload,
+  XCircle,
 } from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
+import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
 import { RoleNav } from '@/components/shell/RoleNav';
-import { SEED_CHALLENGES } from '@/data/seedData';
+import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
+import { RubricBreakdown, RubricCriterion } from '@/components/shared/RubricBreakdown';
 import { CountdownToClose } from '@/components/shared/CountdownToClose';
-import { LeaderBadge } from '@/components/shared/LeaderBadge';
-import { FileUploader } from '@/components/shared/FileUploader';
+import { fetchCollegeProblems, fetchMyProposals, submitProposal } from '@/lib/api';
+import { formatIndianCurrency } from '@/components/shared/ContributionSplitter';
 
-export default function CollegeProblemDetailPage({ params }: { params: Promise<{ ref: string }> }) {
-  const resolvedParams = use(params);
-  const router = useRouter();
+/**
+ * Read the problem, submit a proposal, and read the verdict.
+ *
+ * The verdict screen is the most consequential in the product: a college's
+ * work is being judged by a model, so every criterion shows its own points,
+ * its reason and the page it read them from, and a rejection arrives as
+ * actionable changes rather than a number to argue with.
+ */
 
-  const challenge = SEED_CHALLENGES.find(
-    (c) => c.ref === resolvedParams.ref || c.id === resolvedParams.ref
-  ) || SEED_CHALLENGES[0];
+interface Problem {
+  id: string;
+  ref: string;
+  title: string;
+  district: string;
+  block: string | null;
+  category: string;
+  priority: number;
+  people_est: number;
+  report_count: number;
+  brief: { problem?: string; needs?: string[]; outcome?: string } | null;
+  capabilities: string[] | null;
+  competition: {
+    state: string;
+    closes_at?: string;
+    window_days?: number;
+    leader_score?: number | null;
+    proposal_count?: number;
+  };
+}
 
-  // Proposal Upload & Waiting State Workflow
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [teamName, setTeamName] = useState('BIT Mesra ECE - Team MeghDoot');
-  const [piName, setPiName] = useState('Dr. A. Verma');
-  const [estimatedCost, setEstimatedCost] = useState('₹1,40,000');
-  const [deployDays, setDeployDays] = useState('28');
+interface Proposal {
+  id: string;
+  challenge_id: string;
+  version: number;
+  state: string;
+  ai_score: number | null;
+  ai_verdict: string | null;
+  ai_rubric: {
+    total?: number;
+    criteria?: { key: string; label: string; max: number; points: number; reason: string; pages: number[] }[];
+    summary?: string;
+    required_changes?: string[];
+  } | null;
+  ai_error: string | null;
+  funding_required: number | null;
+  duration_days: number | null;
+  document_name: string | null;
+  submitted_at: string;
+  is_leading: boolean | null;
+  score_to_beat: number | null;
+}
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progressStage, setProgressStage] = useState<number>(0);
-  const [stageDescription, setStageDescription] = useState<string>('');
+const VERDICT_STYLE: Record<string, { bg: string; label: string; Icon: typeof CheckCircle2 }> = {
+  viable: { bg: 'bg-emerald-50 border-emerald-300 text-emerald-900', label: 'Viable', Icon: CheckCircle2 },
+  needs_changes: { bg: 'bg-amber-50 border-amber-300 text-amber-900', label: 'Needs changes', Icon: AlertCircle },
+  not_viable: { bg: 'bg-red-50 border-red-300 text-red-900', label: 'Not viable', Icon: XCircle },
+};
 
-  const handleFileChosen = (file: File) => {
-    setSelectedFile(file);
+export default function CollegeProblemDetailPage({
+  params,
+}: {
+  params: Promise<{ ref: string }>;
+}) {
+  const [ref, setRef] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const [mine, setMine] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [text, setText] = useState('');
+  const [docName, setDocName] = useState('proposal.pdf');
+  const [pages, setPages] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    params.then((p) => setRef(p.ref));
+  }, [params]);
+
+  const load = useCallback(async () => {
+    if (!ref) return;
+    setError('');
+    try {
+      const [probs, props] = await Promise.all([fetchCollegeProblems(), fetchMyProposals()]);
+      const found = (probs.problems as Problem[]).find(
+        (p) => p.ref?.toUpperCase() === ref.toUpperCase(),
+      );
+      setProblem(found ?? null);
+      if (!found) {
+        setError(
+          'This problem is not open to your college. It may not be verified yet, or its window may have closed.',
+        );
+      }
+      setMine(
+        (props.proposals as Proposal[]).filter(
+          (p) => found && p.challenge_id === found.id,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load this problem.');
+    } finally {
+      setLoading(false);
+    }
+  }, [ref]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // While a submission is waiting to be scored, keep checking.
+  useEffect(() => {
+    const waiting = mine.some((p) => p.state === 'submitted' || p.state === 'scoring');
+    if (!waiting) return;
+    const t = setInterval(load, 8000);
+    return () => clearInterval(t);
+  }, [mine, load]);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!problem) return;
+    setNotice('');
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await submitProposal({
+        challenge_id: problem.id,
+        extracted_text: text,
+        document_name: docName,
+        document_pages: pages,
+      });
+      setNotice(
+        `Submitted as version ${res.version}. Scoring is queued — the window closes ${new Date(
+          res.window.closes_at,
+        ).toLocaleString('en-IN')}.`,
+      );
+      setText('');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not submit.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleStartUploadAndEvaluation = async () => {
-    if (!selectedFile) return;
+  const latest = mine.length > 0 ? mine.reduce((a, b) => (b.version > a.version ? b : a)) : null;
+  const awaiting = latest && (latest.state === 'submitted' || latest.state === 'scoring');
 
-    setIsProcessing(true);
-    setProgressStage(1);
-    setStageDescription('Uploading proposal PDF to encrypted document storage...');
-
-    // Multi-step transparent waiting state as required by prompt
-    setTimeout(() => {
-      setProgressStage(2);
-      setStageDescription('Extracting technical methodology, BOM materials, costs, and timeline from PDF...');
-    }, 1800);
-
-    setTimeout(() => {
-      setProgressStage(3);
-      setStageDescription('Evaluating proposal across all 7 deterministic rubric criteria via LLM compiler...');
-    }, 3800);
-
-    setTimeout(() => {
-      setProgressStage(4);
-      setStageDescription('Generating verdict report and page cross-references...');
-    }, 5500);
-
-    setTimeout(() => {
-      // Redirect to the Verdict screen
-      router.push('/college/proposals/prop-1');
-    }, 6800);
-  };
+  const toRubric = (p: Proposal): RubricCriterion[] =>
+    (p.ai_rubric?.criteria ?? []).map((c) => ({
+      id: c.key,
+      name: c.label,
+      score: c.points,
+      max: c.max,
+      reason: c.reason,
+      page: c.pages?.[0],
+    }));
 
   return (
-    <RouteGuard allowedRoles={['university', 'coordinator', 'admin']} consoleTitle="College Proposal Submission">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+    <RoleGuard allowedRoles={['university', 'coordinator', 'admin']} consoleTitle="Propose a Solution">
+      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
         <RoleNav />
+        <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          <Link
+            href="/college/problems"
+            className="font-mono text-[10px] tracking-wider uppercase text-[#2E7180] hover:underline flex items-center gap-1"
+          >
+            <ArrowLeft className="w-3 h-3" /> All verified problems
+          </Link>
 
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-          {/* Back Nav */}
-          <div className="flex items-center justify-between">
-            <Link
-              href="/college/problems"
-              className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-gray-600 hover:text-[#102027] transition"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to Problem Browser
-            </Link>
-            <div className="flex items-center gap-2">
-              <CountdownToClose leadingScore={84} compact />
-            </div>
-          </div>
-
-          {/* Top Banner */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-800 border border-gray-300">
-                  {challenge.ref || challenge.id}
-                </span>
-                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#D94F45]/15 text-[#A8332A] border border-[#D94F45]/30">
-                  PRIORITY {challenge.priority} · {challenge.priority_band.toUpperCase()}
-                </span>
-              </div>
-
-              <LeaderBadge state="leading" leadingScore={84} userScore={84} />
-            </div>
-
-            <h1 className="text-xl sm:text-2xl font-extrabold text-[#102027]">
-              {challenge.title}
-            </h1>
-
-            <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-sans">
-              {challenge.problem}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 border-t border-gray-100 text-xs font-mono text-gray-600">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-[#2E7180]" />
-                {challenge.district}
-              </span>
-              <span>·</span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-[#2E7180]" />
-                {challenge.people_est.toLocaleString()} people affected
-              </span>
-              <span>·</span>
-              <span className="flex items-center gap-1 text-emerald-800 font-bold">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Verified Ground Problem
-              </span>
-            </div>
-          </div>
-
-          {/* TWO COLUMNS: Problem Details / Rubric Criteria vs Proposal Submission Portal */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Col (5 cols): What is already nearby & Capabilities needed */}
-            <div className="lg:col-span-5 space-y-4">
-              {/* Capabilities needed */}
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4 shadow-xs space-y-3">
-                <h4 className="text-xs font-mono font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Wrench className="w-3.5 h-3.5 text-[#2E7180]" />
-                  Capabilities & Engineering Disciplines
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {challenge.capabilities_needed.map((cap, i) => (
-                    <span
-                      key={i}
-                      className="text-xs font-mono bg-teal-50 text-[#245A66] px-2.5 py-1 rounded-md border border-[#2E7180]/20 font-semibold"
-                    >
-                      {cap}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* What is already nearby */}
-              {challenge.available_nearby && challenge.available_nearby.length > 0 && (
-                <div className="bg-white border border-[#CCD1C7] rounded-xl p-4 shadow-xs space-y-3">
-                  <h4 className="text-xs font-mono font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-[#2E7180]" />
-                    Resources Already Nearby (In Radius)
-                  </h4>
-                  <ul className="space-y-2 text-xs text-gray-700">
-                    {challenge.available_nearby.map((res, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{res}</span>
-                      </li>
-                    ))}
-                  </ul>
+          {loading ? (
+            <LoadingSkeleton rows={3} />
+          ) : (
+            <>
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{error}</span>
                 </div>
               )}
 
-              {/* 7 Rubric Criteria Reminder */}
-              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4 shadow-xs space-y-2 text-xs font-mono">
-                <span className="font-bold text-gray-800 uppercase tracking-wider block">
-                  Evaluation Rubric (100 Marks)
-                </span>
-                <p className="text-gray-500 font-sans text-[11px]">
-                  Every submission is objectively evaluated across 7 weighted criteria:
-                </p>
-                <div className="space-y-1 text-gray-700 pt-1">
-                  <div className="flex justify-between"><span>1. Technical Feasibility</span><strong>20 pts</strong></div>
-                  <div className="flex justify-between"><span>2. Cost Realism & Efficiency</span><strong>15 pts</strong></div>
-                  <div className="flex justify-between"><span>3. Time to Deployment</span><strong>15 pts</strong></div>
-                  <div className="flex justify-between"><span>4. Local Resource Utilization</span><strong>15 pts</strong></div>
-                  <div className="flex justify-between"><span>5. Safety & Risk Mitigation</span><strong>15 pts</strong></div>
-                  <div className="flex justify-between"><span>6. Community Acceptance & Fit</span><strong>10 pts</strong></div>
-                  <div className="flex justify-between"><span>7. Scalability & Maintainability</span><strong>10 pts</strong></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Col (7 cols): Proposal Upload Portal */}
-            <div className="lg:col-span-7">
-              <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
-                <div className="border-b border-gray-100 pb-3">
-                  <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                    Submit Proposal PDF
-                  </span>
-                  <h3 className="text-base font-extrabold text-[#102027] mt-0.5">
-                    Upload R&D Engineering Proposal Document
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Upload a complete PDF with executive summary, BOM materials, and deployment timeline.
-                  </p>
-                </div>
-
-                {/* PROCESSING / WAITING STATE (Required by prompt) */}
-                {isProcessing ? (
-                  <div className="p-6 bg-teal-50/70 border-2 border-[#2E7180] rounded-xl text-center space-y-4 animate-fadeIn">
-                    <div className="w-12 h-12 rounded-full bg-[#2E7180]/10 text-[#2E7180] flex items-center justify-center mx-auto">
-                      <Loader2 className="w-6 h-6 animate-spin text-[#2E7180]" />
+              {problem && (
+                <>
+                  {/* the brief */}
+                  <section className="bg-white rounded-xl border border-[#CCD1C7] p-5">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span
+                        className={`font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded ${
+                          problem.priority >= 75
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        PRIORITY {problem.priority}
+                      </span>
+                      <span className="font-mono text-[10px] text-gray-600 border border-[#CCD1C7] px-1.5 py-0.5 rounded uppercase">
+                        {String(problem.category).replace(/_/g, ' ')}
+                      </span>
+                      <span className="font-mono text-[10px] text-gray-500">{problem.ref}</span>
+                    </div>
+                    <h1 className="text-xl font-extrabold text-[#102027] tracking-tight leading-snug">
+                      {problem.title}
+                    </h1>
+                    <div className="font-mono text-[10px] text-gray-500 mt-1.5">
+                      {problem.district}
+                      {problem.block ? ` · ${problem.block}` : ''} ·{' '}
+                      {problem.people_est?.toLocaleString('en-IN')} people ·{' '}
+                      {problem.report_count} reports merged
                     </div>
 
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-[#102027] font-mono">
-                        Step {progressStage} of 4: In Progress
-                      </h4>
-                      <p className="text-xs text-[#245A66] font-medium leading-relaxed max-w-md mx-auto">
-                        {stageDescription}
+                    {problem.brief?.problem && (
+                      <>
+                        <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mt-4 mb-1.5">
+                          The problem
+                        </div>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {problem.brief.problem}
+                        </p>
+                      </>
+                    )}
+                    {problem.brief?.outcome && (
+                      <>
+                        <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mt-4 mb-1.5">
+                          What good looks like
+                        </div>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {problem.brief.outcome}
+                        </p>
+                      </>
+                    )}
+                    {problem.brief?.needs && problem.brief.needs.length > 0 && (
+                      <>
+                        <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mt-4 mb-1.5">
+                          What it needs
+                        </div>
+                        <ul className="space-y-1">
+                          {problem.brief.needs.map((n) => (
+                            <li key={n} className="text-sm text-gray-700 flex gap-2">
+                              <span className="text-[#2E7180]">·</span>
+                              {n}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </section>
+
+                  {/* the competition */}
+                  <section className="bg-white rounded-xl border border-[#CCD1C7] p-4 flex flex-wrap items-center gap-4">
+                    <div>
+                      <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                        Competition
+                      </div>
+                      {problem.competition.state === 'not_opened' ? (
+                        <p className="text-sm font-semibold text-[#102027]">
+                          No proposals yet — yours would start the clock
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="text-sm font-semibold text-[#102027]">
+                            Score to beat:{' '}
+                            <span className="font-mono">
+                              {problem.competition.leader_score ?? '—'}
+                            </span>
+                          </span>
+                          {problem.competition.closes_at && (
+                            <span className="flex items-center gap-1.5 font-mono text-[11px] text-gray-600">
+                              <Clock className="w-3.5 h-3.5" />
+                              <CountdownToClose
+                                closeDate={problem.competition.closes_at}
+                                status={problem.competition.state}
+                                leadingScore={problem.competition.leader_score ?? undefined}
+                                compact
+                              />
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-[11px] text-gray-500 mt-1 max-w-xl leading-relaxed">
+                        The leading score is public; the leading document and
+                        the college behind it are not, until the window closes.
                       </p>
                     </div>
+                    {latest?.is_leading && (
+                      <span className="ml-auto font-mono text-[10px] font-bold tracking-wider px-2.5 py-1.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                        <Trophy className="w-3.5 h-3.5" /> YOU ARE LEADING
+                      </span>
+                    )}
+                  </section>
 
-                    {/* Progress steps indicator */}
-                    <div className="grid grid-cols-4 gap-2 pt-2 max-w-md mx-auto text-[10px] font-mono">
-                      <div className={`p-1.5 rounded border ${progressStage >= 1 ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold' : 'bg-gray-100 text-gray-400'}`}>
-                        1. Storage
-                      </div>
-                      <div className={`p-1.5 rounded border ${progressStage >= 2 ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold' : 'bg-gray-100 text-gray-400'}`}>
-                        2. Extraction
-                      </div>
-                      <div className={`p-1.5 rounded border ${progressStage >= 3 ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold' : 'bg-gray-100 text-gray-400'}`}>
-                        3. 7-Criteria
-                      </div>
-                      <div className={`p-1.5 rounded border ${progressStage >= 4 ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold' : 'bg-gray-100 text-gray-400'}`}>
-                        4. Verdict
-                      </div>
-                    </div>
-
-                    <div className="text-[11px] text-gray-500 italic font-mono pt-1">
-                      "Extraction and rubric scoring take ~8-15 seconds. Please do not close this window."
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Basic Meta fields */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="font-mono font-bold text-gray-700 block mb-1">
-                          Team / Lab Name:
-                        </label>
-                        <input
-                          type="text"
-                          value={teamName}
-                          onChange={(e) => setTeamName(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-[#CCD1C7] font-semibold"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-mono font-bold text-gray-700 block mb-1">
-                          Principal Investigator:
-                        </label>
-                        <input
-                          type="text"
-                          value={piName}
-                          onChange={(e) => setPiName(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-[#CCD1C7] font-semibold"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-mono font-bold text-gray-700 block mb-1">
-                          Estimated Cost (INR):
-                        </label>
-                        <input
-                          type="text"
-                          value={estimatedCost}
-                          onChange={(e) => setEstimatedCost(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-[#CCD1C7] font-semibold font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-mono font-bold text-gray-700 block mb-1">
-                          Estimated Deploy Days:
-                        </label>
-                        <input
-                          type="number"
-                          value={deployDays}
-                          onChange={(e) => setDeployDays(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-[#CCD1C7] font-semibold font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Drag-and-drop PDF Uploader */}
-                    <FileUploader
-                      accept=".pdf,application/pdf"
-                      allowedExtensions={['.pdf']}
-                      title="Select or Drop Proposal PDF"
-                      description="Upload your engineering brief, BOM, and deployment diagrams"
-                      onFileSelected={handleFileChosen}
-                    />
-
-                    {/* Submit and Evaluate Button */}
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleStartUploadAndEvaluation}
-                        disabled={!selectedFile}
-                        className="touch-target px-6 py-2.5 bg-[#2E7180] hover:bg-[#245A66] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-mono font-bold rounded-lg flex items-center gap-2 shadow-xs transition cursor-pointer"
+                  {/* verdicts on submissions so far */}
+                  {mine.map((p) => {
+                    const style = p.ai_verdict ? VERDICT_STYLE[p.ai_verdict] : null;
+                    return (
+                      <section
+                        key={p.id}
+                        className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden"
                       >
-                        <Sparkles className="w-4 h-4" />
-                        Upload & Run 7-Criteria AI Evaluation
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+                        <div className="p-4 border-b border-[#CCD1C7] flex flex-wrap items-center gap-3">
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          <span className="font-semibold text-sm text-[#102027]">
+                            Version {p.version}
+                          </span>
+                          <span className="font-mono text-[10px] text-gray-500">
+                            {p.document_name} ·{' '}
+                            {new Date(p.submitted_at).toLocaleString('en-IN')}
+                          </span>
+                          {p.state === 'submitted' || p.state === 'scoring' ? (
+                            <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px] text-gray-600">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              reading the document and scoring…
+                            </span>
+                          ) : (
+                            <span className="ml-auto flex items-center gap-2">
+                              {style && (
+                                <span
+                                  className={`font-mono text-[10px] font-bold tracking-wider px-2 py-1 rounded border ${style.bg}`}
+                                >
+                                  {style.label.toUpperCase()}
+                                </span>
+                              )}
+                              <span className="font-mono text-lg font-extrabold text-[#102027]">
+                                {p.ai_score ?? '—'}
+                                <span className="text-gray-400 text-xs">/100</span>
+                              </span>
+                            </span>
+                          )}
+                        </div>
+
+                        {p.ai_error && (
+                          <div className="px-4 py-3 bg-red-50 text-xs text-[#A8332A]">
+                            Scoring could not complete: {p.ai_error}. It will be retried.
+                          </div>
+                        )}
+
+                        {p.ai_rubric?.summary && (
+                          <div className="px-4 pt-4">
+                            <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1.5">
+                              Summary
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              {p.ai_rubric.summary}
+                            </p>
+                          </div>
+                        )}
+
+                        {(p.ai_rubric?.criteria?.length ?? 0) > 0 && (
+                          <div className="p-4">
+                            <RubricBreakdown criteria={toRubric(p)} />
+                          </div>
+                        )}
+
+                        {(p.ai_rubric?.required_changes?.length ?? 0) > 0 && (
+                          <div className="px-4 pb-4">
+                            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
+                              <div className="font-mono text-[10px] font-bold tracking-wider uppercase text-amber-800 mb-2">
+                                What to change before resubmitting
+                              </div>
+                              <ol className="space-y-1.5">
+                                {p.ai_rubric!.required_changes!.map((c, i) => (
+                                  <li
+                                    key={c}
+                                    className="text-sm text-amber-900 leading-relaxed flex gap-2"
+                                  >
+                                    <span className="font-mono text-xs shrink-0">
+                                      {String(i + 1).padStart(2, '0')}
+                                    </span>
+                                    {c}
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+
+                        {(p.funding_required || p.duration_days) && (
+                          <div className="px-4 pb-4 flex flex-wrap gap-6">
+                            {p.funding_required ? (
+                              <div>
+                                <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
+                                  Funding read from your document
+                                </div>
+                                <div className="font-mono font-bold text-[#102027]">
+                                  {formatIndianCurrency(p.funding_required)}
+                                </div>
+                              </div>
+                            ) : null}
+                            {p.duration_days ? (
+                              <div>
+                                <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
+                                  Duration
+                                </div>
+                                <div className="font-mono font-bold text-[#102027]">
+                                  {p.duration_days} days
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+
+                        {p.score_to_beat !== null && (
+                          <div className="px-4 py-3 bg-[#F4F6F5] border-t border-[#CCD1C7] text-xs text-gray-700">
+                            Another college is ahead at{' '}
+                            <strong className="font-mono">{p.score_to_beat}</strong>. You can
+                            resubmit an improved version while the window is open.
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })}
+
+                  {/* submit */}
+                  {problem.competition.state === 'open' ||
+                  problem.competition.state === 'not_opened' ? (
+                    <section className="bg-white rounded-xl border border-[#CCD1C7] p-5">
+                      <h2 className="font-bold text-[#102027] mb-1">
+                        {mine.length > 0 ? 'Submit an improved version' : 'Submit your proposal'}
+                      </h2>
+                      <p className="text-xs text-gray-600 mb-4 leading-relaxed max-w-2xl">
+                        Paste the text of your proposal document. It is scored
+                        against a published seven-criterion rubric, once, and
+                        the score is never recomputed — so a later submission by
+                        anyone cannot change what yours was given.
+                      </p>
+
+                      {notice && (
+                        <div className="flex items-start gap-2 text-xs text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-xl p-3 mb-4">
+                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                          <span className="leading-relaxed">{notice}</span>
+                        </div>
+                      )}
+
+                      <form onSubmit={onSubmit} className="space-y-3">
+                        <div className="flex flex-wrap gap-3">
+                          <label className="flex-1 min-w-[200px]">
+                            <span className="block font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                              Document name
+                            </span>
+                            <input
+                              value={docName}
+                              onChange={(e) => setDocName(e.target.value)}
+                              className="w-full h-10 px-3 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-sm outline-none focus:border-[#2E7180]"
+                            />
+                          </label>
+                          <label className="w-32">
+                            <span className="block font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                              Pages
+                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={pages}
+                              onChange={(e) => setPages(Number(e.target.value) || 1)}
+                              className="w-full h-10 px-3 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-sm outline-none focus:border-[#2E7180]"
+                            />
+                          </label>
+                        </div>
+
+                        <label className="block">
+                          <span className="block font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                            Proposal text
+                          </span>
+                          <textarea
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            required
+                            minLength={200}
+                            rows={12}
+                            placeholder={`Address the problem above directly. The rubric rewards:\n\n1. Problem fit — does it solve THIS problem\n2. Technical soundness\n3. Practicality in a rural block: power cuts, no internet, local labour, monsoon\n4. A credible cost, itemised\n5. A credible timeline\n6. Materials with quantities and units a company can pledge against\n7. Who maintains it in year two`}
+                            className="w-full px-3 py-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-sm leading-relaxed outline-none focus:border-[#2E7180] font-mono"
+                          />
+                          <span className="font-mono text-[10px] text-gray-500">
+                            {text.trim().length} characters · 200 minimum
+                          </span>
+                        </label>
+
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="submit"
+                            disabled={submitting || text.trim().length < 200}
+                            className="h-11 px-5 rounded-lg bg-[#102027] text-white text-sm font-semibold flex items-center gap-2 hover:bg-[#1D3540] disabled:opacity-50"
+                          >
+                            {submitting ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" /> Submitting…
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" /> Submit for scoring
+                              </>
+                            )}
+                          </button>
+                          <span className="font-mono text-[10px] text-gray-500 flex items-center gap-1.5">
+                            <Upload className="w-3.5 h-3.5" />
+                            PDF upload arrives with the document store
+                          </span>
+                        </div>
+                      </form>
+                    </section>
+                  ) : (
+                    <section className="bg-white rounded-xl border border-[#CCD1C7] p-5 text-center">
+                      <p className="text-sm font-semibold text-[#102027]">
+                        This window is closed
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Proposals are no longer accepted for {problem.ref}.
+                      </p>
+                    </section>
+                  )}
+
+                  {awaiting && (
+                    <p className="font-mono text-[11px] text-gray-500 text-center">
+                      Checking for your score every few seconds…
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </main>
       </div>
-    </RouteGuard>
+    </RoleGuard>
   );
 }

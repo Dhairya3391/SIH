@@ -202,7 +202,7 @@ export async function submitReport(input: ReportInput): Promise<IntakeResult> {
   if (audio) {
     const form = new FormData();
     form.append("payload", payload);
-    form.append("audio", audio, "report.webm");
+    form.append("audio", audio, "report.wav");
     return request<IntakeResult>("/api/reports", { method: "POST", body: form });
   }
 

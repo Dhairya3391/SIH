@@ -93,11 +93,20 @@ export async function submitReport(payload: {
   return {
     ...data,
     challenge: data.challenge ? normaliseChallenge(data.challenge) : undefined,
+    // The backend answers with a routing decision and a score rather than a brief,
+    // so describe what it actually did with the report.
     compiled: data.compiled ?? {
-      // The backend answers with a decision and a score rather than a brief.
-      category: data.decision ? `${data.decision} challenge` : undefined,
+      category:
+        data.decision === 'merged'
+          ? 'merged into an existing challenge'
+          : data.decision === 'new'
+            ? 'opened a new challenge'
+            : data.decision,
       priority: data.priority,
     },
+    challenge_ref: data.challenge_ref,
+    dedup_reason: data.dedup_reason,
+    trace: data.trace,
     is_fallback: data.is_fallback ?? data.degraded ?? false,
   };
 }

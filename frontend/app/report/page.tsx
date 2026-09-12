@@ -119,8 +119,28 @@ export default function ReportPage() {
               <CheckCircle2 className="w-10 h-10 text-[#3E8064] mx-auto mb-2" />
               <h3 className="font-bold text-sm text-[#102027]">Report Submitted & Compiled!</h3>
               <p className="text-xs text-gray-600 mt-1">
-                Category identified: <strong className="uppercase">{result.compiled?.category}</strong> (Priority {result.compiled?.priority})
+                {result.compiled?.category} · priority{' '}
+                <strong>{result.compiled?.priority}</strong>
+                {result.challenge_ref ? <> · <span className="font-mono">{result.challenge_ref}</span></> : null}
               </p>
+              {result.dedup_reason && (
+                <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+                  {result.dedup_reason}
+                </p>
+              )}
+              {Array.isArray(result.trace) && result.trace.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {result.trace.map((t: { step: string; label: string; ms: number; usedAi: boolean }) => (
+                    <span
+                      key={t.step}
+                      title={t.label}
+                      className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-[10px] text-gray-600"
+                    >
+                      {t.label} {t.ms}ms{t.usedAi ? ' · ai' : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
               <p className="text-xs font-mono text-[#2E7180] mt-2">
                 Redirecting to Coordinator Queue in 2s...
               </p>

@@ -38,6 +38,12 @@ const PATHS = {
   ),
   check: <path d="M20 6 9 17l-5-5" />,
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
+  pause: (
+    <>
+      <rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none" />
+      <rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none" />
+    </>
+  ),
   x: (
     <>
       <path d="M18 6 6 18" />

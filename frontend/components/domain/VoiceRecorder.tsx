@@ -4,23 +4,33 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 
-/**
- * Record a voice note.
- *
- * Two things this deliberately does NOT do:
- *
- *  — It does not transcribe in the browser. The recording goes to the server,
- *    which runs Whisper and, critically, refuses silence. Whisper invents
- *    fluent sentences from a silent track ("The following video is a work of
- *    fiction…"), and filing that as a citizen's words would be worse than
- *    filing nothing. The refusal lives on the server so every channel gets it.
- *
- *  — It does not pretend the microphone worked. If permission is denied or the
- *    browser has no MediaRecorder, it says so and leaves the text box, which
- *    is always the fallback.
- */
-
 type State = "idle" | "recording" | "recorded" | "unsupported" | "denied";
+
+function getSupportedMimeType(): string {
+  if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
+    return "";
+  }
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/mp4",
+    "audio/aac",
+  ];
+  for (const candidate of candidates) {
+    if (MediaRecorder.isTypeSupported(candidate)) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export function VoiceRecorder({
   onChange,
@@ -34,11 +44,20 @@ export function VoiceRecorder({
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const urlRef = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -57,8 +76,24 @@ export function VoiceRecorder({
     [stopTracks],
   );
 
+  // When url changes, load the audio element so media engine is ready
+  useEffect(() => {
+    if (!url) {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+      return;
+    }
+    const audio = audioRef.current;
+    if (audio) {
+      audio.load();
+    }
+  }, [url]);
+
   async function start() {
     setError(null);
+    setPlaybackError(null);
+
     if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setState("unsupported");
       return;
@@ -69,32 +104,62 @@ export function VoiceRecorder({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       streamRef.current = stream;
       chunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream);
+      const mimeType = getSupportedMimeType();
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const recorder = new MediaRecorder(stream, options);
       recorderRef.current = recorder;
+
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
       };
+
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
+        const chosenType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: chosenType });
+
+        if (blob.size === 0) {
+          setError("No audio data was captured. Please check your microphone and try again.");
+          setState("idle");
+          stopTracks();
+          return;
+        }
+
         if (urlRef.current) URL.revokeObjectURL(urlRef.current);
         const next = URL.createObjectURL(blob);
         urlRef.current = next;
         setUrl(next);
         setState("recorded");
-        onChange(blob, seconds);
+
+        const finalSec = durationRef.current || seconds;
+        setDuration(finalSec);
+        onChange(blob, finalSec);
         stopTracks();
       };
 
-      recorder.start();
+      // Collect data every 250ms so chunks are flushed reliably
+      recorder.start(250);
+      startTimeRef.current = Date.now();
+      durationRef.current = 0;
       setSeconds(0);
       setState("recording");
-      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+        durationRef.current = elapsed;
+        setSeconds(elapsed);
+      }, 500);
     } catch (e) {
       const name = e instanceof DOMException ? e.name : "";
       if (name === "NotAllowedError" || name === "SecurityError") {
@@ -112,24 +177,102 @@ export function VoiceRecorder({
   }
 
   function stop() {
-    recorderRef.current?.stop();
+    if (recorderRef.current && recorderRef.current.state === "recording") {
+      try {
+        recorderRef.current.requestData();
+      } catch {
+        // ignore if not supported in state
+      }
+      recorderRef.current.stop();
+    }
   }
 
   function discard() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = null;
     setUrl(null);
     setSeconds(0);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
     setState("idle");
     onChange(null, 0);
   }
 
-  const mmss = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(
-    seconds % 60,
-  ).padStart(2, "0")}`;
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    setPlaybackError(null);
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      // If ended or near end, seek to beginning before play
+      if (audio.ended || (duration > 0 && audio.currentTime >= duration)) {
+        audio.currentTime = 0;
+      }
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((err) => {
+            console.error("Audio playback error:", err);
+            setPlaybackError("Click to allow audio playback in your browser.");
+            setIsPlaying(false);
+          });
+      }
+    }
+  }
+
+  const mmss = formatDuration(seconds);
+  const playMmss = formatDuration(currentTime);
+  const totalMmss = formatDuration(duration || seconds);
 
   return (
     <div className="in p-4">
+      {/* Hidden audio element for reliable native playback */}
+      {url && (
+        <audio
+          ref={audioRef}
+          src={url}
+          preload="auto"
+          playsInline
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+          }}
+          onTimeUpdate={(e) => {
+            const cur = e.currentTarget.currentTime;
+            setCurrentTime(cur);
+            const d = e.currentTarget.duration;
+            if (Number.isFinite(d) && d > 0) {
+              setDuration(d);
+            }
+          }}
+          onLoadedMetadata={(e) => {
+            const d = e.currentTarget.duration;
+            if (Number.isFinite(d) && d > 0) {
+              setDuration(d);
+            } else if (durationRef.current > 0) {
+              setDuration(durationRef.current);
+            }
+          }}
+          onError={() => {
+            setPlaybackError("Audio playback stalled. Use the controls below to play.");
+            setIsPlaying(false);
+          }}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span
@@ -145,27 +288,40 @@ export function VoiceRecorder({
               {state === "recording"
                 ? `recording ${mmss}`
                 : state === "recorded"
-                  ? `${mmss} recorded`
+                  ? `${totalMmss} recorded`
                   : "Hindi, Santali, Khortha or English"}
             </div>
           </div>
         </div>
 
-        {state === "idle" && (
-          <Button variant="secondary" size="sm" icon="mic" onClick={start} disabled={disabled}>
-            Record
-          </Button>
-        )}
-        {state === "recording" && (
-          <Button variant="danger" size="sm" icon="stop" onClick={stop}>
-            Stop
-          </Button>
-        )}
-        {state === "recorded" && (
-          <Button variant="danger" size="sm" icon="x" onClick={discard} disabled={disabled}>
-            Discard
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {state === "idle" && (
+            <Button variant="secondary" size="sm" icon="mic" onClick={start} disabled={disabled}>
+              Record
+            </Button>
+          )}
+          {state === "recording" && (
+            <Button variant="danger" size="sm" icon="stop" onClick={stop}>
+              Stop
+            </Button>
+          )}
+          {state === "recorded" && (
+            <>
+              <Button
+                variant={isPlaying ? "secondary" : "primary"}
+                size="sm"
+                icon={isPlaying ? "pause" : "play"}
+                onClick={togglePlay}
+                disabled={disabled}
+              >
+                {isPlaying ? "Pause" : "Play"}
+              </Button>
+              <Button variant="danger" size="sm" icon="x" onClick={discard} disabled={disabled}>
+                Discard
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {state === "recording" && (
@@ -183,8 +339,68 @@ export function VoiceRecorder({
         </div>
       )}
 
-      {url && (
-        <audio controls src={url} className="mt-3 w-full" aria-label="Your recording" />
+      {/* Playback Controls and Waveform when recorded */}
+      {state === "recorded" && url && (
+        <div className="up-s mt-3.5 flex flex-col gap-2.5 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={togglePlay}
+              className="up-hit grid h-9 w-9 place-items-center rounded-full bg-navy text-white shadow-md hover:bg-navy-dark"
+              aria-label={isPlaying ? "Pause recording" : "Play recording"}
+            >
+              <Icon name={isPlaying ? "pause" : "play"} size={14} />
+            </button>
+
+            {/* Custom interactive scrubber track */}
+            <div
+              role="slider"
+              aria-label="Playback progress"
+              aria-valuenow={currentTime}
+              aria-valuemin={0}
+              aria-valuemax={duration || seconds || 1}
+              tabIndex={0}
+              className="press relative flex h-3 flex-1 cursor-pointer items-center overflow-hidden rounded-full"
+              onClick={(e) => {
+                const audio = audioRef.current;
+                if (!audio) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const targetTime = pct * (duration || seconds || 1);
+                audio.currentTime = targetTime;
+                setCurrentTime(targetTime);
+              }}
+            >
+              <div
+                className="h-full rounded-full bg-navy transition-all"
+                style={{
+                  width: `${
+                    duration || seconds
+                      ? Math.min(100, (currentTime / (duration || seconds)) * 100)
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+
+            <span className="mono text-[11px] font-semibold text-ink">
+              {playMmss} / {totalMmss}
+            </span>
+          </div>
+
+          {/* Native browser audio fallback */}
+          <audio
+            controls
+            src={url}
+            preload="auto"
+            className="w-full opacity-70 hover:opacity-100"
+            aria-label="Browser audio controls"
+          />
+        </div>
+      )}
+
+      {playbackError && (
+        <p className="mt-2 text-[12px] leading-relaxed text-alert-ink">{playbackError}</p>
       )}
 
       {state === "recorded" && (

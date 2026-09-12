@@ -1,17 +1,18 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { Main, PageHead } from "@/components/shell/PageHead";
 import { Card, Meter, Panel, Stat } from "@/components/ui/Surface";
-import { ButtonLink } from "@/components/ui/Button";
-import { Chip, Tag } from "@/components/ui/Chip";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { BandChip, Chip, StatusChip, Tag } from "@/components/ui/Chip";
 import { Empty, ErrorNote, NotMeasured, SkeletonRows, SkeletonStats } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
-import { STATUS_LABEL, hours, humanise, money, num } from "@/lib/format";
+import { STATUS_LABEL, bandOf, hours, humanise, money, num } from "@/lib/format";
+import type { Challenge } from "@/types/database";
 
 /**
  * The command centre.
@@ -34,6 +35,50 @@ export default function AdminPage() {
 function Command() {
   const metrics = useResource(() => apiClient.fetchAdminMetrics(), []);
   const health = useResource(() => apiClient.fetchHealth(), []);
+  const challengesRes = useResource(() => apiClient.fetchChallenges({ limit: 100 }), []);
+
+  const [localChallenges, setLocalChallenges] = useState<Challenge[] | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const challenges = localChallenges ?? challengesRes.data?.challenges ?? [];
+
+  useEffect(() => {
+    if (challengesRes.data?.challenges && localChallenges === null) {
+      setLocalChallenges(challengesRes.data.challenges);
+    }
+  }, [challengesRes.data?.challenges, localChallenges]);
+
+  const filteredChallenges = useMemo(() => {
+    if (!searchQuery.trim()) return challenges;
+    const q = searchQuery.toLowerCase();
+    return challenges.filter(
+      (c) =>
+        c.ref?.toLowerCase().includes(q) ||
+        c.title?.toLowerCase().includes(q) ||
+        (c.district ? c.district.toLowerCase().includes(q) : false) ||
+        c.status?.toLowerCase().includes(q),
+    );
+  }, [challenges, searchQuery]);
+
+  async function handleDeleteProblem(id: string, ref: string) {
+    setDeletingId(id);
+    setActionMsg(null);
+    try {
+      await apiClient.deleteChallenge(id);
+      setLocalChallenges((prev) => (prev ?? challenges).filter((c) => c.id !== id));
+      setDeleteTarget(null);
+      setActionMsg(`Problem ${ref} was permanently removed.`);
+      metrics.reload();
+      challengesRes.reload();
+    } catch (err) {
+      setActionMsg(err instanceof Error ? err.message : "Failed to delete problem.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const m = metrics.data;
 
@@ -139,6 +184,143 @@ function Command() {
                 tone={m.totals.solved > 0 ? "teal" : undefined}
               />
             </div>
+
+            {/* ---- manage problems & challenges (admin remove/delete) --- */}
+            <Panel
+              title="Manage Problems &amp; Challenges"
+              lede="Statewide registry of all reported and active challenges. Administrators can inspect, track, or permanently delete problems."
+              right={
+                <span className="mono in-s px-3 py-1 text-[11px] font-semibold text-navy">
+                  {num(filteredChallenges.length)} problems
+                </span>
+              }
+            >
+              {actionMsg && (
+                <div className="in-s mb-4 flex items-center justify-between p-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-moderate">
+                      <Icon name="check" size={15} />
+                    </span>
+                    <span className="text-[13px] font-medium text-ink">{actionMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionMsg(null)}
+                    className="text-mute hover:text-ink"
+                    aria-label="Dismiss message"
+                  >
+                    <Icon name="x" size={14} />
+                  </button>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <input
+                  type="text"
+                  className="field text-[13.5px]"
+                  placeholder="Filter by ref (e.g. C-100), title, district, or status..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {challengesRes.loading && !challengesRes.settled ? (
+                <SkeletonRows rows={4} height={68} />
+              ) : filteredChallenges.length === 0 ? (
+                <Empty
+                  icon="file"
+                  title="No matching problems found"
+                  why={
+                    searchQuery
+                      ? `No problems match "${searchQuery}". Clear the search to see all challenges.`
+                      : "No problems are currently filed in the system."
+                  }
+                />
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {filteredChallenges.map((c) => {
+                    const isDeleting = deletingId === c.id;
+                    const isTarget = deleteTarget === c.id;
+
+                    return (
+                      <li
+                        key={c.id}
+                        className="up-s flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="mono text-[11px] font-bold text-navy">{c.ref}</span>
+                            <BandChip band={c.band ?? bandOf(c.priority)} />
+                            <StatusChip status={c.status} />
+                            <span className="in-s px-2 py-0.5 text-[10.5px] font-medium text-body">
+                              {c.district}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 text-[14px] font-bold text-ink sm:text-[15px]">
+                            {c.title}
+                          </div>
+                          <div className="mono mt-1 text-[11px] text-mute">
+                            Priority {num(c.priority)}/100 · {num(c.report_count ?? 1)} reports merged
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <ButtonLink
+                            href={`/challenge/${c.ref}`}
+                            variant="secondary"
+                            size="sm"
+                            icon="eye"
+                          >
+                            Brief
+                          </ButtonLink>
+                          <ButtonLink
+                            href={`/admin/challenges/${c.ref}`}
+                            variant="secondary"
+                            size="sm"
+                            icon="file"
+                          >
+                            Audit
+                          </ButtonLink>
+
+                          {!isTarget ? (
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              icon="trash"
+                              onClick={() => setDeleteTarget(c.id)}
+                            >
+                              Delete
+                            </Button>
+                          ) : (
+                            <div className="in-s flex items-center gap-1.5 rounded-xl p-1">
+                              <span className="px-2 text-[11px] font-bold text-alert-ink">
+                                Permanently delete?
+                              </span>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                busy={isDeleting}
+                                onClick={() => handleDeleteProblem(c.id, c.ref)}
+                              >
+                                Yes, delete
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={isDeleting}
+                                onClick={() => setDeleteTarget(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Panel>
 
             {/* ---- quiet projects -------------------------------------- */}
             <Panel

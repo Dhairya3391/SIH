@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
-import { useParams } from "next/navigation";
+import React, { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { RouteGuard } from "@/components/shell/RouteGuard";
 import { BackLink, Main, PageHead } from "@/components/shell/PageHead";
 import { Card, Panel, Stat } from "@/components/ui/Surface";
-import { ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { BandChip, Chip, ConfidenceChip, StatusChip } from "@/components/ui/Chip";
 import { ErrorNote, Skeleton } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
@@ -50,14 +50,32 @@ const COUNT_LABEL: Record<string, string> = {
 };
 
 function History() {
+  const router = useRouter();
   const params = useParams<{ ref: string }>();
   const reference = params?.ref ?? "";
   const res = useResource(() => apiClient.fetchChallengeHistory(reference), [reference], {
     enabled: Boolean(reference),
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const d = res.data;
   const c = d?.challenge;
+
+  async function onDelete() {
+    if (!c) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiClient.deleteChallenge(c.id);
+      router.replace("/admin");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete this challenge.");
+      setDeleting(false);
+    }
+  }
 
   if (res.loading && !res.settled) {
     return (
@@ -104,14 +122,52 @@ function History() {
               to={c.closed_at ?? null}
               longestGapHours={d.longest_gap_hours}
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <ButtonLink href={`/challenge/${c.ref}`} variant="secondary" size="sm" icon="eye">
                 The brief
               </ButtonLink>
+              {!confirmDelete ? (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon="trash"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Delete problem
+                </Button>
+              ) : (
+                <div className="in-s flex items-center gap-1.5 rounded-xl p-1">
+                  <span className="px-2 text-[11.5px] font-bold text-alert-ink">
+                    Permanently delete?
+                  </span>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    busy={deleting}
+                    onClick={onDelete}
+                  >
+                    Yes, delete
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={deleting}
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         }
       />
+
+      {deleteError && (
+        <div className="shell pt-4">
+          <ErrorNote message={deleteError} />
+        </div>
+      )}
 
       <Main>
         <div className="flex flex-wrap items-center gap-2">

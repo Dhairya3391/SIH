@@ -98,6 +98,12 @@ function post<T>(path: string, body?: unknown): Promise<T> {
   });
 }
 
+function del<T>(path: string): Promise<T> {
+  return request<T>(path, {
+    method: "DELETE",
+  });
+}
+
 function query(params: Record<string, string | number | undefined | null>): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -158,6 +164,12 @@ export async function fetchChallenges(params: ChallengeListParams = {}) {
 
 export function fetchChallenge(idOrRef: string) {
   return request<ChallengeDetail>(`/api/challenges/${encodeURIComponent(idOrRef)}`);
+}
+
+export function deleteChallenge(idOrRef: string) {
+  return del<{ deleted: boolean; id: string; ref: string; title: string }>(
+    `/api/challenges/${encodeURIComponent(idOrRef)}`,
+  );
 }
 
 export type ReportInput = {

@@ -1,10 +1,11 @@
 import { ok, fail, route } from "@/lib/http";
-import { supabaseServer, currentActor } from "@/lib/supabase/server";
+import { supabaseServer, currentActor, requireRole } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { priorityBand } from "@/lib/domain/types";
 import { AI_DISCLAIMER } from "@/lib/ai/brief";
 import { challengeGap } from "@/lib/services/swarm";
 import { availableActions } from "@/lib/services/lifecycle";
-import { timeline } from "@/lib/services/ledger";
+import { timeline, appendLedger } from "@/lib/services/ledger";
 
 /**
  * GET /api/challenges/:id - everything the main demo screen needs, in one call.
@@ -104,3 +105,77 @@ export const GET = route(
     });
   },
 );
+
+/**
+ * DELETE /api/challenges/:id - permanently delete a challenge/problem.
+ * Restricted to administrators (statewide) and coordinators (own district).
+ */
+export const DELETE = route(
+  async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
+    const actor = await requireRole("admin", "coordinator");
+    const { id } = await params;
+    const admin = supabaseAdmin();
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const { data: challenge, error: findError } = await admin
+      .from("challenges")
+      .select("id, ref, title, district")
+      .eq(isUuid ? "id" : "ref", id)
+      .maybeSingle();
+
+    if (findError) throw findError;
+    if (!challenge) return fail(404, "No such challenge found.", "not_found");
+
+    // Coordinators can only delete challenges within their assigned district
+    if (actor.role === "coordinator" && actor.district && challenge.district !== actor.district) {
+      return fail(
+        403,
+        `Coordinators can only delete problems in their own district (${actor.district}).`,
+        "forbidden",
+      );
+    }
+
+    // 1. Unlink clustered reports cleanly so reports are preserved
+    await admin
+      .from("reports")
+      .update({ cluster_id: null })
+      .eq("cluster_id", challenge.id);
+
+    // 2. Unlink any other challenges merged into this one
+    await admin
+      .from("challenges")
+      .update({ merged_into: null })
+      .eq("merged_into", challenge.id);
+
+    // 3. Delete the challenge (child rows cascade on delete)
+    const { error: deleteError } = await admin
+      .from("challenges")
+      .delete()
+      .eq("id", challenge.id);
+
+    if (deleteError) throw deleteError;
+
+    // 4. Record audit in ledger
+    await appendLedger(admin, {
+      entity: "challenge",
+      entityId: challenge.id,
+      action: "CHALLENGE_DELETED",
+      actor: actor.id,
+      actorRole: actor.role,
+      payload: {
+        ref: challenge.ref,
+        title: challenge.title,
+        district: challenge.district,
+        deleted_by: actor.fullName ?? actor.id,
+      },
+    });
+
+    return ok({
+      deleted: true,
+      id: challenge.id,
+      ref: challenge.ref,
+      title: challenge.title,
+    });
+  },
+);
+

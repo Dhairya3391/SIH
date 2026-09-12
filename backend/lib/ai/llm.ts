@@ -142,10 +142,12 @@ export interface LlmResult<T> {
  * `tool_choice` forces the model to call it. That is far more reliable than
  * asking for JSON in prose and parsing whatever comes back.
  */
+const suspendedKeys = new Set<string>();
+
 async function callGeminiJson<T>(opts: LlmJsonOptions<T>, started: number): Promise<LlmResult<T>> {
-  const apiKeys = getGeminiApiKeys();
+  const apiKeys = getGeminiApiKeys().filter((k) => !suspendedKeys.has(k));
   if (!apiKeys.length) {
-    throw new AiUnavailableError("No Gemini API keys configured.");
+    throw new AiUnavailableError("No active Gemini API keys configured (all keys suspended or missing).");
   }
 
   const models = GEMINI_MODEL_CASCADE;
@@ -153,6 +155,8 @@ async function callGeminiJson<T>(opts: LlmJsonOptions<T>, started: number): Prom
 
   for (const model of models) {
     for (const key of apiKeys) {
+      if (suspendedKeys.has(key)) continue;
+
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
         const res = await fetch(url, {
@@ -176,11 +180,22 @@ async function callGeminiJson<T>(opts: LlmJsonOptions<T>, started: number): Prom
           }),
         });
 
-        if (res.status === 429 || res.status === 403 || res.status === 503) {
-          const errBody = await res.text().catch(() => "");
-          console.warn(`[gemini] model ${model} with key ${key.slice(0, 6)}... returned ${res.status}: ${errBody.slice(0, 100)}`);
-          lastError = new AiUnavailableError(`Gemini model ${model} returned ${res.status}`);
-          continue; // try next key or next model
+        if (res.status === 403) {
+          console.warn(`[gemini] key ${key.slice(0, 8)}... suspended (403), marking inactive`);
+          suspendedKeys.add(key);
+          continue;
+        }
+
+        if (res.status === 503) {
+          console.warn(`[gemini] model ${model} experiencing high demand (503), cascading to next model`);
+          lastError = new AiUnavailableError(`Gemini model ${model} experiencing high demand (503)`);
+          break; // break key loop and try next model in cascade
+        }
+
+        if (res.status === 429) {
+          console.warn(`[gemini] key ${key.slice(0, 8)}... rate limited (429) on ${model}, trying next key`);
+          lastError = new AiUnavailableError(`Gemini key rate limited on ${model}`);
+          continue;
         }
 
         if (!res.ok) {

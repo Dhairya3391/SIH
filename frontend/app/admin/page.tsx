@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   Shield, 
@@ -25,6 +25,7 @@ import {
 import { RouteGuard } from '@/components/shell/RouteGuard';
 import { RoleNav } from '@/components/shell/RoleNav';
 import { CitationList, Citation } from '@/components/shared/CitationList';
+import { fetchAdminMetrics } from '@/lib/api';
 
 interface NarratorQA {
   question: string;
@@ -33,6 +34,23 @@ interface NarratorQA {
 }
 
 export default function AdminConsolePage() {
+  // Live readout from /api/admin/metrics. Anything the record cannot answer
+  // stays null and renders as an em dash - never a number we invented.
+  const [metrics, setMetrics] = useState<any>(null);
+  const [metricsError, setMetricsError] = useState('');
+  const loadMetrics = useCallback(async () => {
+    try {
+      setMetrics(await fetchAdminMetrics());
+    } catch (err) {
+      setMetricsError(err instanceof Error ? err.message : 'Could not load metrics.');
+    }
+  }, []);
+  useEffect(() => {
+    loadMetrics();
+    const t = setInterval(loadMetrics, 30000);
+    return () => clearInterval(t);
+  }, [loadMetrics]);
+
   // THE NARRATOR STATE
   const [narratorQuestion, setNarratorQuestion] = useState('');
   const [isNarratorThinking, setIsNarratorThinking] = useState(false);
@@ -209,6 +227,79 @@ export default function AdminConsolePage() {
               </button>
             </div>
           </div>
+
+          {/* ── live, from the record ── */}
+          <section aria-label="Live system metrics">
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700">
+                Live from the record
+              </span>
+              {metricsError && (
+                <span className="text-[10px] font-mono text-[#A8332A]">{metricsError}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">Challenges</div>
+                <div className="text-2xl font-extrabold font-mono">{metrics?.totals?.challenges ?? '—'}</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">{metrics?.totals?.open ?? '—'} still open</div>
+              </div>
+              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-[#A8332A] mb-1">Severe and open</div>
+                <div className="text-2xl font-extrabold font-mono text-[#A8332A]">{metrics?.totals?.severe_open ?? '—'}</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">
+                  {metrics?.severe_open_ages_days?.length
+                    ? `oldest ${metrics.severe_open_ages_days[0]}d`
+                    : 'none outstanding'}
+                </div>
+              </div>
+              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 mb-1">Solved</div>
+                <div className="text-2xl font-extrabold font-mono text-emerald-700">{metrics?.totals?.solved ?? '—'}</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">deployed or impact verified</div>
+              </div>
+              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">Verification lead time</div>
+                <div className="text-2xl font-extrabold font-mono">
+                  {metrics?.median_verification_hours != null
+                    ? `${metrics.median_verification_hours}h`
+                    : '—'}
+                </div>
+                <div className="text-[11px] text-gray-500 mt-0.5">
+                  {metrics?.median_verification_hours != null
+                    ? 'median, report to verified'
+                    : 'not enough verified reports yet'}
+                </div>
+              </div>
+              <div className="bg-white border border-[#CCD1C7] rounded-xl p-4">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">Proposal windows</div>
+                <div className="text-2xl font-extrabold font-mono">
+                  {metrics?.competition
+                    ? metrics.competition.windows_open + metrics.competition.windows_awarded
+                    : '—'}
+                </div>
+                <div className="text-[11px] text-gray-500 mt-0.5">
+                  {metrics?.competition
+                    ? `${metrics.competition.windows_open} open, ${metrics.competition.windows_awarded} awarded`
+                    : 'awaiting migration 0010'}
+                </div>
+              </div>
+            </div>
+            {metrics?.quiet_projects?.length > 0 && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-800 mb-1.5">
+                  {metrics.quiet_projects.length} project{metrics.quiet_projects.length === 1 ? '' : 's'} overdue an update
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {metrics.quiet_projects.slice(0, 6).map((q: any) => (
+                    <span key={q.challenge_id} className="font-mono text-[11px] bg-white border border-amber-200 rounded px-2 py-0.5">
+                      {q.ref ?? q.challenge_id.slice(0, 8)} · {q.days_since}d
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
 
           {/* Statewide Metrics Strip (Data honesty: no fabricated numbers) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono">

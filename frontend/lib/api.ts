@@ -242,3 +242,81 @@ export async function fetchDashboardMetrics(regionId: string = 'jharkhand') {
   return unwrap(json);
 }
 
+
+// ---------------------------------------------------------------------------
+// Stage 2-6 consoles. Each helper returns the payload the console renders, and
+// throws with the API's own message so a console can show why it is empty
+// rather than pretending it has no data.
+// ---------------------------------------------------------------------------
+
+async function getJson(path: string) {
+  const res = await fetch(path, { cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.error?.message || json?.error || `Request to ${path} failed`;
+    throw new Error(typeof message === 'string' ? message : `Request to ${path} failed`);
+  }
+  return unwrap(json);
+}
+
+/** GET /api/verify/queue - unverified reports with their AI corroboration. */
+export async function fetchVerifyQueue(params: { district?: string; hazard?: string; limit?: number } = {}) {
+  const q = new URLSearchParams();
+  if (params.district) q.set('district', params.district);
+  if (params.hazard) q.set('hazard', params.hazard);
+  q.set('limit', String(params.limit ?? 40));
+  const d = await getJson(`/api/verify/queue?${q}`);
+  return { queue: d?.queue ?? [], count: d?.count ?? 0 };
+}
+
+export async function confirmVerification(
+  challengeId: string,
+  payload: { source_urls: string[]; photo_paths: string[]; note: string; granted?: string },
+) {
+  const res = await fetch(`/api/verify/${challengeId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || 'Could not record the verification');
+  return unwrap(json);
+}
+
+export async function rejectVerification(challengeId: string, reason: string) {
+  const res = await fetch(`/api/verify/${challengeId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || 'Could not record the rejection');
+  return unwrap(json);
+}
+
+/** GET /api/college/problems - verified problems plus their competition state. */
+export async function fetchCollegeProblems(params: { district?: string; category?: string } = {}) {
+  const q = new URLSearchParams();
+  if (params.district) q.set('district', params.district);
+  if (params.category) q.set('category', params.category);
+  const d = await getJson(`/api/college/problems?${q}`);
+  return { problems: d?.problems ?? [], count: d?.count ?? 0 };
+}
+
+/** GET /api/needs - open material lines and funding gaps across all challenges. */
+export async function fetchNeeds(
+  params: { district?: string; category?: string; kind?: string; limit?: number } = {},
+) {
+  const q = new URLSearchParams();
+  if (params.district) q.set('district', params.district);
+  if (params.category) q.set('category', params.category);
+  if (params.kind) q.set('kind', params.kind);
+  q.set('limit', String(params.limit ?? 60));
+  const d = await getJson(`/api/needs?${q}`);
+  return { needs: d?.needs ?? [], count: d?.count ?? 0 };
+}
+
+/** GET /api/admin/metrics - the system owner's readout. */
+export async function fetchAdminMetrics() {
+  return getJson('/api/admin/metrics');
+}

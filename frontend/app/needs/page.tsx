@@ -1,317 +1,357 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { 
-  Building2, 
-  HeartHandshake, 
-  Filter, 
-  Search, 
-  MapPin, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle2, 
-  ArrowRight,
+import {
+  AlertCircle,
+  Building2,
+  Filter,
+  MapPin,
   Package,
-  Layers,
-  Sparkles,
-  Zap,
-  Droplets
+  RefreshCw,
+  Users,
+  Wallet,
 } from 'lucide-react';
-import { RouteGuard } from '@/components/shell/RouteGuard';
+import { RouteGuard as RoleGuard } from '@/components/shell/RouteGuard';
 import { RoleNav } from '@/components/shell/RoleNav';
-import { ContributionSplitter, formatIndianCurrency, formatIndianNumber } from '@/components/shared/ContributionSplitter';
-import { Category, PriorityBand } from '@/types/database';
+import { LoadingSkeleton } from '@/components/shell/LoadingSkeleton';
+import {
+  ContributionSplitter,
+  formatIndianCurrency,
+  formatIndianNumber,
+} from '@/components/shared/ContributionSplitter';
+import { fetchNeeds, pledgeResource } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
-export interface OpenNeedItem {
-  id: string;
-  challengeRef: string;
-  challengeTitle: string;
-  category: Category;
-  district: string;
-  severity: number;
-  priority: number;
-  priorityBand: PriorityBand;
-  ageDays: number;
-  itemName: string;
-  unit: string;
-  totalNeeded: number;
-  alreadyPledged: number;
-  isCurrency: boolean;
-  leadCollege: string;
+/**
+ * The contribution marketplace.
+ *
+ * Every line shows what REMAINS, not what was originally asked for, because
+ * the mechanic the whole pitch turns on is two contributors closing one line
+ * between them: 12 units needed, 5 taken by someone else, 7 left for you.
+ */
+
+interface NeedRow {
+  need_id: string;
+  item: string;
+  unit: string | null;
+  kind: string;
+  capability: string | null;
+  qty_needed: number;
+  qty_pledged: number;
+  qty_remaining: number;
+  pct_closed: number;
+  contributor_count: number;
+  challenge: {
+    id: string;
+    ref: string;
+    title: string;
+    district: string;
+    category: string;
+    priority: number;
+    people_est: number;
+    age_days: number;
+  };
 }
 
-const SEED_OPEN_NEEDS: OpenNeedItem[] = [
-  {
-    id: 'need-1',
-    challengeRef: 'CH-GUM-001',
-    challengeTitle: 'Last-mile lightning alerts and safe shelter for farm workers, Gumla block',
-    category: 'disaster',
-    district: 'Gumla',
-    severity: 5,
-    priority: 82,
-    priorityBand: 'critical',
-    ageDays: 4,
-    itemName: '120dB Solar Acoustic Siren Towers',
-    unit: 'towers',
-    totalNeeded: 12,
-    alreadyPledged: 5, // 5 pledged by another company -> 7 remaining
-    isCurrency: false,
-    leadCollege: 'BIT Mesra ECE Lab',
-  },
-  {
-    id: 'need-2',
-    challengeRef: 'CH-GUM-001',
-    challengeTitle: 'Last-mile lightning alerts and safe shelter for farm workers, Gumla block',
-    category: 'disaster',
-    district: 'Gumla',
-    severity: 5,
-    priority: 82,
-    priorityBand: 'critical',
-    ageDays: 4,
-    itemName: 'Hardware Fabrication & Pilot Installation Budget',
-    unit: 'INR',
-    totalNeeded: 140000,
-    alreadyPledged: 60000, // 80,000 remaining
-    isCurrency: true,
-    leadCollege: 'BIT Mesra ECE Lab',
-  },
-  {
-    id: 'need-3',
-    challengeRef: 'CH-SAH-002',
-    challengeTitle: 'Ganga riverbank flood water filtration and pathogen elimination',
-    category: 'water',
-    district: 'Sahebganj',
-    severity: 5,
-    priority: 76,
-    priorityBand: 'critical',
-    ageDays: 2,
-    itemName: 'Mobile Gravity Ultrafiltration Cartridges (500L/hr)',
-    unit: 'cartridges',
-    totalNeeded: 20,
-    alreadyPledged: 8,
-    isCurrency: false,
-    leadCollege: 'IIT-ISM Dhanbad Environmental Lab',
-  },
-  {
-    id: 'need-4',
-    challengeRef: 'CH-DHN-003',
-    challengeTitle: 'Coal seam methane and toxic gas monitoring, Jharia basti',
-    category: 'roads',
-    district: 'Dhanbad',
-    severity: 4,
-    priority: 68,
-    priorityBand: 'high',
-    ageDays: 6,
-    itemName: 'Methane Gas Detection LoRa Nodes',
-    unit: 'nodes',
-    totalNeeded: 15,
-    alreadyPledged: 0,
-    isCurrency: false,
-    leadCollege: 'IIT-ISM Dhanbad Geotech',
-  },
-  {
-    id: 'need-5',
-    challengeRef: 'CH-PAL-004',
-    challengeTitle: 'Low-cost solar sub-surface drip irrigation for drought uplands',
-    category: 'agriculture',
-    district: 'Palamu',
-    severity: 4,
-    priority: 54,
-    priorityBand: 'high',
-    ageDays: 8,
-    itemName: 'Solar Submersible Water Pump Array Budget',
-    unit: 'INR',
-    totalNeeded: 220000,
-    alreadyPledged: 70000,
-    isCurrency: true,
-    leadCollege: 'Birsa Agricultural University (BAU)',
-  },
-];
+const KIND_LABEL: Record<string, string> = {
+  money: 'Funding',
+  equipment: 'Materials',
+  people: 'People',
+  expertise: 'Expertise',
+};
 
 export default function NeedsMarketplacePage() {
-  const [needs, setNeeds] = useState<OpenNeedItem[]>(SEED_OPEN_NEEDS);
-  const [districtFilter, setDistrictFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { organisation } = useAuth();
+  const [rows, setRows] = useState<NeedRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [district, setDistrict] = useState('all');
+  const [kind, setKind] = useState('all');
 
-  const filtered = useMemo(() => {
-    return needs.filter((n) => {
-      if (districtFilter !== 'all' && n.district !== districtFilter) return false;
-      if (categoryFilter !== 'all' && n.category !== categoryFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          n.itemName.toLowerCase().includes(q) ||
-          n.challengeTitle.toLowerCase().includes(q) ||
-          n.district.toLowerCase().includes(q)
-        );
-      }
-      return true;
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const res = await fetchNeeds({
+        district: district === 'all' ? undefined : district,
+        kind: kind === 'all' ? undefined : kind,
+        limit: 80,
+      });
+      setRows(res.needs as NeedRow[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load open needs.');
+    } finally {
+      setLoading(false);
+    }
+  }, [district, kind]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const districts = useMemo(
+    () => [...new Set(rows.map((r) => r.challenge.district))].sort(),
+    [rows],
+  );
+
+  const totals = useMemo(() => {
+    const money = rows.filter((r) => r.kind === 'money');
+    const material = rows.filter((r) => r.kind !== 'money');
+    return {
+      lines: rows.length,
+      challenges: new Set(rows.map((r) => r.challenge.ref)).size,
+      moneyRemaining: money.reduce((s, r) => s + r.qty_remaining, 0),
+      materialLines: material.length,
+      partlyClosed: rows.filter((r) => r.qty_pledged > 0).length,
+    };
+  }, [rows]);
+
+  const onPledge = async (row: NeedRow, amount: number, note?: string) => {
+    if (!organisation?.id) {
+      throw new Error('This account is not linked to an organisation, so it cannot pledge yet.');
+    }
+    await pledgeResource(row.challenge.id, {
+      need_id: row.need_id,
+      org_id: organisation.id,
+      qty: amount,
+      kind: row.kind,
+      note: note || `Pledged via the needs marketplace`,
     });
-  }, [needs, districtFilter, categoryFilter, searchQuery]);
+    await load();
+  };
 
   return (
-    <RouteGuard allowedRoles={['industry', 'coordinator', 'admin']} consoleTitle="CSR Needs Marketplace">
-      <div className="min-h-screen bg-[#F4F6F5] text-[#102027] flex flex-col">
+    <RoleGuard
+      allowedRoles={['industry', 'university', 'coordinator', 'admin']}
+      consoleTitle="Contribution Marketplace"
+    >
+      <div className="min-h-screen bg-[#F4F6F5] flex flex-col">
         <RoleNav />
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-          {/* Header */}
-          <div className="bg-white border border-[#CCD1C7] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          {/* header */}
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <span className="text-[11px] font-mono text-[#2E7180] font-bold uppercase tracking-wider">
-                Stage 4 · Corporate & NGO Resource Swarm
-              </span>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#102027] mt-1">
-                The Needs Marketplace
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Stage 4 · Fractional CSR and NGO sponsorship
+              </div>
+              <h1 className="text-2xl font-extrabold text-[#102027] tracking-tight">
+                What still needs covering
               </h1>
-              <p className="text-xs text-gray-600 mt-1">
-                Pledge partial material lines and CSR capital directly to university pilots. Every rupee and kilogram is tracked to verified impact.
+              <p className="text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                Open lines across every funded project. You can take part of a
+                line — another partner can take the rest.
               </p>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/contributions"
-                className="touch-target px-4 py-2 bg-white border border-[#CCD1C7] hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition"
-              >
-                <Building2 className="w-3.5 h-3.5 text-purple-700" />
-                My CSR Contributions & Tracking
-              </Link>
-            </div>
+            <button
+              onClick={() => {
+                setLoading(true);
+                load();
+              }}
+              className="h-9 px-3 rounded-lg border border-[#CCD1C7] bg-white text-xs font-semibold text-gray-700 flex items-center gap-1.5 hover:border-[#2E7180]"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </button>
           </div>
 
-          {/* Filters Bar */}
-          <div className="bg-white p-4 rounded-xl border border-[#CCD1C7] flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-gray-500 font-bold flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5" /> Filters:
-              </span>
-
-              <select
-                value={districtFilter}
-                onChange={(e) => setDistrictFilter(e.target.value)}
-                className="bg-[#F4F6F5] px-2.5 py-1.5 rounded-lg border border-[#CCD1C7] font-semibold font-mono"
-              >
-                <option value="all">All Districts</option>
-                <option value="Gumla">Gumla</option>
-                <option value="Sahebganj">Sahebganj</option>
-                <option value="Dhanbad">Dhanbad</option>
-                <option value="Palamu">Palamu</option>
-              </select>
-
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-[#F4F6F5] px-2.5 py-1.5 rounded-lg border border-[#CCD1C7] font-semibold font-mono"
-              >
-                <option value="all">All Categories</option>
-                <option value="disaster">Disaster & Safety</option>
-                <option value="water">Drinking Water</option>
-                <option value="roads">Roads & Subsurface</option>
-                <option value="agriculture">Agriculture</option>
-              </select>
-
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
-                <input
-                  type="text"
-                  placeholder="Filter materials, budget lines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 rounded-lg border border-[#CCD1C7] font-mono text-xs outline-none focus:border-[#2E7180]"
-                />
+          {/* live totals */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Open lines
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-[#102027]">
+                {totals.lines}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                across {totals.challenges} projects
               </div>
             </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Funding still open
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-[#102027]">
+                {totals.moneyRemaining > 0 ? formatIndianCurrency(totals.moneyRemaining) : '—'}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">across all money lines</div>
+            </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mb-1">
+                Material lines
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-[#102027]">
+                {totals.materialLines}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">equipment and supplies</div>
+            </div>
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-4">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-emerald-700 mb-1">
+                Part-covered
+              </div>
+              <div className="text-2xl font-extrabold font-mono text-emerald-700">
+                {totals.partlyClosed}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                someone has already started these
+              </div>
+            </div>
+          </div>
 
-            <span className="text-xs font-mono text-gray-400">
-              Lines Display Remaining Gaps Only
+          {/* filters */}
+          <div className="bg-white rounded-xl border border-[#CCD1C7] p-3 flex flex-wrap items-center gap-3">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-gray-500 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5" /> Filter
             </span>
+            <select
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              className="h-9 px-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-xs outline-none focus:border-[#2E7180]"
+            >
+              <option value="all">All districts</option>
+              {districts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              className="h-9 px-2.5 rounded-lg border border-[#CCD1C7] bg-[#F4F6F5] text-xs outline-none focus:border-[#2E7180]"
+            >
+              <option value="all">Funding and materials</option>
+              <option value="money">Funding only</option>
+              <option value="equipment">Materials only</option>
+              <option value="people">People</option>
+              <option value="expertise">Expertise</option>
+            </select>
+            {organisation && (
+              <span className="ml-auto text-[11px] text-gray-500 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" /> Pledging as{' '}
+                <strong className="text-[#102027]">{organisation.name}</strong>
+              </span>
+            )}
           </div>
 
-          {/* Needs Marketplace Grid with Split-Contribution Control */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {filtered.map((item) => {
-              const remaining = Math.max(0, item.totalNeeded - item.alreadyPledged);
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-xs text-[#A8332A] bg-red-50 border border-red-200 rounded-xl p-3"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{error}</span>
+            </div>
+          )}
 
-              return (
-                <div
-                  key={item.id}
-                  className="bg-white border border-[#CCD1C7] rounded-2xl p-5 shadow-xs space-y-4 flex flex-col justify-between"
+          {/* the lines */}
+          {loading ? (
+            <LoadingSkeleton rows={4} />
+          ) : rows.length === 0 ? (
+            <div className="bg-white rounded-xl border border-[#CCD1C7] p-10 text-center">
+              <Package className="w-7 h-7 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-[#102027]">
+                Nothing is waiting for a contribution right now
+              </p>
+              <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                Lines appear here once a college wins a proposal and publishes
+                what it needs. Every line already open has been fully covered.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {rows.map((row) => (
+                <article
+                  key={row.need_id}
+                  className="bg-white rounded-xl border border-[#CCD1C7] overflow-hidden"
                 >
-                  <div className="space-y-3">
-                    {/* Urgency, District & Age Badge */}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${
-                            item.priority >= 75
-                              ? 'bg-[#D94F45]/15 text-[#A8332A] border border-[#D94F45]/30'
-                              : 'bg-[#E07B2E]/15 text-[#9A4A12] border border-[#E07B2E]/30'
-                          }`}
-                        >
-                          PRIORITY {item.priority} · {item.priorityBand.toUpperCase()}
+                  <div className="p-4 border-b border-[#CCD1C7] flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-[#102027] text-white">
+                          {KIND_LABEL[row.kind] ?? row.kind}
                         </span>
-                        <span className="text-[11px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                          Opened {item.ageDays} days ago
-                        </span>
+                        {row.challenge.priority >= 75 && (
+                          <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-red-100 text-red-800">
+                            CRITICAL {row.challenge.priority}
+                          </span>
+                        )}
+                        {row.qty_pledged > 0 && (
+                          <span className="font-mono text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {row.pct_closed}% COVERED
+                          </span>
+                        )}
+                        {row.capability && (
+                          <span className="font-mono text-[10px] text-gray-500 border border-[#CCD1C7] px-1.5 py-0.5 rounded">
+                            {row.capability}
+                          </span>
+                        )}
                       </div>
-
-                      <span className="text-xs font-mono text-gray-600 flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-[#2E7180]" />
-                        {item.district}
-                      </span>
+                      <h2 className="font-bold text-[#102027]">{row.item}</h2>
+                      <Link
+                        href={`/challenge/${row.challenge.ref}`}
+                        className="text-xs text-[#2E7180] hover:underline mt-1 inline-block"
+                      >
+                        {row.challenge.title}
+                      </Link>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 font-mono text-[10px] text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {row.challenge.district}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />{' '}
+                          {formatIndianNumber(row.challenge.people_est)} people
+                        </span>
+                        <span>{row.challenge.ref}</span>
+                        <span>open {row.challenge.age_days}d</span>
+                        {row.contributor_count > 0 && (
+                          <span className="text-emerald-700">
+                            {row.contributor_count} partner
+                            {row.contributor_count === 1 ? '' : 's'} already in
+                          </span>
+                        )}
+                      </div>
                     </div>
-
-                    {/* Challenge Parent Context */}
-                    <div>
-                      <span className="text-[10px] font-mono text-gray-400 uppercase font-bold">
-                        Challenge {item.challengeRef}
-                      </span>
-                      <h3 className="text-sm font-bold text-[#102027] line-clamp-1">
-                        {item.challengeTitle}
-                      </h3>
-                      <p className="text-[11px] text-[#2E7180] font-mono mt-0.5">
-                        Lead Engineering Partner: {item.leadCollege}
-                      </p>
+                    <div className="text-right shrink-0">
+                      <div className="font-mono text-[10px] tracking-wider uppercase text-gray-500">
+                        Remaining
+                      </div>
+                      <div className="text-xl font-extrabold font-mono text-[#102027]">
+                        {row.kind === 'money'
+                          ? formatIndianCurrency(row.qty_remaining)
+                          : `${formatIndianNumber(row.qty_remaining)} ${row.unit ?? ''}`}
+                      </div>
+                      <div className="font-mono text-[10px] text-gray-500">
+                        of {formatIndianNumber(row.qty_needed)} {row.unit ?? ''}
+                      </div>
                     </div>
+                  </div>
 
-                    {/* THE SPLIT-CONTRIBUTION CONTROL COMPONENT */}
+                  <div className="p-4 bg-[#F4F6F5]">
                     <ContributionSplitter
-                      itemName={item.itemName}
-                      totalNeeded={item.totalNeeded}
-                      alreadyPledged={item.alreadyPledged}
-                      unit={item.unit}
-                      isCurrency={item.isCurrency}
-                      onPledge={async (pledgedAmount) => {
-                        // Update local remaining state
-                        setNeeds((prev) =>
-                          prev.map((n) =>
-                            n.id === item.id
-                              ? { ...n, alreadyPledged: n.alreadyPledged + pledgedAmount }
-                              : n
-                          )
-                        );
-                      }}
+                      itemName={row.item}
+                      totalNeeded={row.qty_needed}
+                      alreadyPledged={row.qty_pledged}
+                      unit={row.unit ?? 'units'}
+                      isCurrency={row.kind === 'money'}
+                      orgName={organisation?.name}
+                      disabled={!organisation}
+                      onPledge={(amount, note) => onPledge(row, amount, note)}
                     />
+                    {!organisation && (
+                      <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
+                        <Wallet className="w-3.5 h-3.5" />
+                        This account has no organisation attached, so it can
+                        browse but not pledge.
+                      </p>
+                    )}
                   </div>
-
-                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs font-mono text-gray-500">
-                    <span>CSR Eligible: Sec 135 Sch VII (Disaster Relief)</span>
-                    <Link
-                      href={`/challenge/${item.challengeRef}`}
-                      className="text-[#2E7180] font-bold hover:underline flex items-center gap-1"
-                    >
-                      View Challenge <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
         </main>
       </div>
-    </RouteGuard>
+    </RoleGuard>
   );
 }

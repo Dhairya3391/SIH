@@ -28,9 +28,17 @@ export default function QueuePage() {
 
   const loadData = async () => {
     try {
+      let customList: any[] = [];
+      try {
+        const saved = localStorage.getItem('jharsetu_custom_challenges');
+        if (saved) customList = JSON.parse(saved);
+      } catch {}
+
       const res = await fetchChallenges();
       if (res.data) {
-        setChallenges(res.data);
+        setChallenges([...customList, ...res.data]);
+      } else if (customList.length > 0) {
+        setChallenges(customList);
       }
     } catch (err) {
       console.error('Failed to load queue:', err);

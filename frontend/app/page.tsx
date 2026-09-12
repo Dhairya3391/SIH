@@ -60,23 +60,42 @@ export default function HomePage() {
       <GovStrip />
 
       <div className="shell flex h-[72px] items-center justify-between gap-4 lg:h-[78px]">
-        <Logo href={null} />
-        {loading ? (
-          <Skeleton height={36} rounded={10} className="w-[120px]" />
-        ) : isAuthenticated && role ? (
-          <div className="flex items-center gap-3">
-            <span className="mono hidden text-[10px] uppercase tracking-[0.08em] text-mute sm:inline">
-              {user?.full_name ?? "signed in"} · {ROLE_LABEL[role]}
-            </span>
-            <ButtonLink href={ROLE_HOME[role]} variant="primary" size="sm" iconAfter="arrow">
-              My console
+        <Logo href="/" />
+
+        {/* Public catalog links */}
+        <nav className="hidden items-center gap-6 md:flex">
+          <Link href="/challenges" className="text-[14px] font-medium text-body transition-colors hover:text-navy">
+            Explore challenges
+          </Link>
+          <Link href="/silent-zones" className="text-[14px] font-medium text-body transition-colors hover:text-navy">
+            Silent zones
+          </Link>
+          <Link href="/overview" className="text-[14px] font-medium text-body transition-colors hover:text-navy">
+            Impact
+          </Link>
+          <Link href="/needs" className="text-[14px] font-medium text-body transition-colors hover:text-navy">
+            For partners
+          </Link>
+        </nav>
+
+        <div className="flex items-center gap-2.5">
+          {loading ? (
+            <Skeleton height={36} rounded={10} className="w-[120px]" />
+          ) : isAuthenticated && role ? (
+            <div className="flex items-center gap-2">
+              <ButtonLink href={ROLE_HOME[role]} variant="primary" size="sm" iconAfter="arrow">
+                My console ({ROLE_LABEL[role]})
+              </ButtonLink>
+              <ButtonLink href="/login" variant="secondary" size="sm" icon="login">
+                Login / Switch role
+              </ButtonLink>
+            </div>
+          ) : (
+            <ButtonLink href="/login" variant="primary" size="sm" icon="login">
+              Login
             </ButtonLink>
-          </div>
-        ) : (
-          <ButtonLink href="/login" variant="secondary" size="sm" icon="login">
-            Sign in
-          </ButtonLink>
-        )}
+          )}
+        </div>
       </div>
 
       <main id="main" className="shell pb-20">
@@ -95,11 +114,12 @@ export default function HomePage() {
             <ButtonLink href="/report" variant="primary" icon="mic">
               Report a problem
             </ButtonLink>
-            {!isAuthenticated && (
-              <ButtonLink href="/login" variant="secondary" icon="login">
-                Sign in to a console
-              </ButtonLink>
-            )}
+            <ButtonLink href="/login" variant="secondary" icon="login">
+              Login to Console
+            </ButtonLink>
+            <ButtonLink href="/challenges" variant="secondary" icon="arrow">
+              Explore challenges
+            </ButtonLink>
           </div>
 
           <p className="mt-4 text-[13px] leading-relaxed text-mute">
@@ -189,11 +209,17 @@ export default function HomePage() {
               Government of Jharkhand · Department of Disaster Management
             </p>
             <div className="flex flex-wrap items-center gap-4">
+              <Link href="/challenges" className="mono text-[10.5px] uppercase tracking-[0.1em]">
+                Challenges
+              </Link>
+              <Link href="/silent-zones" className="mono text-[10.5px] uppercase tracking-[0.1em]">
+                Silent zones
+              </Link>
               <Link href="/report" className="mono text-[10.5px] uppercase tracking-[0.1em]">
                 Report a problem
               </Link>
-              <Link href="/login" className="mono text-[10.5px] uppercase tracking-[0.1em]">
-                Sign in
+              <Link href="/login" className="mono text-[10.5px] font-bold uppercase tracking-[0.1em] text-navy">
+                Login
               </Link>
             </div>
           </div>

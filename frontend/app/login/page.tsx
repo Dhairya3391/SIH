@@ -54,7 +54,7 @@ function LoginFallback() {
 }
 
 function LoginInner() {
-  const { signIn, demoSignIn, isAuthenticated, role, loading } = useAuth();
+  const { signIn, demoSignIn, signOut, isAuthenticated, role, user, loading } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next");
@@ -65,11 +65,12 @@ function LoginInner() {
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState<UserRole | null>(null);
 
-  // Already signed in and someone opened /login directly: send them on rather
-  // than showing a form that will just bounce them.
+  // If a specific destination was requested (e.g. from RouteGuard) and the user
+  // is authenticated, redirect to it. If visiting /login directly, do not bounce
+  // so the user or evaluator can switch between demo roles freely.
   useEffect(() => {
-    if (!loading && isAuthenticated && role) {
-      router.replace(next && next.startsWith("/") ? next : ROLE_HOME[role]);
+    if (!loading && isAuthenticated && role && next && next.startsWith("/")) {
+      router.replace(next);
     }
   }, [loading, isAuthenticated, role, next, router]);
 
@@ -109,7 +110,7 @@ function LoginInner() {
       <GovStrip />
 
       <div className="shell flex h-[72px] items-center justify-between lg:h-[78px]">
-        <Logo href={null} />
+        <Logo href="/" />
         <span className="mono hidden text-[11px] uppercase tracking-[0.1em] text-mute sm:inline">
           Disaster Management · District bridge
         </span>
@@ -119,6 +120,40 @@ function LoginInner() {
         id="main"
         className="shell grid items-start gap-6 pt-4 pb-16 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)] lg:gap-8 lg:pt-6"
       >
+        {/* ---- currently signed-in banner ---- */}
+        {isAuthenticated && role && (
+          <div className="up-s col-span-full flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-2.5">
+              <span className="text-moderate">
+                <Icon name="shield" size={16} />
+              </span>
+              <span className="text-[13.5px] text-body">
+                Currently signed in as <strong className="text-navy">{user?.full_name ?? "Active User"}</strong> ({ROLE_LABEL[role]}).
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                iconAfter="arrow"
+                onClick={() => go(role)}
+              >
+                Go to my console
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="logout"
+                onClick={async () => {
+                  await signOut();
+                }}
+              >
+                Sign out
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* ---- the form ---------------------------------------------------- */}
         <section className="up p-6 sm:p-7">
           <span className="eyebrow">Sign in</span>

@@ -81,8 +81,10 @@ playwright/.cache/
 .parcel-cache/
 .cache/
 
-# Uploads / media (local only — seeded media lives in backend/supabase/seed)
-uploads/
+# Uploads / media (local only — seeded media lives in backend/supabase/seed).
+# Root-anchored on purpose: backend/app/api/uploads is a real API route.
+# (The earlier bare `uploads/` pattern silently untracked it.)
+/uploads/
 *.mp4
 *.mov
 !presentation/demo/backup-*.mp4

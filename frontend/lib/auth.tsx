@@ -82,14 +82,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const demoSignIn = useCallback(
     async (role: UserRole) => {
       const result = await api.demoSignIn(role);
+      if (!result?.user) {
+        throw new Error("That demo sign-in did not return an account. Please try again.");
+      }
+      // The POST response is the freshest truth about who just signed in.
+      // The probe that follows only fills in the organisation — it must never
+      // wipe or downgrade this login. On a cold start the probe can fail or
+      // return the previous session, and applying that would land the new
+      // account on the old account's console.
       setUser(result.user);
-      // demo-login does not resolve the organisation; the probe does. Clear
-      // first so a failed probe cannot leave the previous role's org behind.
       setOrganisation(null);
-      await refresh();
+      // The probe fills in the organisation. On a cold start the first probe
+      // can fail before the fresh cookie settles, so retry once after a beat.
+      // Either way the probe only ever adopts a session for THIS login: a
+      // stale cookie (or none) must not wipe or downgrade it.
+      let session: { user: User | null; organisation: Organisation | null } | null = null;
+      try {
+        session = await api.fetchSession();
+      } catch {
+        session = null;
+      }
+      if (!session?.user) {
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
+          session = await api.fetchSession();
+        } catch {
+          session = null;
+        }
+      }
+      if (session?.user && session.user.id === result.user.id) {
+        setUser(session.user);
+        setOrganisation(session.organisation);
+      }
       return result.user;
     },
-    [refresh],
+    [],
   );
 
   const signOut = useCallback(async () => {

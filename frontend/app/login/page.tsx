@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/States";
 import { useAuth } from "@/lib/auth";
-import { ALL_ROLES, ROLE_HOME, ROLE_PURPOSE } from "@/lib/nav";
+import { ALL_ROLES, ROLE_HOME, ROLE_PURPOSE, canAccess } from "@/lib/nav";
 import { ROLE_LABEL } from "@/lib/format";
 import type { UserRole } from "@/types/database";
 
@@ -72,17 +72,19 @@ function LoginInner() {
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState<UserRole | null>(null);
 
-  // If a specific destination was requested (e.g. from RouteGuard) and the user
-  // is authenticated, redirect to it. If visiting /login directly, do not bounce
-  // so the user or evaluator can switch between demo roles freely.
+  // A requested destination (?next=, e.g. from RouteGuard) is followed when the
+  // signed-in role belongs there. A stale ?next= from a previous account falls
+  // back to this role's console instead of somebody else's screen. With no
+  // ?next= there is no bounce, so the banner below and the role switcher stay
+  // usable for an evaluator walking the whole chain.
   useEffect(() => {
-    if (!loading && isAuthenticated && role && next && next.startsWith("/")) {
-      router.replace(next);
+    if (!loading && isAuthenticated && role && next) {
+      router.replace(canAccess(role, next) ? next : ROLE_HOME[role]);
     }
   }, [loading, isAuthenticated, role, next, router]);
 
   function go(r: UserRole) {
-    router.replace(next && next.startsWith("/") ? next : ROLE_HOME[r]);
+    router.replace(next && canAccess(r, next) ? next : (ROLE_HOME[r] ?? "/"));
   }
 
   async function onSubmit(e: React.FormEvent) {

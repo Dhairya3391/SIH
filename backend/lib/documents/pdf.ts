@@ -1,5 +1,4 @@
 import "server-only";
-import { PDFParse } from "pdf-parse";
 
 /**
  * Text out of a proposal PDF, page by page.
@@ -7,6 +6,12 @@ import { PDFParse } from "pdf-parse";
  * Each page is prefixed with an explicit marker. The reviewer cites page
  * numbers for every judgement, and the markers are what make "read from page
  * 4" something a college can actually check against its own document.
+ *
+ * NOTE: pdf-parse (via pdfjs-dist) requires DOMMatrix/canvas polyfills that
+ * do not exist in the Vercel Node runtime, and it crashes at import time.
+ * Importing this module must therefore stay side-effect free: PDFParse is
+ * loaded lazily inside extractPdfText so routes that never touch a PDF
+ * (e.g. GET /api/college/proposals) do not crash on module evaluation.
  */
 
 export interface ExtractedDocument {
@@ -20,12 +25,17 @@ export function looksLikePdf(bytes: Uint8Array): boolean {
 }
 
 export async function extractPdfText(bytes: Uint8Array): Promise<ExtractedDocument> {
+  // Lazy: see the module note above. A static import would crash every route
+  // that imports this file, even ones that never read a PDF.
+  const { PDFParse } = await import("pdf-parse");
   // pdf.js may transfer the buffer it is given; hand it a copy so the caller's
   // bytes survive for the storage upload.
   const parser = new PDFParse({ data: new Uint8Array(bytes) });
   try {
     const result = await parser.getText();
-    const pages = result.pages?.length ? result.pages : [{ num: 1, text: result.text ?? "" }];
+    const pages: { num: number; text?: string | null }[] = result.pages?.length
+      ? result.pages
+      : [{ num: 1, text: result.text ?? "" }];
     const text = pages
       .map((p) => `--- page ${p.num} ---\n${(p.text ?? "").trim()}`)
       .join("\n\n")

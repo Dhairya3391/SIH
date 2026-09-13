@@ -103,7 +103,270 @@ export async function seedDatabase(
   summary.reports += rajkot.reports;
   summary.challenges += rajkot.challenges;
 
+  // Links rows to the demo accounts and fills the competition tables, so
+  // My Reports, My Proposals, Projects and Messages all open with data.
+  await seedAttributions(supabase, orgIds);
+
   return summary;
+}
+
+/**
+ * Everything in this step is an UPDATE or an insert into tables the scenario
+ * seeders do not touch: it attributes seed rows to the demo accounts (Somra's
+ * reports, the college–funder thread) and stages the proposal competition the
+ * college pages read (proposals live in `proposals`, not `solutions`).
+ */
+async function seedAttributions(supabase: SupabaseClient, orgIds: Map<string, string>) {
+  const { data: users } = await supabase.from("users").select("id, role");
+  const userId = (role: string) => (users ?? []).find((u) => u.role === role)?.id as string | undefined;
+  const citizenId = userId("citizen");
+  const universityLead = userId("university");
+  const industryLead = userId("industry");
+
+  const challengeIdByTitle = async (title: string): Promise<string | null> => {
+    const { data } = await supabase.from("challenges").select("id").eq("title", title).maybeSingle();
+    return (data?.id as string) ?? null;
+  };
+
+  // Somra's reports: the first six Gumla reports belong to the demo citizen,
+  // so My Reports opens with her own words, including Hindi ones.
+  if (citizenId) {
+    await supabase
+      .from("reports")
+      .update({ reporter_id: citizenId })
+      .in("client_id", [0, 1, 2, 3, 4, 5].map((i) => `seed-gumla-${i}`));
+  }
+
+  const bitMesra = orgIds.get("BIT Mesra, Department of Electronics and Communication");
+  const ranchiUniv = orgIds.get("Ranchi University, Department of Geography");
+  const damodar = orgIds.get("Damodar Steel Works (fictional)");
+
+  // The college–funder thread on the main Gumla challenge, mid-conversation.
+  const gumlaId = await challengeIdByTitle(
+    "Last-mile lightning alerts and safe shelter for farm workers, Gumla block",
+  );
+  if (gumlaId && bitMesra && damodar) {
+    const { data: thread } = await supabase
+      .from("threads")
+      .insert({
+        challenge_id: gumlaId,
+        college_org_id: bitMesra,
+        contributor_org_id: damodar,
+        last_message_at: daysAgo(1),
+      })
+      .select("id")
+      .single();
+    if (thread && universityLead && industryLead) {
+      await supabase.from("messages").insert([
+        {
+          thread_id: thread.id,
+          author_id: industryLead,
+          author_org_id: damodar,
+          body: "Will the siren relay work in villages with no mobile signal at all? Two of our sites are in a dead zone.",
+          created_at: daysAgo(2),
+          read_at: daysAgo(2),
+        },
+        {
+          thread_id: thread.id,
+          author_id: universityLead,
+          author_org_id: bitMesra,
+          body: "Yes — the relay plays the official radio alert feed, not a data feed, and the manual warden key covers a total blackout.",
+          created_at: daysAgo(2),
+          read_at: daysAgo(1),
+        },
+        {
+          thread_id: thread.id,
+          author_id: industryLead,
+          author_org_id: damodar,
+          body: "Good. We will confirm the last 4 siren units this week once the warden roster is shared.",
+          created_at: daysAgo(1),
+        },
+      ]);
+    }
+  }
+
+  // The proposal competition on the Sahebganj water challenge: two scored
+  // proposals, BIT Mesra leading, window still open.
+  const waterId = await challengeIdByTitle("Safe drinking water for a cut-off village, Radhanagar");
+  if (waterId && bitMesra && ranchiUniv) {
+    const rubric = (total: number, summary: string) => ({
+      total,
+      criteria: [
+        { criterion: "technical", points: 4, max: 5, reason: "Design fits the need.", page: 2 },
+        { criterion: "cost", points: 4, max: 5, reason: "Within a CSR tranche.", page: 3 },
+        { criterion: "time_to_deploy", points: 4, max: 5, reason: "Deployable in weeks.", page: 3 },
+        { criterion: "local_resources", points: 3, max: 5, reason: "Uses local labour.", page: 4 },
+        { criterion: "safety", points: 4, max: 5, reason: "No new hazards introduced.", page: 2 },
+        { criterion: "community_acceptance", points: 4, max: 5, reason: "Uses existing water points.", page: 4 },
+        { criterion: "scalability", points: 4, max: 5, reason: "Repeatable per village.", page: 5 },
+      ],
+      summary,
+      required_changes: [],
+      extraction: { funding_required: 240000, currency: "INR", duration_days: 40 },
+      source: "rules",
+      fallback_reason: null,
+    });
+
+    const { data: props } = await supabase
+      .from("proposals")
+      .insert([
+        {
+          challenge_id: waterId,
+          org_id: bitMesra,
+          author_id: universityLead ?? null,
+          version: 1,
+          document_name: "BIT-Mesra-sahebganj-water.pdf",
+          document_pages: 9,
+          extracted_text: "Portable filtration with solar pumps at three distribution points, maintained by trained village operators.",
+          state: "scored",
+          ai_score: 82,
+          ai_verdict: "viable",
+          ai_rubric: rubric(82, "Strong deployable proposal using equipment that already exists nearby."),
+          ai_model: "rule-based rubric (AI unavailable)",
+          ai_rubric_version: "v1",
+          scored_at: daysAgo(3),
+          funding_required: 240000,
+          currency: "INR",
+          duration_days: 40,
+          submitted_at: daysAgo(4),
+        },
+        {
+          challenge_id: waterId,
+          org_id: ranchiUniv,
+          version: 1,
+          document_name: "Ranchi-Univ-sahebganj-mapping.pdf",
+          document_pages: 6,
+          extracted_text: "Drone mapping of safe distribution points with a testing schedule for each source.",
+          state: "scored",
+          ai_score: 64,
+          ai_verdict: "viable",
+          ai_rubric: rubric(64, "Good mapping proposal, but leaves the filtration itself to someone else."),
+          ai_model: "rule-based rubric (AI unavailable)",
+          ai_rubric_version: "v1",
+          scored_at: daysAgo(2),
+          funding_required: 90000,
+          currency: "INR",
+          duration_days: 25,
+          submitted_at: daysAgo(3),
+        },
+      ])
+      .select("id, org_id, ai_score");
+    const leader = (props ?? []).find((p) => p.org_id === bitMesra);
+
+    await supabase.from("proposal_windows").insert({
+      challenge_id: waterId,
+      opened_at: daysAgo(4),
+      window_days: 5,
+      closes_at: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      state: "open",
+      leader_proposal_id: leader?.id ?? null,
+      leader_score: 82,
+      leader_changed_at: daysAgo(2),
+    });
+  }
+
+  // The proven pilot, awarded to BIT Mesra, with stages and a progress update —
+  // so Projects opens with a won project mid-delivery.
+  const provenId = await challengeIdByTitle(
+    "Siren relay and shelter pilot, three villages in Ghaghra panchayat",
+  );
+  if (provenId && bitMesra) {
+    const { data: winner } = await supabase
+      .from("proposals")
+      .insert({
+        challenge_id: provenId,
+        org_id: bitMesra,
+        author_id: universityLead ?? null,
+        version: 1,
+        document_name: "BIT-Mesra-ghaghra-siren.pdf",
+        document_pages: 11,
+        extracted_text: "Siren relay design as built: solar relays on panchayat buildings with a manual warden key.",
+        state: "winner",
+        ai_score: 88,
+        ai_verdict: "viable",
+        ai_rubric: {
+          total: 88,
+          criteria: [],
+          summary: "Winning proposal. Built and deployed.",
+          required_changes: [],
+          extraction: { funding_required: 620000, currency: "INR", duration_days: 55 },
+          source: "rules",
+          fallback_reason: null,
+        },
+        ai_model: "rule-based rubric (AI unavailable)",
+        ai_rubric_version: "v1",
+        scored_at: daysAgo(66),
+        funding_required: 620000,
+        currency: "INR",
+        duration_days: 55,
+        submitted_at: daysAgo(68),
+      })
+      .select("id")
+      .single();
+
+    await supabase.from("proposal_windows").insert({
+      challenge_id: provenId,
+      opened_at: daysAgo(69),
+      window_days: 5,
+      closes_at: daysAgo(64),
+      state: "awarded",
+      leader_proposal_id: winner?.id ?? null,
+      leader_score: 88,
+      leader_changed_at: daysAgo(66),
+      awarded_proposal_id: winner?.id ?? null,
+      closed_at: daysAgo(64),
+    });
+
+    if (winner) {
+      const { data: stages } = await supabase
+        .from("progress_stages")
+        .insert([
+          {
+            proposal_id: winner.id,
+            challenge_id: provenId,
+            seq: 1,
+            title: "Siren relays mounted on all three panchayat buildings",
+            definition_of_done: "All three relays tested against the live alert feed.",
+            expected_days: 20,
+            status: "done",
+            started_at: daysAgo(62),
+            completed_at: daysAgo(55),
+          },
+          {
+            proposal_id: winner.id,
+            challenge_id: provenId,
+            seq: 2,
+            title: "Shelters completed and wardens trained",
+            definition_of_done: "Shelters in use and wardens rostered.",
+            expected_days: 30,
+            status: "in_progress",
+            started_at: daysAgo(50),
+          },
+          {
+            proposal_id: winner.id,
+            challenge_id: provenId,
+            seq: 3,
+            title: "First-storm drill and handover to the panchayat",
+            definition_of_done: "Drill log signed by the warden and the panchayat.",
+            expected_days: 15,
+            status: "pending",
+          },
+        ])
+        .select("id, seq");
+
+      const active = (stages ?? []).find((s) => s.seq === 2);
+      if (active) {
+        await supabase.from("progress_updates").insert({
+          stage_id: active.id,
+          challenge_id: provenId,
+          author_id: universityLead ?? null,
+          note: "Two shelters roofed, third going up. Warden training done in two of three villages.",
+          photo_paths: ["seed/proven/after-2.jpg"],
+          created_at: daysAgo(3),
+        });
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -647,8 +910,7 @@ async function seedGumlaLightning(supabase: SupabaseClient, orgIds: Map<string, 
       regionId: JHARKHAND,
       payload: { note: "Brief confirmed by the compiler. 31 reports across 12 villages." },
       actor: null,
-      actorRole: "system",
-    },
+     },
     {
       entity: "challenge",
       entityId: challenge.id,
@@ -853,8 +1115,7 @@ async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: 
       action: "duplicate_merged",
       regionId: JHARKHAND,
       payload: { merged_into: mainRef, similarity: 0.91 },
-      actorRole: "system",
-    },
+     },
   ]);
 
   return { reports: 2, challenges: 2 };
@@ -947,8 +1208,7 @@ async function seedProvenPilot(supabase: SupabaseClient, orgIds: Map<string, str
       action: "refined",
       regionId: JHARKHAND,
       payload: { note: "Compiled from four reports. Siren relay category confirmed." },
-      actorRole: "system",
-    },
+     },
     {
       entity: "challenge",
       entityId: challenge.id,

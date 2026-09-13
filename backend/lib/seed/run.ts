@@ -87,7 +87,8 @@ export async function seedDatabase(
   summary.resources = resourcesCount;
   summary.hazard_cells = hazardsCount;
   summary.users = usersCount;
-  summary.challenges += solvedLibraryChallenges;
+  summary.challenges += solvedLibraryChallenges.challenges;
+  summary.solutions += solvedLibraryChallenges.solutions;
 
   summary.reports += scenarioA.reports;
   summary.challenges += scenarioA.challenges;
@@ -701,7 +702,7 @@ async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: 
   const sisai = SEED.GUMLA_VILLAGES[3];
   const ranchi = findPlace("Ranchi", JHARKHAND);
 
-  const { data: dup } = await supabase
+  const { data: dup, error: dupError } = await supabase
     .from("challenges")
     .insert({
       region_id: JHARKHAND,
@@ -713,7 +714,7 @@ async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: 
       category: "disaster_safety",
       dm_phase: "preparedness",
       district: "Gumla",
-      village: null,
+      block: "Gumla block",
       geom: point(sisai.lat, sisai.lng),
       people_est: 280,
       severity: 3,
@@ -729,7 +730,8 @@ async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: 
     })
     .select("id, ref")
     .single();
-  if (!dup) return { reports: 0, challenges: 0 };
+  if (dupError) throw dupError;
+  if (!dup) throw new Error("[seed] side-case duplicate challenge did not insert.");
 
   await supabase.from("reports").insert({
     client_id: "seed-dup-0",
@@ -755,7 +757,7 @@ async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: 
   });
   await supabase.rpc("recount_cluster", { p_challenge: dup.id });
 
-  const { data: rejected } = await supabase
+  const { data: rejected, error: rejectedError } = await supabase
     .from("challenges")
     .insert({
       region_id: JHARKHAND,
@@ -782,6 +784,7 @@ async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: 
     })
     .select("id, ref")
     .single();
+  if (rejectedError) throw rejectedError;
 
   if (rejected) {
     await supabase.from("reports").insert({
@@ -1370,8 +1373,8 @@ async function seedRajkot(supabase: SupabaseClient) {
   return { reports: reports.length, challenges: challenges.length };
 }
 
-/** Twenty closed challenges, so the do-not-duplicate library has real entries. */
-async function seedSolvedLibrary(supabase: SupabaseClient): Promise<number> {
+/** Three solved challenges, so the do-not-duplicate library has real entries. */
+async function seedSolvedLibrary(supabase: SupabaseClient): Promise<{ challenges: number; solutions: number }> {
   const rows = SEED.SOLVED_LIBRARY.map((s, i) => {
     const place = findPlace(s.district, JHARKHAND);
     return {
@@ -1432,7 +1435,7 @@ async function seedSolvedLibrary(supabase: SupabaseClient): Promise<number> {
     ]),
   );
 
-  return rows.length;
+  return { challenges: rows.length, solutions: ids.length };
 }
 
 // ---------------------------------------------------------------------------

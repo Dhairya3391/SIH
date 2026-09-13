@@ -500,22 +500,11 @@ export const RESOURCES: ResourceSeed[] = [
   { orgName: "Ranchi University, Department of Geography", type: "drone", label: "Mapping drone team", quantity: 2, unit: "team", district: "Ranchi" },
   { orgName: "Central University of Jharkhand, Environmental Sciences", type: "water_test_kit", label: "Water-quality test kits", quantity: 25, unit: "kit", district: "Ranchi" },
   { orgName: "Ganga Water Systems (fictional)", type: "filtration_unit", label: "Portable filtration units", quantity: 14, unit: "unit", district: "Sahebganj" },
-  { orgName: "Parasnath Logistics (fictional)", type: "truck", label: "Light trucks", quantity: 8, unit: "vehicle", district: "Giridih" },
-  { orgName: "Subarnarekha Power (fictional)", type: "generator", label: "Portable generators", quantity: 10, unit: "unit", district: "Ranchi" },
-  { orgName: "Hazaribagh Renewables (fictional)", type: "solar_kit", label: "Solar lighting kits", quantity: 40, unit: "kit", district: "Hazaribagh" },
-  { orgName: "BIT Mesra, Department of Electronics and Communication", type: "workshop", label: "Electronics workshop and 3D printer", quantity: 1, unit: "lab", district: "Ranchi" },
-  { orgName: "NIT Jamshedpur, Department of Civil Engineering", type: "workshop", label: "Structural testing lab", quantity: 1, unit: "lab", district: "East Singhbhum" },
-  { orgName: "IIT (ISM) Dhanbad, Department of Mining Engineering", type: "sensor", label: "Ground-movement sensors", quantity: 15, unit: "unit", district: "Dhanbad" },
   { orgName: "Gram Sahyog Samiti (fictional)", type: "community_hall", label: "Community halls usable as shelters", quantity: 4, unit: "building", district: "Gumla" },
   { orgName: "Aapda Mitra volunteers, Sahebganj (demo data)", type: "volunteer_team", label: "Trained volunteer teams", quantity: 6, unit: "team", district: "Sahebganj" },
-  { orgName: "NSS Unit, Ranchi colleges (demo data)", type: "volunteer_team", label: "NSS survey teams", quantity: 9, unit: "team", district: "Ranchi" },
-  { orgName: "Koel Valley Minerals (fictional)", type: "excavator", label: "Excavators", quantity: 3, unit: "vehicle", district: "Palamu" },
   { orgName: "RIMS Ranchi, Community Medicine", type: "medical_kit", label: "Essential medicine kits", quantity: 60, unit: "kit", district: "Ranchi" },
-  { orgName: "Birsa Agricultural University, Extension Directorate", type: "extension_team", label: "Agricultural extension teams", quantity: 5, unit: "team", district: "Ranchi" },
-  { orgName: "Netarhat Agritech (fictional)", type: "sensor", label: "Soil-moisture sensors", quantity: 30, unit: "unit", district: "Latehar" },
-  { orgName: "Marwadi University, Rajkot", type: "workshop", label: "Electronics and prototyping lab", quantity: 1, unit: "lab", district: "Rajkot" },
-  { orgName: "Saurashtra Ceramics (fictional)", type: "truck", label: "Delivery trucks", quantity: 5, unit: "vehicle", district: "Morbi" },
-  { orgName: "Rajkot Nagrik Seva Mandal (fictional)", type: "volunteer_team", label: "Ward volunteer teams", quantity: 4, unit: "team", district: "Rajkot" },
+  { orgName: "BIT Mesra, Department of Electronics and Communication", type: "workshop", label: "Electronics workshop and 3D printer", quantity: 1, unit: "lab", district: "Ranchi" },
+  { orgName: "Parasnath Logistics (fictional)", type: "truck", label: "Light trucks", quantity: 8, unit: "vehicle", district: "Giridih" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -533,60 +522,22 @@ export interface HazardSeed {
 
 export const JHARKHAND_HAZARDS: HazardSeed[] = [
   { hazard: "lightning", district: "Gumla", intensity: 0.95, population: 48000, expectedReports: 30, radiusKm: 25 },
-  { hazard: "lightning", district: "Simdega", intensity: 0.88, population: 36000, expectedReports: 24, radiusKm: 25 },
-  { hazard: "lightning", district: "Khunti", intensity: 0.82, population: 31000, expectedReports: 20, radiusKm: 22 },
-  { hazard: "lightning", district: "Latehar", intensity: 0.79, population: 29000, expectedReports: 18, radiusKm: 22 },
-  { hazard: "lightning", district: "West Singhbhum", intensity: 0.74, population: 41000, expectedReports: 22, radiusKm: 28 },
   { hazard: "flood", district: "Sahebganj", intensity: 0.92, population: 52000, expectedReports: 28, radiusKm: 30 },
-  { hazard: "flood", district: "Pakur", intensity: 0.71, population: 33000, expectedReports: 16, radiusKm: 25 },
-  { hazard: "flood", district: "Godda", intensity: 0.63, population: 27000, expectedReports: 14, radiusKm: 22 },
+  // Palamu has high drought risk and deliberately zero reports: the silent
+  // zone the dashboard points at.
   { hazard: "drought", district: "Palamu", intensity: 0.87, population: 44000, expectedReports: 22, radiusKm: 35 },
-  { hazard: "drought", district: "Garhwa", intensity: 0.83, population: 38000, expectedReports: 20, radiusKm: 32 },
-  { hazard: "drought", district: "Chatra", intensity: 0.66, population: 25000, expectedReports: 12, radiusKm: 28 },
   { hazard: "mining", district: "Dhanbad", intensity: 0.9, population: 61000, expectedReports: 26, radiusKm: 20 },
-  { hazard: "mining", district: "Bokaro", intensity: 0.72, population: 47000, expectedReports: 18, radiusKm: 20 },
-  { hazard: "mining", district: "Ramgarh", intensity: 0.61, population: 22000, expectedReports: 10, radiusKm: 18 },
-  { hazard: "forest_fire", district: "Latehar", intensity: 0.58, population: 18000, expectedReports: 9, radiusKm: 30 },
-  { hazard: "elephant_conflict", district: "Simdega", intensity: 0.64, population: 21000, expectedReports: 11, radiusKm: 30 },
+  { hazard: "lightning", district: "Simdega", intensity: 0.88, population: 36000, expectedReports: 24, radiusKm: 25 },
 ];
 
 export const RAJKOT_HAZARDS: HazardSeed[] = [
   { hazard: "waterlogging", district: "Rajkot", intensity: 0.76, population: 42000, expectedReports: 18, radiusKm: 12 },
   { hazard: "heat", district: "Rajkot", intensity: 0.84, population: 55000, expectedReports: 20, radiusKm: 15 },
-  { hazard: "water_scarcity", district: "Jetpur", intensity: 0.69, population: 19000, expectedReports: 10, radiusKm: 18 },
-  { hazard: "fire_safety", district: "Morbi", intensity: 0.57, population: 24000, expectedReports: 9, radiusKm: 14 },
 ];
 
 // ---------------------------------------------------------------------------
-// Background reports, so the platform is clearly not disaster-only.
+// Rajkot: three challenges, enough for the ten-second region switch.
 // ---------------------------------------------------------------------------
-
-export const BACKGROUND_TEMPLATES: Array<{
-  text: string;
-  category: string;
-  severity: number;
-  people: number;
-  vulnerable?: string[];
-}> = [
-  { text: "The village school has no safe drinking water. Children bring bottles from home and often go without.", category: "education", severity: 3, people: 220, vulnerable: ["children"] },
-  { text: "Handpump has been broken for three weeks. Women walk two kilometres for water.", category: "water", severity: 3, people: 340 },
-  { text: "The primary health centre has no working refrigerator, so vaccines cannot be stored here.", category: "health", severity: 4, people: 1800 },
-  { text: "Crops failed again because the irrigation channel is silted up. Nobody has cleared it in years.", category: "agriculture", severity: 3, people: 520 },
-  { text: "The culvert on the main road collapsed. School buses cannot get through after rain.", category: "roads_infra", severity: 4, people: 900, vulnerable: ["children"] },
-  { text: "Power cuts last six hours a day. The health centre has no backup.", category: "energy_connectivity", severity: 3, people: 1200 },
-  { text: "Mining dust is settling on the fields and on the houses. People are coughing.", category: "environment", severity: 3, people: 700, vulnerable: ["children", "elderly"] },
-  { text: "No teacher has been posted to the upper primary school for a full term.", category: "education", severity: 3, people: 160, vulnerable: ["children"] },
-  { text: "Snakebite cases rise every monsoon and antivenom is not stocked locally.", category: "health", severity: 5, people: 2400, vulnerable: ["isolated"] },
-  { text: "Elephants come through the fields at night. Crops are destroyed and people are afraid to go out.", category: "agriculture", severity: 4, people: 380 },
-  { text: "Drinking water in the hamlet tastes of iron. People suspect contamination but nobody has tested it.", category: "water", severity: 4, people: 260, vulnerable: ["children"] },
-  { text: "Anganwadi building roof leaks badly. Children sit in the corner during rain.", category: "education", severity: 3, people: 90, vulnerable: ["children"] },
-  { text: "The forest near the village caught fire twice this summer. There is no water source nearby.", category: "environment", severity: 4, people: 450 },
-  { text: "Ambulance cannot reach the hamlet because the last kilometre is a dirt track.", category: "health", severity: 4, people: 310, vulnerable: ["isolated", "medical_dependency"] },
-  { text: "Farmers have no cold storage, so vegetables rot before they reach the market.", category: "agriculture", severity: 2, people: 640 },
-  { text: "Street lights have not worked for a year. Women avoid going out after dark.", category: "energy_connectivity", severity: 3, people: 880 },
-  { text: "The community well has dried up early this year. The next one is far.", category: "water", severity: 4, people: 420, vulnerable: ["elderly"] },
-  { text: "Land near the old mine has started cracking. Houses are showing damage.", category: "disaster_safety", severity: 5, people: 260, vulnerable: ["children", "elderly"] },
-];
 
 export const RAJKOT_TEMPLATES: Array<{
   text: string;
@@ -599,12 +550,9 @@ export const RAJKOT_TEMPLATES: Array<{
   { text: "Monsoon waterlogging in the low-lying ward stays for days. Shops and homes flood every year.", category: "roads_infra", severity: 4, people: 2600, area: "Rajkot" },
   { text: "Construction and delivery workers have no shaded rest point. Heat stress cases rise every May.", category: "health", severity: 4, people: 1400, vulnerable: ["elderly"], area: "Rajkot" },
   { text: "Summer water supply drops to alternate days. Tanker dependence is high.", category: "water", severity: 3, people: 3200, area: "Jetpur" },
-  { text: "Crowded public buildings have no recent fire-safety check. Prevention is the gap, not response.", category: "disaster_safety", severity: 4, people: 5000, area: "Morbi" },
-  { text: "Storm drains near the market are blocked with silt before the monsoon.", category: "roads_infra", severity: 3, people: 1800, area: "Rajkot" },
-  { text: "Street vendors work through peak afternoon heat with no water point nearby.", category: "health", severity: 3, people: 700, area: "Gondal" },
 ];
 
-/** Twenty solved challenges, so the do-not-duplicate library is not empty. */
+/** Three solved challenges, so the do-not-duplicate library is not empty. */
 export const SOLVED_LIBRARY: Array<{
   title: string;
   district: string;
@@ -617,21 +565,4 @@ export const SOLVED_LIBRARY: Array<{
   { title: "Siren relay for official lightning alerts, Simdega block", district: "Simdega", category: "disaster_safety", approach: "Solar-powered siren relays at panchayat buildings, triggered by the official alert feed and a manual key.", cost: 210000, days: 45, peopleServed: 3200 },
   { title: "Low-cost field shelters for farm workers, Khunti", district: "Khunti", category: "disaster_safety", approach: "Brick and ferrocement shelters with earthed lightning rods, built with village labour.", cost: 380000, days: 75, peopleServed: 1800 },
   { title: "Handpump repair and water testing programme, Lohardaga", district: "Lohardaga", category: "water", approach: "Trained village mechanics plus quarterly water testing by a university lab.", cost: 145000, days: 60, peopleServed: 4100 },
-  { title: "Iron-removal filters for contaminated wells, Palamu", district: "Palamu", category: "water", approach: "Locally manufactured iron-removal filters fitted at the wellhead.", cost: 96000, days: 30, peopleServed: 900 },
-  { title: "Cold chain for vaccines at a rural health centre, Garhwa", district: "Garhwa", category: "health", approach: "Solar direct-drive vaccine refrigerator with a monitored temperature log.", cost: 320000, days: 40, peopleServed: 5600 },
-  { title: "Antivenom stocking and snakebite first-aid training, Chatra", district: "Chatra", category: "health", approach: "District stocking plan and first-aid training for village health workers.", cost: 88000, days: 35, peopleServed: 7200 },
-  { title: "Desilting and lining of an irrigation channel, Hazaribagh", district: "Hazaribagh", category: "agriculture", approach: "Community desilting with a lined section at the worst leakage points.", cost: 260000, days: 55, peopleServed: 1500 },
-  { title: "Solar-powered elephant deterrent lighting, West Singhbhum", district: "West Singhbhum", category: "agriculture", approach: "Perimeter solar lighting and a community alert phone tree.", cost: 175000, days: 50, peopleServed: 640 },
-  { title: "Culvert rebuild for school access, Ramgarh", district: "Ramgarh", category: "roads_infra", approach: "Precast box culvert with a community maintenance agreement.", cost: 540000, days: 90, peopleServed: 2100 },
-  { title: "All-weather last-mile track to a hamlet, Latehar", district: "Latehar", category: "roads_infra", approach: "Compacted track with side drains, enough for an ambulance.", cost: 410000, days: 70, peopleServed: 480 },
-  { title: "Backup power for a primary health centre, Koderma", district: "Koderma", category: "energy_connectivity", approach: "Solar plus battery backup sized for the cold chain and lighting.", cost: 295000, days: 45, peopleServed: 3400 },
-  { title: "Street lighting restoration on a solar microgrid, Jamtara", district: "Jamtara", category: "energy_connectivity", approach: "Solar street lights with local maintenance training.", cost: 155000, days: 38, peopleServed: 1900 },
-  { title: "Dust suppression near a mining haul road, Dhanbad", district: "Dhanbad", category: "environment", approach: "Water spraying schedule plus a green barrier of fast-growing species.", cost: 220000, days: 65, peopleServed: 2800 },
-  { title: "Community fire lines and water points, Giridih", district: "Giridih", category: "environment", approach: "Cleared fire lines before summer and two rainwater storage points.", cost: 130000, days: 42, peopleServed: 1100 },
-  { title: "Safe drinking water at a village school, Deoghar", district: "Deoghar", category: "education", approach: "Filtered water station with a maintenance contract and testing schedule.", cost: 78000, days: 25, peopleServed: 320 },
-  { title: "Anganwadi roof repair and rainwater diversion, Dumka", district: "Dumka", category: "education", approach: "Roof replacement with gutters feeding a soak pit.", cost: 64000, days: 28, peopleServed: 140 },
-  { title: "Flood route mapping and boat roster, Pakur", district: "Pakur", category: "disaster_safety", approach: "Pre-monsoon route mapping by a university team with a village boat roster.", cost: 92000, days: 33, peopleServed: 2600 },
-  { title: "Cold storage for vegetable farmers, Bokaro", district: "Bokaro", category: "agriculture", approach: "Shared evaporative cold storage run by a farmer group.", cost: 340000, days: 80, peopleServed: 760 },
-  { title: "Ground-movement monitoring near old workings, Dhanbad", district: "Dhanbad", category: "disaster_safety", approach: "Low-cost tilt sensors with a monthly reading protocol.", cost: 285000, days: 60, peopleServed: 430 },
-  { title: "Heat-stress rest points for outdoor workers, Godda", district: "Godda", category: "health", approach: "Shaded rest points with drinking water at three work clusters.", cost: 112000, days: 30, peopleServed: 850 },
 ];

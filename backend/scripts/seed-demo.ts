@@ -1,5 +1,5 @@
 /**
- * Loads both demo scenarios, the background data and the Rajkot region.
+ * Loads the three demo flows, the solved library and the Rajkot region.
  *
  *   npm run db:seed             add the seed data
  *   npm run db:seed -- --wipe   clear everything first

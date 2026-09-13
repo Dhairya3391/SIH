@@ -10,7 +10,15 @@ import { appendMany } from "@/lib/services/ledger";
 import * as SEED from "./data";
 
 /**
- * Seeds both demo scenarios, the background data and the Rajkot region.
+ * Seeds the three demo flows, the solved library and the Rajkot region.
+ *
+ * Flow 1 (Gumla lightning): 31 reports into one verified challenge, two
+ * proposals at readiness 48 vs 84, the 84 on pilot with the swarm left open
+ * for the stage to close live — plus a finished pilot with full evidence.
+ * Flow 2 (Sahebganj drill): a crisis event, four open crisis challenges,
+ * two seeded SMS reports and a past impact record. Flow 3 (side cases): one
+ * DUPLICATE and one human-rejected report, so both questions have an answer
+ * on screen.
  *
  * Two rules this file follows without exception:
  *
@@ -65,7 +73,6 @@ export async function seedDatabase(
     solvedLibraryChallenges,
     scenarioA,
     scenarioB,
-    background,
     rajkot,
   ] = await Promise.all([
     seedResources(supabase, orgIds),
@@ -74,7 +81,6 @@ export async function seedDatabase(
     seedSolvedLibrary(supabase),
     seedGumlaLightning(supabase, orgIds),
     seedSahebganjFlood(supabase, orgIds),
-    seedBackground(supabase),
     seedRajkot(supabase),
   ]);
 
@@ -92,9 +98,6 @@ export async function seedDatabase(
   summary.challenges += scenarioB.challenges;
   summary.crisis_events += scenarioB.crises;
   summary.pledges += scenarioB.pledges;
-
-  summary.reports += background.reports;
-  summary.challenges += background.challenges;
 
   summary.reports += rajkot.reports;
   summary.challenges += rajkot.challenges;
@@ -550,18 +553,21 @@ async function seedGumlaLightning(supabase: SupabaseClient, orgIds: Map<string, 
   const pilot = (solutions ?? []).find((s) => s.status === "approved_for_pilot");
 
   // The resource needs, and the Resource Swarm part-way through: 8 of 12 siren
-  // units pledged, so the demo can close the last 4 live on stage.
+  // units pledged, so the demo can close the last 4 live on stage. The shelter
+  // fund shows the NGO money path, part-pledged so the gap bar has work left.
   const { data: needs } = await supabase
     .from("resource_needs")
     .insert([
       { challenge_id: challenge.id, solution_id: pilot?.id ?? null, item: "Siren units", qty_needed: 12, unit: "unit", kind: "equipment", capability: "siren" },
       { challenge_id: challenge.id, solution_id: pilot?.id ?? null, item: "Shelter construction kits", qty_needed: 12, unit: "kit", kind: "equipment", capability: "civil" },
       { challenge_id: challenge.id, solution_id: pilot?.id ?? null, item: "Village training sessions", qty_needed: 12, unit: "session", kind: "people", capability: "training" },
+      { challenge_id: challenge.id, solution_id: pilot?.id ?? null, item: "Shelter construction fund", qty_needed: 150000, unit: "INR", kind: "money", capability: "funding" },
     ])
     .select("id, item");
 
   const sirenNeed = (needs ?? []).find((n) => n.item === "Siren units");
   const trainingNeed = (needs ?? []).find((n) => n.item === "Village training sessions");
+  const fundNeed = (needs ?? []).find((n) => n.item === "Shelter construction fund");
 
   let pledges = 0;
   if (sirenNeed) {
@@ -583,6 +589,17 @@ async function seedGumlaLightning(supabase: SupabaseClient, orgIds: Map<string, 
       kind: "people",
       status: "confirmed",
       note: "Our field team will run the village sessions.",
+    });
+    pledges++;
+  }
+  if (fundNeed) {
+    await supabase.from("pledges").insert({
+      need_id: fundNeed.id,
+      org_id: orgIds.get("Palamu Jan Kalyan Trust (fictional)")!,
+      qty: 60000,
+      kind: "money",
+      status: "confirmed",
+      note: "First tranche of the shelter fund. The rest follows the pilot review.",
     });
     pledges++;
   }
@@ -664,12 +681,180 @@ async function seedGumlaLightning(supabase: SupabaseClient, orgIds: Map<string, 
   // step of the demo has something finished to show without waiting.
   const proven = await seedProvenPilot(supabase, orgIds);
 
+  // Flow 3: the two side cases every judge asks about — a duplicate that was
+  // merged, and a report a human rejected (the AI never rejects).
+  const side = await seedSideCases(supabase, challenge.id, challenge.ref as string);
+
   return {
-    reports: reports.length,
-    challenges: 1 + proven.challenges,
+    reports: reports.length + side.reports,
+    challenges: 1 + proven.challenges + side.challenges,
     solutions: 2,
     pledges: pledges + proven.pledges,
   };
+}
+
+/**
+ * Flow 3 in two rows: DUPLICATE shows the dedup story, CLOSED_NOT_ACTIONABLE
+ * shows the human gate — with the reason the reporter was given.
+ */
+async function seedSideCases(supabase: SupabaseClient, mainId: string, mainRef: string) {
+  const sisai = SEED.GUMLA_VILLAGES[3];
+  const ranchi = findPlace("Ranchi", JHARKHAND);
+
+  const { data: dup } = await supabase
+    .from("challenges")
+    .insert({
+      region_id: JHARKHAND,
+      title: "Lightning danger near Sisai fields (merged)",
+      brief: {
+        problem: "A second report of the same lightning danger in Sisai, filed while the main Gumla challenge was already verified. Merged instead of worked twice.",
+        outcome: "Tracked under the main Gumla lightning challenge.",
+      },
+      category: "disaster_safety",
+      dm_phase: "preparedness",
+      district: "Gumla",
+      village: null,
+      geom: point(sisai.lat, sisai.lng),
+      people_est: 280,
+      severity: 3,
+      priority: 31,
+      confidence: "unverified",
+      status: "DUPLICATE",
+      capabilities: ["electronics", "siren"],
+      hazard_tags: ["lightning"],
+      merged_into: mainId,
+      is_simulated: true,
+      embedding: toPgVector(localEmbed("lightning danger Sisai fields siren duplicate merged")),
+      refined_at: daysAgo(7),
+    })
+    .select("id, ref")
+    .single();
+  if (!dup) return { reports: 0, challenges: 0 };
+
+  await supabase.from("reports").insert({
+    client_id: "seed-dup-0",
+    region_id: JHARKHAND,
+    channel: "web",
+    original_text: "Sisai me bijli girne ka khatra hai khet me. Siren chahiye.",
+    translated_text: "Sisai me bijli girne ka khatra hai khet me. Siren chahiye.",
+    lang: "hi",
+    geom: point(sisai.lat, sisai.lng),
+    location_source: "gps",
+    district: "Gumla",
+    village: "Sisai",
+    people_est: 280,
+    urgency: 4,
+    vulnerable: [],
+    cluster_id: dup.id,
+    dedup_similarity: 0.91,
+    consent: true,
+    is_simulated: true,
+    embedding: toPgVector(localEmbed("Sisai me bijli girne ka khatra hai khet me")),
+    created_at: daysAgo(7),
+    processed_at: daysAgo(7),
+  });
+  await supabase.rpc("recount_cluster", { p_challenge: dup.id });
+
+  const { data: rejected } = await supabase
+    .from("challenges")
+    .insert({
+      region_id: JHARKHAND,
+      title: "Personal loan request filed as a flood report, Ranchi",
+      brief: {
+        problem: "Filed as a flood report, but the text asks for a personal loan. Out of scope for disaster management.",
+        outcome: "Closed as not actionable. The reporter was told where to apply instead.",
+      },
+      category: "disaster_safety",
+      dm_phase: "preparedness",
+      district: "Ranchi",
+      geom: point(ranchi.lat, ranchi.lng),
+      people_est: 1,
+      severity: 1,
+      priority: 8,
+      confidence: "unverified",
+      status: "CLOSED_NOT_ACTIONABLE",
+      capabilities: [],
+      hazard_tags: [],
+      is_simulated: true,
+      embedding: toPgVector(localEmbed("personal loan request not a disaster report closed")),
+      refined_at: daysAgo(4),
+      closed_at: daysAgo(3),
+    })
+    .select("id, ref")
+    .single();
+
+  if (rejected) {
+    await supabase.from("reports").insert({
+      client_id: "seed-rejected-0",
+      region_id: JHARKHAND,
+      channel: "web",
+      original_text: "Mujhe personal loan chahiye. Flood relief ke naam par apply kar raha hun.",
+      translated_text: "Mujhe personal loan chahiye. Flood relief ke naam par apply kar raha hun.",
+      lang: "hi",
+      geom: point(ranchi.lat, ranchi.lng),
+      location_source: "gps",
+      district: "Ranchi",
+      people_est: 1,
+      urgency: 1,
+      vulnerable: [],
+      cluster_id: rejected.id,
+      consent: true,
+      is_simulated: true,
+      embedding: toPgVector(localEmbed("personal loan request")),
+      created_at: daysAgo(4),
+      processed_at: daysAgo(4),
+    });
+    await supabase.rpc("recount_cluster", { p_challenge: rejected.id });
+
+    await supabase.from("verifications").insert({
+      challenge_id: rejected.id,
+      kind: "inaccurate",
+      method: "coordinator",
+      note: "Reviewed by the coordinator desk.",
+      rejected_reason:
+        "This is a request for a personal loan, not a disaster-management problem. The reporter was told where to apply instead.",
+    });
+
+    await appendMany(supabase, [
+      {
+        entity: "challenge",
+        entityId: rejected.id,
+        action: "reported",
+        regionId: JHARKHAND,
+        payload: { ref: rejected.ref, district: "Ranchi" },
+        actorRole: "citizen",
+      },
+      {
+        entity: "challenge",
+        entityId: rejected.id,
+        action: "verification_rejected",
+        regionId: JHARKHAND,
+        payload: { reason: "Out of scope: personal loan request.", previous_status: "REFINED" },
+        actorRole: "coordinator",
+      },
+    ]);
+  }
+
+  await appendMany(supabase, [
+    {
+      entity: "challenge",
+      entityId: dup.id,
+      action: "reported",
+      regionId: JHARKHAND,
+      payload: { ref: dup.ref, district: "Gumla", village: "Sisai" },
+      actorRole: "citizen",
+    },
+    {
+      entity: "challenge",
+      entityId: dup.id,
+      action: "duplicate_merged",
+      regionId: JHARKHAND,
+      payload: { merged_into: mainRef, similarity: 0.91 },
+      actorRole: "system",
+    },
+  ]);
+
+  return { reports: 2, challenges: 2 };
 }
 
 /** A finished pilot with before-and-after photos and a full impact record. */
@@ -1095,99 +1280,8 @@ async function seedEarlierFloodImpact(supabase: SupabaseClient, orgIds: Map<stri
 }
 
 // ---------------------------------------------------------------------------
-// Background and Rajkot
+// Rajkot: three challenges, enough for the ten-second region switch.
 // ---------------------------------------------------------------------------
-
-async function seedBackground(supabase: SupabaseClient) {
-  const reports: Record<string, unknown>[] = [];
-  const challenges: Record<string, unknown>[] = [];
-
-  let n = 0;
-  for (const district of SEED.JHARKHAND_DISTRICTS) {
-    for (let i = 0; i < 7; i++) {
-      const template = SEED.BACKGROUND_TEMPLATES[(n + i) % SEED.BACKGROUND_TEMPLATES.length];
-      const lat = district.lat + jitter(0.15);
-      const lng = district.lng + jitter(0.15);
-      const vulnerable = (template.vulnerable ?? []) as VulnerabilityTag[];
-
-      const brief = compileWithRules({
-        text: template.text,
-        peopleEst: template.people,
-        urgency: template.severity,
-        vulnerable,
-        district: district.name,
-        lang: "en",
-      });
-
-      const priority = computePriority({
-        severity: template.severity,
-        urgency: Math.max(1, template.severity - 1),
-        peopleAffected: template.people,
-        vulnerable,
-        hazardExposure: 0.3,
-        resourceGap: 1,
-        recurrenceCount: 0,
-        uniqueReporters: 1 + (n % 4),
-        crisisMode: false,
-      });
-
-      const statuses = ["REFINED", "VERIFIED", "OPEN", "OPEN", "TEAM_FORMED", "SOLUTION_PROPOSED", "PILOT"];
-      const status = statuses[n % statuses.length];
-
-      challenges.push({
-        region_id: JHARKHAND,
-        title: `${brief.title}`,
-        brief,
-        category: template.category,
-        dm_phase: brief.dm_phase,
-        district: district.name,
-        geom: point(lat, lng),
-        people_est: template.people,
-        severity: template.severity,
-        priority: priority.total,
-        score_breakdown: priority,
-        why_critical: explainPriority(priority, { district: district.name, peopleAffected: template.people }),
-        confidence: n % 3 === 0 ? "community_corroborated" : "unverified",
-        status,
-        capabilities: brief.capabilities,
-        ai_uncertainties: brief.uncertainties,
-        embedding: toPgVector(localEmbed(template.text)),
-        is_simulated: true,
-        refined_at: daysAgo(30 + (n % 60)),
-      });
-
-      reports.push({
-        client_id: `seed-bg-${n}-${i}`,
-        region_id: JHARKHAND,
-        channel: n % 11 === 0 ? "sms" : "web",
-        original_text: template.text,
-        translated_text: template.text,
-        lang: n % 2 === 0 ? "hi" : "en",
-        geom: point(lat, lng),
-        location_source: "gps",
-        district: district.name,
-        people_est: template.people,
-        urgency: template.severity,
-        vulnerable,
-        consent: true,
-        is_simulated: true,
-        embedding: toPgVector(localEmbed(template.text)),
-        created_at: daysAgo(30 + (n % 60)),
-        processed_at: daysAgo(30 + (n % 60)),
-      });
-      n++;
-    }
-  }
-
-  const { data: inserted } = await supabase.from("challenges").insert(challenges).select("id");
-  const ids = (inserted ?? []).map((c) => c.id as string);
-  reports.forEach((r, i) => {
-    if (ids[i]) r.cluster_id = ids[i];
-  });
-
-  await supabase.from("reports").insert(reports);
-  return { reports: reports.length, challenges: challenges.length };
-}
 
 async function seedRajkot(supabase: SupabaseClient) {
   const reports: Record<string, unknown>[] = [];

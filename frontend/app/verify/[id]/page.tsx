@@ -98,7 +98,8 @@ function VerifyReview() {
     }
   }
 
-  async function addPhotos(files: FileList | null) {
+  async function addPhotos(input: HTMLInputElement | null) {
+    const files = input?.files;
     if (!files?.length || !challenge) return;
     setUploading(true);
     setActionError(null);
@@ -110,6 +111,7 @@ function VerifyReview() {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "That photo could not be uploaded.");
     } finally {
+      if (input) input.value = "";
       setUploading(false);
     }
   }
@@ -478,8 +480,7 @@ function VerifyReview() {
                       className="sr-only"
                       disabled={uploading || photos.length >= 10}
                       onChange={(e) => {
-                        void addPhotos(e.target.files);
-                        e.target.value = "";
+                        void addPhotos(e.target);
                       }}
                     />
                   </label>

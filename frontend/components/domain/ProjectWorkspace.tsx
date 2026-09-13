@@ -908,7 +908,8 @@ function UpdateComposer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function addPhotos(files: FileList | null) {
+  async function addPhotos(input: HTMLInputElement | null) {
+    const files = input?.files;
     if (!files?.length) return;
     setUploading(true);
     setError(null);
@@ -920,6 +921,7 @@ function UpdateComposer({
     } catch (err) {
       setError(err instanceof Error ? err.message : "That photo could not be uploaded.");
     } finally {
+      if (input) input.value = "";
       setUploading(false);
     }
   }
@@ -975,8 +977,7 @@ function UpdateComposer({
             className="sr-only"
             disabled={uploading}
             onChange={(e) => {
-              void addPhotos(e.target.files);
-              e.target.value = "";
+              void addPhotos(e.target);
             }}
           />
         </label>

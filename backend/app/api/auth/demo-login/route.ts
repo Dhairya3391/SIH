@@ -9,7 +9,7 @@ const schema = z.object({ role: z.enum(USER_ROLES) });
 /**
  * POST /api/auth/demo-login - the one-click role switcher.
  *
- * Nobody types a password on stage. Six seeded accounts, one per role, and this
+ * Nobody types a password on stage. Eight seeded accounts, one per role, and this
  * signs into whichever one the switcher asks for.
  *
  * These are real Supabase Auth sessions, not a pretend role flag, which matters

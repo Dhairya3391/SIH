@@ -35,15 +35,20 @@ export const POST = route(
       );
     }
 
-    await supabase.from("solutions").update({ status: "approved_for_pilot" }).eq("id", id);
+    const { error: approveError } = await supabase
+      .from("solutions")
+      .update({ status: "approved_for_pilot" })
+      .eq("id", id);
+    if (approveError) throw approveError;
 
     // Exactly one proposal per challenge gets the pilot.
-    await supabase
+    const { error: rejectError } = await supabase
       .from("solutions")
       .update({ status: "rejected" })
       .eq("challenge_id", solution.challenge_id)
       .neq("id", id)
       .in("status", ["submitted", "under_review"]);
+    if (rejectError) throw rejectError;
 
     const needs = await createNeedsAndAlert(supabase, {
       challengeId: solution.challenge_id,

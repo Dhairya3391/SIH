@@ -6,15 +6,17 @@
 -- company one.
 --
 -- Nothing else in the report -> verify -> propose -> fund -> deliver flow
--- needs a schema change:
+-- needs a schema change, except the solutions_insert role list, which moved
+-- in 0014 (ngo parity):
 --   * AI verification is a verifications row with method = 'ai_external' (0010)
 --   * college requirements are resource_needs rows
 --   * dispatch and receipt live on pledges (state, dispatched_at, received_at - 0010)
 --   * progress lives in progress_stages / progress_updates (0010)
 --
--- Postgres 12+ allows ADD VALUE inside a transaction, but the new value cannot
--- be used until that transaction commits. Run this on its own - the Supabase
--- SQL editor or `npm run db:push` both do - and then create the demo login:
+-- ALTER TYPE ... ADD VALUE cannot run inside a transaction block, so db-push
+-- applies it on its own first and then the rest of the file. Run this file on
+-- its own - the Supabase SQL editor or `npm run db:push` both do - and then
+-- create the demo login:
 --
 --   npx tsx scripts/ensure-demo-accounts.ts      (creates ngo@jharsetu.demo)
 -- ===========================================================================

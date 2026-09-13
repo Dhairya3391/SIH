@@ -1,4 +1,4 @@
-import { ok, route, readJson } from "@/lib/http";
+import { ok, fail, route, readJson } from "@/lib/http";
 import { evidenceSchema } from "@/lib/validation/schemas";
 import { requireActor, supabaseServer } from "@/lib/supabase/server";
 import { appendLedger } from "@/lib/services/ledger";
@@ -16,6 +16,27 @@ export const POST = route(
     const actor = await requireActor();
     const body = await readJson(request, evidenceSchema);
     const supabase = await supabaseServer();
+
+    // Mirrors the evidence_insert policy (staff, or an organisation assigned
+    // to this challenge) so a refusal names the way in, not just the wall.
+    const staff = actor.role === "coordinator" || actor.role === "admin" || actor.role === "volunteer";
+    if (!staff) {
+      const { data: assignment } = await supabase
+        .from("assignments")
+        .select("id")
+        .eq("challenge_id", id)
+        .eq("org_id", actor.orgId ?? "")
+        .is("released_at", null)
+        .limit(1)
+        .maybeSingle();
+      if (!assignment) {
+        return fail(
+          403,
+          "Only the team assigned to this problem - or a volunteer, coordinator or admin - can upload evidence.",
+          "forbidden",
+        );
+      }
+    }
 
     const { data, error } = await supabase
       .from("evidence_files")

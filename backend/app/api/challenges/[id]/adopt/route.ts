@@ -14,7 +14,7 @@ import { appendLedger } from "@/lib/services/ledger";
 export const POST = route(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
-    const actor = await requireRole("university", "industry", "volunteer", "coordinator", "admin");
+    const actor = await requireRole("university", "industry", "ngo", "volunteer", "coordinator", "admin");
     const body = await readJson(request, adoptSchema);
     const supabase = await supabaseServer();
 

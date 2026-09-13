@@ -1,6 +1,6 @@
 import { ok, route } from "@/lib/http";
 import { supabaseServer } from "@/lib/supabase/server";
-import { timeline } from "@/lib/services/ledger";
+import { challengeTimeline } from "@/lib/services/ledger";
 
 /**
  * GET /api/challenges/:id/timeline - the activity timeline.
@@ -12,6 +12,6 @@ export const GET = route(
   async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
     const supabase = await supabaseServer();
-    return ok({ entries: await timeline(supabase, "challenge", id) });
+    return ok({ entries: await challengeTimeline(supabase, id) });
   },
 );

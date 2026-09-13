@@ -151,18 +151,21 @@ function Brief() {
                   Project
                 </ButtonLink>
               )}
-              {/* Admin only: the history endpoint itself is requireRole("admin"),
-                  so offering this to a coordinator would be a link to a refusal. */}
-              {role === "admin" && (
+              {/* The delete endpoint allows admin and coordinator; the history
+                  page stays admin-only (its endpoint is requireRole("admin")),
+                  so only the record link is gated below. */}
+              {(role === "admin" || role === "coordinator") && (
                 <>
-                  <ButtonLink
-                    href={`/admin/challenges/${c.ref}`}
-                    variant="secondary"
-                    size="sm"
-                    icon="clock"
-                  >
-                    Full record
-                  </ButtonLink>
+                  {role === "admin" && (
+                    <ButtonLink
+                      href={`/admin/challenges/${c.ref}`}
+                      variant="secondary"
+                      size="sm"
+                      icon="clock"
+                    >
+                      Full record
+                    </ButtonLink>
+                  )}
                   {!confirmDelete ? (
                     <Button
                       variant="danger"

@@ -58,7 +58,13 @@ function LoginInner() {
   const { signIn, demoSignIn, signOut, isAuthenticated, role, user, loading } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next");
+  const rawNext = params.get("next");
+  // Same-origin paths only: reject "//evil.com", backslashes and schemes, or
+  // a crafted link could bounce a fresh sign-in off-origin.
+  const next =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") && !/[\\:]/.test(rawNext)
+      ? rawNext
+      : null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -5,7 +5,7 @@ import { priorityBand } from "@/lib/domain/types";
 import { AI_DISCLAIMER } from "@/lib/ai/brief";
 import { challengeGap } from "@/lib/services/swarm";
 import { availableActions } from "@/lib/services/lifecycle";
-import { timeline, appendLedger } from "@/lib/services/ledger";
+import { challengeTimeline, appendLedger } from "@/lib/services/ledger";
 import { fileUrl } from "@/lib/storage";
 import { describeLedgerEntry } from "@/lib/services/history";
 
@@ -149,7 +149,7 @@ export const GET = route(
           .order("created_at", { ascending: true }),
         supabase.from("impact_records").select("*").eq("challenge_id", challengeId).maybeSingle(),
         challengeGap(supabase, challengeId),
-        timeline(supabase, "challenge", challengeId, 200),
+        challengeTimeline(supabase, challengeId, 200),
         supabaseAdmin()
           .from("external_checks")
           .select("provider, verdict, confidence, citations, reasoning, provider_error, model, checked_at")

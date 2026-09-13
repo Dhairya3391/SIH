@@ -296,14 +296,30 @@ export async function recordPledge(
       p_ended: now,
     });
     // Everything is covered: the project leaves the needs board and work can start.
+    // The move still obeys the state machine: PILOT is only legal from
+    // SOLUTION_PROPOSED with a coordinator-approved pilot. If pledges land
+    // before the approval, the challenge waits for it instead of skipping
+    // the gate.
     if (challenge.status === "SOLUTION_PROPOSED") {
-      await supabase.from("challenges").update({ status: "PILOT" }).eq("id", input.challengeId);
+      const { data: pilot } = await supabase
+        .from("solutions")
+        .select("id")
+        .eq("challenge_id", input.challengeId)
+        .in("status", ["approved_for_pilot", "deployed"])
+        .limit(1)
+        .maybeSingle();
+      if (pilot) {
+        await supabase.from("challenges").update({ status: "PILOT" }).eq("id", input.challengeId);
+      }
       await appendLedger(supabase, {
         entity: "challenge",
         entityId: input.challengeId,
         action: "work_started",
         regionId: challenge.region_id as string,
-        payload: { reason: "every requirement is fully pledged" },
+        payload: {
+          reason: "every requirement is fully pledged",
+          pilot_approved: Boolean(pilot),
+        },
       });
     }
   }

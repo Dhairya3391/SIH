@@ -29,10 +29,13 @@ export const POST = route(async (request: Request, ctx: { params: Promise<{ id: 
     .eq("id", id)
     .maybeSingle();
   if (!challenge) return fail(404, "No such challenge.", "not_found");
-  if (["SOLUTION_PROPOSED", "PILOT", "DEPLOYED", "IMPACT_VERIFIED"].includes(challenge.status as string)) {
+  // TEAM_FORMED is blocked too: the team holds unreleased assignments, and
+  // closing underneath them would strand the organisations without telling
+  // them. Release the team first, then reject.
+  if (["TEAM_FORMED", "SOLUTION_PROPOSED", "PILOT", "DEPLOYED", "IMPACT_VERIFIED"].includes(challenge.status as string)) {
     return fail(
       409,
-      "A college has already been awarded this problem, so it can no longer be rejected from the verification desk.",
+      "A team has already formed around this problem, so it can no longer be rejected from the verification desk.",
       "in_delivery",
     );
   }
@@ -41,7 +44,7 @@ export const POST = route(async (request: Request, ctx: { params: Promise<{ id: 
     challenge_id: id,
     by_user: actor.id,
     kind: "inaccurate",
-    method: "field",
+    method: actor.role === "coordinator" || actor.role === "admin" ? "coordinator" : "field",
     note: reason,
     rejected_reason: reason,
   });

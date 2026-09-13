@@ -37,7 +37,7 @@ function applyCors(response: NextResponse, origin: string | null): NextResponse 
   response.headers.set("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   response.headers.set(
     "Access-Control-Allow-Headers",
-    "content-type, authorization, x-jharsetu-secret",
+    "content-type, authorization, x-jharsetu-secret, x-demo-reset-secret, demo-reset-secret, demo_reset_secret",
   );
   response.headers.set("Access-Control-Max-Age", "86400");
   // The allowed origin varies per request, so caches must key on it.

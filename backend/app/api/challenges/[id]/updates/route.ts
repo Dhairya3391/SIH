@@ -1,6 +1,6 @@
 import { ok, fail, route, readJson } from "@/lib/http";
-import { updateSchema, closeNotActionableSchema, transitionSchema } from "@/lib/validation/schemas";
-import { requireActor, requireRole, supabaseServer } from "@/lib/supabase/server";
+import { updateSchema } from "@/lib/validation/schemas";
+import { requireActor, supabaseServer } from "@/lib/supabase/server";
 import { transition } from "@/lib/services/lifecycle";
 import { appendLedger } from "@/lib/services/ledger";
 
@@ -22,15 +22,23 @@ export const POST = route(
     }
 
     if (body.milestone_id && body.milestone_status) {
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from("milestones")
-        .update({
-          status: body.milestone_status,
-          completed_at: body.milestone_status === "done" ? new Date().toISOString() : null,
-        })
+        .update(
+          {
+            status: body.milestone_status,
+            completed_at: body.milestone_status === "done" ? new Date().toISOString() : null,
+          },
+          { count: "exact" },
+        )
         .eq("id", body.milestone_id)
         .eq("challenge_id", id);
       if (error) throw error;
+      // A milestone id from another challenge (or a typo) matches nothing.
+      // Say so instead of logging an update that changed nothing.
+      if ((count ?? 0) === 0) {
+        return fail(404, "No such milestone on this challenge.", "not_found");
+      }
     }
 
     await appendLedger(supabase, {

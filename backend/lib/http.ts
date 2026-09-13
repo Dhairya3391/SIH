@@ -49,6 +49,10 @@ export function route<A extends unknown[]>(
         return fail(400, "Some fields are missing or invalid.", "validation", error.issues);
       }
       if (isPostgrestError(error)) {
+        // "The result contains 0 rows" - a missing row, not a bad request.
+        if (error.code === "PGRST116") {
+          return fail(404, "Not found.", "not_found");
+        }
         if (error.code === "42501" || error.code === "PGRST301") {
           return fail(403, "Your role is not allowed to do that.", "forbidden");
         }

@@ -83,7 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (role: UserRole) => {
       const result = await api.demoSignIn(role);
       setUser(result.user);
-      // demo-login does not resolve the organisation; the probe does.
+      // demo-login does not resolve the organisation; the probe does. Clear
+      // first so a failed probe cannot leave the previous role's org behind.
+      setOrganisation(null);
       await refresh();
       return result.user;
     },

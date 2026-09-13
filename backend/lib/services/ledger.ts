@@ -95,6 +95,27 @@ export async function timeline(
 }
 
 /**
+ * Everything that happened to one challenge, whatever entity recorded it.
+ * Adoptions are filed under "assignment", evidence under "evidence" and
+ * proposals under "solution" - all with the challenge id - so filtering on
+ * the "challenge" entity alone hides them from the main screen.
+ */
+export async function challengeTimeline(
+  supabase: SupabaseClient,
+  challengeId: string,
+  limit = 200,
+) {
+  const { data, error } = await supabase
+    .from("ledger")
+    .select("id, entity, entity_id, action, actor, actor_role, payload, hash, created_at")
+    .eq("entity_id", challengeId)
+    .order("id", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
  * Walks the chain and recomputes every hash. This is the answer to "how is this
  * tamper-evident without a blockchain?", and it runs in well under a second on
  * demo-sized data.

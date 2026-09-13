@@ -42,7 +42,7 @@ export interface TransitionRule {
 }
 
 const STAFF: UserRole[] = ["coordinator", "admin"];
-const PARTNER: UserRole[] = ["university", "industry", "volunteer", "coordinator", "admin"];
+const PARTNER: UserRole[] = ["university", "industry", "ngo", "volunteer", "coordinator", "admin"];
 
 export const TRANSITIONS: TransitionRule[] = [
   // --- the main path ------------------------------------------------------

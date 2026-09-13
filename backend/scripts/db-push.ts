@@ -18,6 +18,88 @@ import path from "node:path";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "supabase", "migrations");
 
+  /**
+ * Split SQL into individual statements. Aware of line/block comments,
+ * single-quoted strings, double-quoted identifiers and dollar-quoted
+ * blocks (DO $$ ... $$), so a semicolon inside a function body does not
+ * split. Empty statements are dropped.
+ */
+function splitStatements(sql: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let i = 0;
+  const n = sql.length;
+  while (i < n) {
+    const two = sql.slice(i, i + 2);
+    // Line comment.
+    if (two === "--") {
+      const end = sql.indexOf("\n", i);
+      current += sql.slice(i, end === -1 ? n : end);
+      i = end === -1 ? n : end;
+      continue;
+    }
+    // Block comment.
+    if (two === "/*") {
+      const end = sql.indexOf("*/", i + 2);
+      current += sql.slice(i, end === -1 ? n : end + 2);
+      i = end === -1 ? n : end + 2;
+      continue;
+    }
+    const ch = sql[i];
+    // Quoted string or identifier.
+    if (ch === "'" || ch === '"') {
+      let j = i + 1;
+      while (j < n) {
+        if (sql[j] === ch) {
+          if (sql[j + 1] === ch) {
+            j += 2;
+            continue;
+          }
+          j++;
+          break;
+        }
+        j++;
+      }
+      current += sql.slice(i, j);
+      i = j;
+      continue;
+    }
+    // Dollar-quoted block: $tag$ ... $tag$.
+    if (ch === "$") {
+      const tag = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(sql.slice(i));
+      if (tag) {
+        const end = sql.indexOf(tag[0], i + tag[0].length);
+        const stop = end === -1 ? n : end + tag[0].length;
+        current += sql.slice(i, stop);
+        i = stop;
+        continue;
+      }
+    }
+    if (ch === ";") {
+      if (current.trim()) out.push(current.trim());
+      current = "";
+      i++;
+      continue;
+    }
+    current += ch;
+    i++;
+  }
+  if (current.trim()) out.push(current.trim());
+  return out;
+}
+
+/**
+ * ALTER TYPE ... ADD VALUE cannot run inside a transaction block
+ * (Postgres error 25001), and the new value cannot be used until it
+ * commits - so these statements go first, each in its own implicit
+ * transaction, before the rest of the file runs in an explicit one.
+ */
+function isEnumAddition(stmt: string): boolean {
+  return /^\s*alter\s+type\s+\S+\s+add\s+value\b/i.test(
+    stmt.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, ""),
+  );
+}
+
 async function main() {
   const connectionString = process.env.SUPABASE_DB_URL;
   if (!connectionString) {
@@ -74,14 +156,37 @@ async function main() {
       try {
         // Each migration runs in its own transaction, so a failure leaves the
         // database on the last good migration rather than half-way through one.
-        await client.query("begin");
-        await client.query(sql);
-        await client.query("insert into _jharsetu_migrations (name) values ($1)", [file]);
-        await client.query("commit");
+        // Enum additions are the exception: they must run outside any
+        // transaction, and before anything that uses the new values.
+        const statements = splitStatements(sql);
+        const outside = statements.filter(isEnumAddition);
+        const inside = statements.filter((s) => !isEnumAddition(s));
+        for (const stmt of outside) {
+          await client.query(stmt);
+        }
+        if (inside.length > 0) {
+          await client.query("begin");
+          try {
+            for (const stmt of inside) {
+              await client.query(stmt);
+            }
+            await client.query("insert into _jharsetu_migrations (name) values ($1)", [file]);
+            await client.query("commit");
+          } catch (inner) {
+            await client.query("rollback");
+            throw inner;
+          }
+        } else {
+          await client.query("insert into _jharsetu_migrations (name) values ($1)", [file]);
+        }
         console.log("ok");
         ran++;
       } catch (error) {
-        await client.query("rollback");
+        try {
+          await client.query("rollback");
+        } catch {
+          // Already outside a transaction (or nothing to roll back).
+        }
         console.log("failed");
         throw error;
       }

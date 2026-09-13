@@ -30,7 +30,12 @@ export const POST = route(async (request: NextRequest) => {
 
   const expected = process.env.SMS_INBOUND_SECRET;
   const provided = body.secret ?? request.headers.get("x-jharsetu-secret");
-  if (expected && provided !== expected) {
+  // Fail closed: with no secret configured the gateway cannot authenticate,
+  // so accept nothing rather than intake from the open internet.
+  if (!expected) {
+    return fail(403, "SMS intake is disabled on this deployment.", "disabled");
+  }
+  if (provided !== expected) {
     return fail(401, "Bad or missing gateway secret.", "unauthorised");
   }
 

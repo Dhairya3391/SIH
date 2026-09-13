@@ -39,7 +39,9 @@ export const GET = route(async (_request: Request, ctx: { params: Promise<{ id: 
   const { id } = await ctx.params;
   const thread = await loadThread(id);
   if (!thread) return fail(404, "No such thread.", "not_found");
-  if (!isParty(actor, thread as never)) {
+  const party = isParty(actor, thread as never);
+  // Coordinators read for oversight; only a party may send (checked on POST).
+  if (!party && actor.role !== "coordinator") {
     return fail(403, "You are not a party to this conversation.", "not_a_party");
   }
 
@@ -73,10 +75,12 @@ export const GET = route(async (_request: Request, ctx: { params: Promise<{ id: 
 
   // Reading the thread marks the other side's messages read. Doing it here
   // rather than in a separate call means an unread badge cannot get stuck.
+  // Observers (coordinators) must not touch read state: their reading is not
+  // anyone's "seen".
   const unreadFromThem = (messages ?? []).filter(
     (m) => m.author_org_id !== actor.orgId && !m.read_at,
   );
-  if (unreadFromThem.length > 0) {
+  if (party && unreadFromThem.length > 0) {
     await supabase
       .from("messages")
       .update({ read_at: new Date().toISOString() })

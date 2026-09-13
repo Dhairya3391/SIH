@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0B2A4A"/>
+  <g transform="translate(76,76) scale(0.703)">
+    <!-- bridge deck -->
+    <rect x="96" y="288" width="320" height="20" rx="10" fill="#FFFFFF"/>
+    <!-- bridge arch -->
+    <path d="M112 288 C 160 200, 352 200, 400 288" fill="none" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
+    <!-- suspenders -->
+    <line x1="176" y1="248" x2="176" y2="288" stroke="#7FB6C2" stroke-width="12" stroke-linecap="round"/>
+    <line x1="256" y1="232" x2="256" y2="288" stroke="#7FB6C2" stroke-width="12" stroke-linecap="round"/>
+    <line x1="336" y1="248" x2="336" y2="288" stroke="#7FB6C2" stroke-width="12" stroke-linecap="round"/>
+    <!-- piers -->
+    <rect x="136" y="308" width="20" height="72" rx="10" fill="#FFFFFF"/>
+    <rect x="356" y="308" width="20" height="72" rx="10" fill="#FFFFFF"/>
+    <!-- water -->
+    <path d="M112 412 q 24 -18 48 0 t 48 0 t 48 0 t 48 0 t 48 0 t 48 0" fill="none" stroke="#2E7180" stroke-width="20" stroke-linecap="round"/>
+  </g>
+</svg>

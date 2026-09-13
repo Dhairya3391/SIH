@@ -1,4 +1,4 @@
-import { ok, route, readJson } from "@/lib/http";
+import { ok, fail, route, readJson } from "@/lib/http";
 import { validateSchema } from "@/lib/validation/schemas";
 import { requireActor, supabaseServer } from "@/lib/supabase/server";
 import { rescoreChallenge } from "@/lib/services/scoring";
@@ -21,6 +21,16 @@ export const POST = route(
     const actor = await requireActor();
     const body = await readJson(request, validateSchema);
     const supabase = await supabaseServer();
+
+    // Mirrors the verif_insert policy: a field verification is a
+    // volunteer/staff act. Community signals stay open to any signed-in user.
+    if (body.kind === "field" && !["volunteer", "coordinator", "admin"].includes(actor.role)) {
+      return fail(
+        403,
+        "Only a volunteer, verifier-desk member or coordinator can file a field verification. Any signed-in account can still send a community signal (still there, improved, inaccurate).",
+        "forbidden",
+      );
+    }
 
     const { error } = await supabase.from("verifications").insert({
       challenge_id: id,

@@ -27,14 +27,16 @@ const createSchema = z.object({
 export const GET = route(async () => {
   const actor = await requireActor();
   const supabase = supabaseAdmin();
-  const isAdmin = actor.role === "admin";
+  // Coordinators see every thread for oversight, as observers: the UI keeps
+  // their compose box disabled and the server rejects their sends.
+  const overseer = actor.role === "admin" || actor.role === "coordinator";
 
   let query = supabase
     .from("threads")
     .select("id, challenge_id, college_org_id, contributor_org_id, created_at, last_message_at")
     .order("last_message_at", { ascending: false, nullsFirst: false });
 
-  if (!isAdmin) {
+  if (!overseer) {
     if (!actor.orgId) return ok({ threads: [], count: 0 });
     query = query.or(`college_org_id.eq.${actor.orgId},contributor_org_id.eq.${actor.orgId}`);
   }

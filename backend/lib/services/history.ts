@@ -59,6 +59,14 @@ export function describeLedgerEntry(
     case "brief_approved":
     case "opened_for_partners":
       return { kind: "approved", summary: `Approved by a coordinator (${action.replace(/_/g, " ")}).` };
+    case "adopted":
+      return { kind: "adopted", summary: `${String(p.org_name ?? orgName(p.org_id))} adopted this problem${p.role ? ` (${String(p.role)})` : ""}.` };
+    case "solution_proposed":
+      return { kind: "solution", summary: `Solution proposed: ${String(p.title ?? "")}.` };
+    case "readiness_rated":
+      return { kind: "solution", summary: `Solution readiness rated${p.readiness != null ? ` ${String(p.readiness)}` : ""}.` };
+    case "evidence_uploaded":
+      return { kind: "evidence", summary: `Evidence uploaded${p.phase ? ` (${String(p.phase)})` : ""}.` };
     case "proposal_scored":
       return {
         kind: "proposal_scored",

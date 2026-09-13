@@ -257,7 +257,16 @@ export function fetchMyReports() {
 }
 
 export function fetchReportTrace(reportId: string) {
-  return request<{ trace: unknown[] }>(`/api/reports/${encodeURIComponent(reportId)}/trace`);
+  return request<{
+    report_id: string;
+    challenge_id: string | null;
+    channel: string;
+    action: string;
+    trace: unknown[];
+    total_ms: number;
+    dedup: unknown;
+    processed_at: string;
+  }>(`/api/reports/${encodeURIComponent(reportId)}/trace`);
 }
 
 // ---------------------------------------------------------------------------
@@ -514,5 +523,8 @@ export function fetchMessages(threadId: string) {
 }
 
 export function sendMessage(threadId: string, body: string) {
-  return post<Message>(`/api/threads/${threadId}/messages`, { body });
+  return post<{ message_id: string; created_at: string; notified: number }>(
+    `/api/threads/${threadId}/messages`,
+    { body },
+  );
 }

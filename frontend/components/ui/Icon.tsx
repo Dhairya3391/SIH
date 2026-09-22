@@ -233,6 +233,13 @@ const PATHS = {
   ),
   stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
   play: <path d="M8 5l11 7-11 7V5Z" />,
+  volume: (
+    <>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </>
+  ),
   plus: (
     <>
       <path d="M12 5v14" />

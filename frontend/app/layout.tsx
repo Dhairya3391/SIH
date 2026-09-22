@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     "A district-level bridge from a citizen's report to a verified problem, a college's solution, a funded need, and delivered work. Department of Disaster Management, Government of Jharkhand.",
   applicationName: "JharSetu",
   formatDetection: { telephone: false },
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },

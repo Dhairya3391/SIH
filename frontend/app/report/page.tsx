@@ -10,6 +10,7 @@ import { BandChip, Chip } from "@/components/ui/Chip";
 import { Caveat } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import { VoiceRecorder } from "@/components/domain/VoiceRecorder";
+import { AudioPlayer } from "@/components/domain/AudioPlayer";
 import { TraceSteps } from "@/components/domain/TraceSteps";
 import * as apiClient from "@/lib/api";
 import { ApiError } from "@/lib/api";
@@ -423,6 +424,14 @@ function Compiled({
               phone, and how a block officer finds it if you ask in person.
             </p>
           </div>
+
+          <AudioPlayer
+            variant="card"
+            className="mt-3.5"
+            text={`आपकी आपदा रिपोर्ट सफलतापूर्वक दर्ज कर ली गई है। संदर्भ संख्या ${result.challenge_ref} है। जिला प्रशासन द्वारा जांच की जा रही है।`}
+            label="पुष्टि सुनें (Spoken Receipt)"
+            lang="hi-IN"
+          />
 
           <div className="mt-4 flex flex-wrap gap-2.5">
             <ButtonLink

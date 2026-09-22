@@ -53,22 +53,17 @@ export function getGeminiApiKeys(): string[] {
 export const GEMINI_MODEL_CASCADE = process.env.GEMINI_MODELS
   ? process.env.GEMINI_MODELS.split(",").map((m) => m.trim()).filter(Boolean)
   : [
-      "gemini-3.8-flash",
-      "gemini-3.7-flash",
-      "gemini-3.6-flash",
-      "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
     ];
 
 // These two labels are what the pipeline trace shows a coordinator, so they
-// must name the model that actually ran. They used to default to Anthropic
-// names while the provider was Gemini, which made a cache hit report
-// "claude-sonnet-5" on a Gemini deployment - the one number on that screen a
-// judge is most likely to question. Default to the head of the live cascade.
+// must name the model that actually ran.
 export const MODEL_FAST =
-  process.env.LLM_MODEL_FAST || GEMINI_MODEL_CASCADE[0] || "gemini-3.5-flash";
+  process.env.LLM_MODEL_FAST || GEMINI_MODEL_CASCADE[0] || "gemini-2.5-flash";
 export const MODEL_DRAFT =
-  process.env.LLM_MODEL_DRAFT || GEMINI_MODEL_CASCADE[0] || "gemini-3.5-flash";
+  process.env.LLM_MODEL_DRAFT || GEMINI_MODEL_CASCADE[0] || "gemini-2.5-flash";
 
 /**
  * The kill switch. Setting AI_ENABLED=false makes every call throw

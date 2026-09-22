@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { humanise, num, pct } from "@/lib/format";
+import { DisasterMap } from "@/components/domain/DisasterMap";
 
 /**
  * Silent zones — the blocks that should be reporting and are not.
@@ -103,6 +104,12 @@ function SilentZones() {
               </span>
               <p className="text-[13.5px] leading-relaxed text-body">{d.explanation}</p>
             </Card>
+
+            {/* ---- Visual GIS Map with Silent Zones ---- */}
+            <DisasterMap
+              silentZones={(zones as unknown as import("@/components/domain/DisasterMap").MapSilentZone[]) ?? []}
+              currentRegion={(d.region_id as "jharkhand" | "rajkot") === "rajkot" ? "rajkot" : "jharkhand"}
+            />
 
             <Panel
               title="Blocks that have gone quiet"

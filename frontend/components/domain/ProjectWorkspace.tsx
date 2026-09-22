@@ -133,6 +133,16 @@ export function ProjectWorkspace({
                   Proposal PDF
                 </a>
               )}
+              <a
+                href={apiClient.getCertificateUrl(c.ref || c.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-2 btn-sm inline-flex items-center gap-1.5 text-navy font-semibold"
+                title="Official Government & CSR Impact Closure Certificate"
+              >
+                <Icon name="file" size={14} />
+                CSR Certificate
+              </a>
               {!isCollege && p.college && (
                 <Button variant="primary" size="sm" icon="chat" busy={opening} onClick={messageCollege}>
                   Message the college

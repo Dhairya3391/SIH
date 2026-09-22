@@ -201,6 +201,10 @@ export function deleteChallenge(idOrRef: string) {
   );
 }
 
+export function getCertificateUrl(idOrRef: string, format: "html" | "json" = "html") {
+  return `/api/challenges/${encodeURIComponent(idOrRef)}/certificate?format=${format}`;
+}
+
 export type ReportInput = {
   text: string;
   district?: string;
@@ -528,3 +532,129 @@ export function sendMessage(threadId: string, body: string) {
     { body },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Crisis Mode
+// ---------------------------------------------------------------------------
+
+export interface CrisisEvent {
+  id: string;
+  region_id: string;
+  hazard: string;
+  source: string;
+  headline: string | null;
+  is_drill: boolean;
+  districts: string[];
+  severity: number;
+  started_at: string;
+  ended_at?: string | null;
+}
+
+export interface CrisisRoomData {
+  crisis: CrisisEvent;
+  needsBoard: Array<{
+    id: string;
+    ref: string;
+    title: string;
+    district: string;
+    category: string;
+    severity: number;
+    priority: number;
+    status: string;
+    confidence: string;
+    people_est: number;
+    why_critical: string;
+    gap?: {
+      needs: Array<{
+        need_id: string;
+        item: string;
+        qty_needed: number;
+        qty_pledged: number;
+        unit: string;
+        pct_closed: number;
+      }>;
+      pctClosed: number;
+      fullyPledged: boolean;
+    };
+    nearby?: Array<{
+      id: string;
+      type: string;
+      quantity: number;
+      distance_km: number;
+      org_name: string;
+    }>;
+  }>;
+  remaining: unknown[];
+  smsReports: Array<{
+    id: string;
+    village: string | null;
+    district: string | null;
+    original_text: string;
+    created_at: string;
+    location_source: string;
+  }>;
+  techSquad: Array<{
+    id: string;
+    name: string;
+    type: string;
+    district: string;
+    expertise?: string[];
+  }>;
+  counts: {
+    total: number;
+    critical: number;
+    unassigned: number;
+  };
+}
+
+export function fetchActiveCrises(regionId = "jharkhand") {
+  return request<{ active: CrisisEvent[] }>(`/api/crisis/start${query({ region_id: regionId })}`);
+}
+
+export function startCrisis(body: {
+  region_id?: string;
+  hazard: string;
+  drill: boolean;
+  source: string;
+  headline?: string;
+  districts: string[];
+  severity: number;
+}) {
+  return post<{
+    crisis: CrisisEvent;
+    challenges_switched: number;
+    is_drill: boolean;
+    banner: string;
+  }>("/api/crisis/start", {
+    region_id: body.region_id ?? "jharkhand",
+    ...body,
+  });
+}
+
+export function fetchCrisisRoom(crisisId: string) {
+  return request<CrisisRoomData>(`/api/crisis/${encodeURIComponent(crisisId)}/room`);
+}
+
+export function endCrisis(crisisId: string) {
+  return post<{
+    crisis: CrisisEvent;
+    challenges_reverted: number;
+    preparedness_drafted: Array<{ id: string; ref: string; title: string }>;
+  }>(`/api/crisis/${encodeURIComponent(crisisId)}/end`);
+}
+
+export interface BenchmarkMetrics {
+  totalCases: number;
+  categoryAccuracyPct: number;
+  vulnerabilityF1Pct: number;
+  deduplicationPrecisionPct: number;
+  overallScorePct: number;
+  categoryBreakdown: Record<string, { total: number; correct: number; accuracy: number }>;
+  evaluatedAt: string;
+}
+
+export function fetchBenchmarkMetrics() {
+  return request<BenchmarkMetrics>("/api/admin/benchmark");
+}
+
+

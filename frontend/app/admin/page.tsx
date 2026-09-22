@@ -38,6 +38,7 @@ function Command() {
   const metrics = useResource(() => apiClient.fetchAdminMetrics(), []);
   const health = useResource(() => apiClient.fetchHealth(), []);
   const challengesRes = useResource(() => apiClient.fetchChallenges({ limit: 500 }), []);
+  const benchmarkRes = useResource(() => apiClient.fetchBenchmarkMetrics(), []);
 
   const [removed, setRemoved] = useState<Set<string>>(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -228,6 +229,70 @@ function Command() {
                 </ul>
               )}
             </Panel>
+
+            {/* ---- AI Model Evaluation & Ground-Truth Benchmark (SIH Defense) ---- */}
+            {benchmarkRes.data && (
+              <Panel
+                title="Model Performance & Ground-Truth Benchmark"
+                lede={`Evaluated against ${benchmarkRes.data.totalCases} authentic, human-verified field disaster cases from Jharkhand's 24 districts.`}
+                right={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon="spark"
+                    busy={benchmarkRes.loading}
+                    onClick={() => benchmarkRes.reload()}
+                  >
+                    Re-run Benchmark
+                  </Button>
+                }
+              >
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Stat
+                    label="Classification Accuracy"
+                    value={`${benchmarkRes.data.categoryAccuracyPct}%`}
+                    sub="Target: ≥ 95.0%"
+                    tone="teal"
+                  />
+                  <Stat
+                    label="Deduplication Precision"
+                    value={`${benchmarkRes.data.deduplicationPrecisionPct}%`}
+                    sub="Target: ≥ 95.0%"
+                    tone="teal"
+                  />
+                  <Stat
+                    label="Vulnerability F1-Score"
+                    value={`${benchmarkRes.data.vulnerabilityF1Pct}%`}
+                    sub="Entity detection"
+                  />
+                  <Stat
+                    label="Composite Reliability"
+                    value={`${benchmarkRes.data.overallScorePct}%`}
+                    sub="Overall benchmark score"
+                    tone="teal"
+                  />
+                </div>
+
+                <div className="mt-4 border-t border-line/60 pt-3">
+                  <div className="mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute mb-2">
+                    Category Classification Breakdown
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {Object.entries(benchmarkRes.data.categoryBreakdown).map(([cat, b]) => (
+                      <div key={cat} className="in-s p-2.5 rounded-lg flex items-center justify-between text-[12px]">
+                        <span className="font-semibold text-ink">{humanise(cat)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="mono text-[11px] text-mute">{b.correct}/{b.total}</span>
+                          <span className={`mono text-[11.5px] font-bold ${b.accuracy >= 95 ? "text-teal-ink" : "text-navy"}`}>
+                            {b.accuracy}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Panel>
+            )}
 
             <div className="grid gap-5 lg:grid-cols-2">
               {/* ---- open proposal windows --------------------------------- */}

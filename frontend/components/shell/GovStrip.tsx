@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
@@ -8,12 +10,21 @@ import { Icon } from "@/components/ui/Icon";
  * service this is before they type anything into it.
  */
 export function GovStrip() {
+  const [lang, setLang] = React.useState("en");
+
+  React.useEffect(() => {
+    setLang(localStorage.getItem("jharsetu_lang") || "en");
+  }, []);
+
+  const title = lang === "hi" ? "झारखंड सरकार" : "Government of Jharkhand";
+  const subtitle = lang === "hi" ? " · आपदा प्रबंधन विभाग" : " · Department of Disaster Management";
+
   return (
     <div className="bg-navy-dark">
       <div className="shell flex h-[34px] items-center justify-between gap-3">
         <span className="mono truncate text-[10px] uppercase tracking-[0.08em] text-navy-pale sm:text-[11px]">
-          Government of Jharkhand
-          <span className="hidden sm:inline"> · Department of Disaster Management</span>
+          {title}
+          <span className="hidden sm:inline">{subtitle}</span>
         </span>
         <span className="mono flex-none text-[10px] uppercase tracking-[0.08em] text-[#8DB9D8] sm:text-[11px]">
           SIH26043

@@ -60,7 +60,7 @@ export interface CompileInput {
   /** Other reports already in the cluster, so a merge re-compiles on everything. */
   siblingTexts?: string[];
   /** Lower the model's trust in a plain SMS from an unknown number. */
-  channel?: "web" | "sms" | "volunteer" | "ivr";
+  channel?: "web" | "sms" | "volunteer" | "ivr" | "whatsapp" | "system";
 }
 
 export async function compile(input: CompileInput): Promise<CompileResult> {

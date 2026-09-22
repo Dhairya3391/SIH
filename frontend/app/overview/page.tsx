@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/Icon";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { CATEGORY_LABEL, STATUS_LABEL, dateOnly, hours, humanise, num, pct } from "@/lib/format";
+import { DisasterMap } from "@/components/domain/DisasterMap";
 
 /**
  * Impact.
@@ -39,6 +40,8 @@ const FUNNEL: { key: string; label: string }[] = [
 
 function Overview() {
   const res = useResource(() => apiClient.fetchDashboardMetrics(), []);
+  const challengesRes = useResource(() => apiClient.fetchChallenges({ limit: 120 }), []);
+  const silentRes = useResource(() => apiClient.fetchSilentZones(), []);
   const d = res.data;
 
   const funnel = useMemo(() => {
@@ -61,12 +64,18 @@ function Overview() {
 
   const sampleZero = (d?.headline?.sample_size ?? 0) === 0;
 
+  const [lang, setLang] = React.useState("en");
+
+  React.useEffect(() => {
+    setLang(localStorage.getItem("jharsetu_lang") || "en");
+  }, []);
+
   return (
     <>
       <PageHead
-        eyebrow="District officer"
-        title="Impact"
-        lede="What the platform has actually moved, and what it cannot measure yet. Figures with no sample behind them are shown as blank with a reason, never as a zero."
+        eyebrow={lang === "hi" ? "जिला अधिकारी" : "District officer"}
+        title={lang === "hi" ? "प्रभाव" : "Impact"}
+        lede={lang === "hi" ? "प्लेटफॉर्म ने वास्तव में क्या परिणाम दिया है, और वह क्या नहीं माप सकता।" : "What the platform has actually moved, and what it cannot measure yet. Figures with no sample behind them are shown as blank with a reason, never as a zero."}
         right={
           d?.simulated ? <Chip tone="neutral">Includes seeded rows</Chip> : undefined
         }
@@ -157,6 +166,13 @@ function Overview() {
                 </div>
               </Card>
             )}
+
+            {/* ---- GIS Disaster Operations Map ------------------------- */}
+            <DisasterMap
+              challenges={(challengesRes.data?.challenges as unknown as import("@/components/domain/DisasterMap").MapChallenge[]) ?? []}
+              silentZones={(silentRes.data?.silent_zones as unknown as import("@/components/domain/DisasterMap").MapSilentZone[]) ?? []}
+              currentRegion={(d.region_id as "jharkhand" | "rajkot") === "rajkot" ? "rajkot" : "jharkhand"}
+            />
 
             {/* ---- the funnel ------------------------------------------- */}
             <Panel

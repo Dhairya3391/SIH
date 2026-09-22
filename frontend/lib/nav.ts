@@ -34,6 +34,7 @@ export const ROLE_NAV: Record<UserRole, NavItem[]> = {
     { href: "/silent-zones", label: "Silent zones", icon: "pin" },
   ],
   coordinator: [
+    { href: "/crisis", label: "Crisis room", icon: "alert" },
     { href: "/queue", label: "Triage queue", icon: "list" },
     { href: "/silent-zones", label: "Silent zones", icon: "pin" },
     { href: "/overview", label: "Impact", icon: "gauge" },
@@ -60,6 +61,7 @@ export const ROLE_NAV: Record<UserRole, NavItem[]> = {
   ],
   admin: [
     { href: "/admin", label: "Command", icon: "gauge" },
+    { href: "/crisis", label: "Crisis room", icon: "alert" },
     { href: "/admin/sla", label: "SLA & timings", icon: "clock" },
     { href: "/admin/ledger", label: "Ledger", icon: "shield" },
     { href: "/challenges", label: "All challenges", icon: "eye" },
@@ -101,6 +103,7 @@ const ACCESS: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/my-reports", roles: ["citizen", "volunteer", "admin"] },
   { prefix: "/verify", roles: ["verifier", "volunteer", "coordinator", "admin"] },
   { prefix: "/queue", roles: ["coordinator", "admin"] },
+  { prefix: "/crisis", roles: ["coordinator", "admin", "verifier", "university", "industry", "ngo"] },
   { prefix: "/overview", roles: ["coordinator", "admin"] },
   { prefix: "/silent-zones", roles: ["verifier", "coordinator", "admin"] },
   {

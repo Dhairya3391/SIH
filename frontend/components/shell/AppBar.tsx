@@ -23,6 +23,13 @@ export function AppBar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [lang, setLang] = useState("en");
+  const [region, setRegion] = useState("jharkhand");
+
+  React.useEffect(() => {
+    setLang(localStorage.getItem("jharsetu_lang") || "en");
+    setRegion(new URLSearchParams(window.location.search).get("region_id") || localStorage.getItem("jharsetu_region") || "jharkhand");
+  }, []);
 
   const items = role ? ROLE_NAV[role] : [];
 
@@ -45,6 +52,30 @@ export function AppBar() {
           <nav className="up-s hidden items-center gap-1 rounded-[14px] p-[5px] lg:flex">
             {items.map((item) => {
               const active = isActive(item.href);
+              const hiDict: Record<string, string> = {
+                "Crisis room": "आपदा कक्ष",
+                "Triage queue": "समीक्षा सूची",
+                "Silent zones": "शांत क्षेत्र",
+                "Impact": "प्रभाव",
+                "All challenges": "सभी चुनौतियां",
+                "Report a problem": "समस्या दर्ज करें",
+                "My reports": "मेरी रिपोर्ट",
+                "Verification queue": "सत्यापन सूची",
+                "Queue": "सूची",
+                "Overview": "अवलोकन",
+                "Problems": "समस्याएं",
+                "My proposals": "मेरे प्रस्ताव",
+                "Projects": "परियोजनाएं",
+                "Messages": "संदेश",
+                "Materials needed": "आवश्यक सामग्री",
+                "My contributions": "मेरा योगदान",
+                "Funding needed": "आवश्यक निधि",
+                "Command": "नियंत्रण कक्ष",
+                "SLA & timings": "समय-सीमा (SLA)",
+                "Ledger": "खाता (Ledger)"
+              };
+              const label = lang === "hi" && hiDict[item.label] ? hiDict[item.label] : item.label;
+
               return (
                 <Link
                   key={item.href}
@@ -58,19 +89,60 @@ export function AppBar() {
                   ].join(" ")}
                 >
                   <Icon name={item.icon} size={15} />
-                  {item.label}
+                  {label}
                 </Link>
               );
             })}
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="in-s mono hidden h-9 items-center gap-[7px] px-3 text-[12px] font-semibold text-navy xl:inline-flex">
-              <span className="text-moderate">
+            {/* Dual-Region Switcher: Proves nationwide scalability live */}
+            <div className="relative inline-flex items-center">
+              <span className="absolute left-2.5 pointer-events-none text-moderate">
                 <Icon name="pin" size={13} />
               </span>
-              {user?.district ? `${user.district}, Jharkhand` : "Jharkhand"}
-            </span>
+              <select
+                value={region}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRegion(val);
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("jharsetu_region", val);
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("region_id", val);
+                    window.location.href = url.toString();
+                  }
+                }}
+                aria-label="Select operation region"
+                title="Switch platform operational region"
+                className="in-s mono h-9 pl-7 pr-3 text-[11px] font-bold text-navy cursor-pointer rounded-xl border border-line/80 focus:outline-none focus:ring-1 focus:ring-navy"
+              >
+                <option value="jharkhand">Jharkhand (24 Districts)</option>
+                <option value="rajkot">Rajkot, Gujarat (Pilot)</option>
+              </select>
+            </div>
+
+            <div className="relative inline-flex items-center ml-1">
+              <span className="absolute left-2.5 pointer-events-none text-moderate font-bold text-[10px]">
+                A/अ
+              </span>
+              <select
+                value={lang}
+                onChange={(e) => {
+                  setLang(e.target.value);
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("jharsetu_lang", e.target.value);
+                    window.location.reload();
+                  }
+                }}
+                aria-label="Toggle language"
+                title="Switch interface language"
+                className="in-s mono h-9 pl-8 pr-2 text-[11px] font-bold text-navy cursor-pointer rounded-xl border border-line/80 focus:outline-none focus:ring-1 focus:ring-navy"
+              >
+                <option value="en">EN</option>
+                <option value="hi">HI</option>
+              </select>
+            </div>
 
             <div className="hidden flex-col items-end gap-px sm:flex">
               <span className="max-w-[180px] truncate text-[13.5px] font-bold text-ink">
@@ -114,6 +186,30 @@ export function AppBar() {
             <div className="up flex flex-col gap-1 p-2">
               {items.map((item) => {
                 const active = isActive(item.href);
+                const hiDict: Record<string, string> = {
+                  "Crisis room": "आपदा कक्ष",
+                  "Triage queue": "समीक्षा सूची",
+                  "Silent zones": "शांत क्षेत्र",
+                  "Impact": "प्रभाव",
+                  "All challenges": "सभी चुनौतियां",
+                  "Report a problem": "समस्या दर्ज करें",
+                  "My reports": "मेरी रिपोर्ट",
+                  "Verification queue": "सत्यापन सूची",
+                  "Queue": "सूची",
+                  "Overview": "अवलोकन",
+                  "Problems": "समस्याएं",
+                  "My proposals": "मेरे प्रस्ताव",
+                  "Projects": "परियोजनाएं",
+                  "Messages": "संदेश",
+                  "Materials needed": "आवश्यक सामग्री",
+                  "My contributions": "मेरा योगदान",
+                  "Funding needed": "आवश्यक निधि",
+                  "Command": "नियंत्रण कक्ष",
+                  "SLA & timings": "समय-सीमा (SLA)",
+                  "Ledger": "खाता (Ledger)"
+                };
+                const label = lang === "hi" && hiDict[item.label] ? hiDict[item.label] : item.label;
+
                 return (
                   <Link
                     key={item.href}
@@ -126,7 +222,7 @@ export function AppBar() {
                     ].join(" ")}
                   >
                     <Icon name={item.icon} size={16} />
-                    {item.label}
+                    {label}
                   </Link>
                 );
               })}

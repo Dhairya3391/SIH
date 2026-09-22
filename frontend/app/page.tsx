@@ -76,6 +76,10 @@ export default function HomePage() {
           <Link href="/needs" className="text-[14px] font-medium text-body transition-colors hover:text-navy">
             For partners
           </Link>
+          <Link href="/crisis" className="text-[14px] font-bold text-[#DC2626] transition-colors hover:text-red-700 flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+            Crisis room
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2.5">

@@ -14,6 +14,7 @@ import { ScoreFactors } from "@/components/domain/ScoreFactors";
 import { ConfidenceLadder, Corroboration } from "@/components/domain/Corroboration";
 import { NeedLineRow } from "@/components/domain/NeedCard";
 import { StageTracker, TimelineList } from "@/components/domain/Timeline";
+import { ListenButton } from "@/components/domain/AudioPlayer";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
 import { useAuth } from "@/lib/auth";
@@ -151,6 +152,16 @@ function Brief() {
                   Project
                 </ButtonLink>
               )}
+              <a
+                href={apiClient.getCertificateUrl(c.ref || c.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-2 btn-sm inline-flex items-center gap-1.5 text-navy font-semibold"
+                title="Official Government & CSR Impact Closure Certificate"
+              >
+                <Icon name="file" size={13} />
+                Impact Certificate
+              </a>
               {/* The delete endpoint allows admin and coordinator; the history
                   page stays admin-only (its endpoint is requireRole("admin")),
                   so only the record link is gated below. */}
@@ -510,16 +521,19 @@ function Brief() {
                 <ul className="flex max-h-[440px] flex-col gap-2.5 overflow-y-auto pr-1">
                   {detail.cluster.reports.slice(0, 12).map((r) => (
                     <li key={r.id} className="in-s p-3.5">
-                      <div className="mono flex flex-wrap items-center gap-x-2 text-[9.5px] uppercase tracking-[0.08em] text-mute">
-                        <span>{dateTime(r.created_at)}</span>
-                        <span>·</span>
-                        <span>{CHANNEL_LABEL[r.channel] ?? r.channel}</span>
-                        {r.village && (
-                          <>
-                            <span>·</span>
-                            <span>{r.village}</span>
-                          </>
-                        )}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="mono flex flex-wrap items-center gap-x-2 text-[9.5px] uppercase tracking-[0.08em] text-mute">
+                          <span>{dateTime(r.created_at)}</span>
+                          <span>·</span>
+                          <span>{CHANNEL_LABEL[r.channel] ?? r.channel}</span>
+                          {r.village && (
+                            <>
+                              <span>·</span>
+                              <span>{r.village}</span>
+                            </>
+                          )}
+                        </div>
+                        <ListenButton text={r.original_text} lang={r.lang ?? "hi-IN"} />
                       </div>
                       <p className="mt-2 text-[13px] leading-relaxed text-ink">
                         {r.original_text}

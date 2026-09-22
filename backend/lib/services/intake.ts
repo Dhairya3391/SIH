@@ -25,7 +25,7 @@ import type { VulnerabilityTag } from "@/lib/domain/types";
 export interface IntakeInput extends Omit<SubmitReportInput, "photo_urls" | "vulnerable"> {
   photo_urls: string[];
   vulnerable: VulnerabilityTag[];
-  channel: "web" | "sms" | "volunteer" | "ivr";
+  channel: "web" | "sms" | "volunteer" | "ivr" | "whatsapp" | "system";
   reporter_id?: string | null;
   phone_hash?: string | null;
   audio?: File | null;

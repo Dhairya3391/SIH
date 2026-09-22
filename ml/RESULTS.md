@@ -7,7 +7,7 @@ Hardware: RTX 3050 Laptop (4 GB). All training done locally.
 
 | # | Model | What it replaces | Headline (frozen test set) |
 |---|---|---|---|
-| 1 | Report classifier v1 — char n-gram TF-IDF + logistic regression, runs in TypeScript | keyword rules in `backend/lib/ai/fallback.ts` | category 55%, and 76% when confident |
+| 1 | Report classifier v1 — char n-gram TF-IDF + logistic regression, runs in TypeScript | keyword rules in `backend/lib/ai/fallback.ts` | category 55% (frozen set); **60% → 78% on the team benchmark** |
 | 2 | Report classifier v2 — fine-tuned multilingual MiniLM | v1, when the sidecar is up | **category 62.5%**, vulnerable-group F1 0.45 |
 | 3 | Dedup embeddings — contrastively fine-tuned MiniLM | local hashing vectoriser in `backend/lib/ai/local-embed.ts` | **73% of duplicates found at 85% precision** (was 0%) |
 | 4 | Whisper-small + LoRA on rural Hindi phone audio | nothing (there was no offline speech to text) | **WER 114% → 60%** |
@@ -51,7 +51,27 @@ v1 ships as a 4 MB JSON file and runs in plain TypeScript
 | | Category | DM phase | Severity ±1 |
 |---|---|---|---|
 | Keyword rules only (before) | 32.5% | 35.0% | 75.0% |
-| Rules + trained classifier | **45.0%** | 37.5% | **85.0%** |
+| Rules + trained classifier | **45.0%** | 35.0% | **85.0%** |
+
+### On the team's own 50-case benchmark — the strongest evidence
+
+`backend/lib/ai/eval-benchmark.ts` holds 50 cases written by another team
+member, independently of the generator and of the test sets above. Scored with
+`backend/scripts/eval-benchmark-ablation.ts` on the offline path (no AI key):
+
+| | Category accuracy | Vulnerability tag F1 |
+|---|---|---|
+| Keyword rules only (before) | 60.0% | 16.0% |
+| **Rules + trained classifier** | **78.0%** | **21.8%** |
+
+Dedup on the same 50 cases with the old offline embedding: **0% recall** on the
+3 duplicate pairs, which is the same failure the frozen pair set shows.
+
+Note on that benchmark: as originally written it scored a keyword classifier
+defined inside the benchmark file itself, with per-case disambiguation rules,
+and returned a hard-coded 97.4% dedup precision. It now runs the real
+`compileWithRules` path and measures dedup. The 50 cases were kept; the labels
+were renamed to the real schema (`roads_infra`, `medical_dependency`).
 
 ## 3. Dedup embeddings
 

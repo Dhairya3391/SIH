@@ -3,18 +3,18 @@ import { evaluateBenchmark } from "../lib/ai/eval-benchmark";
 async function main() {
   console.log("===============================================================================");
   console.log("   JharSetu (SIH26043) — Model & Classifier Ground-Truth Benchmark Evaluation");
-  console.log("   Dataset: 50 Human-Verified Field Incident Cases across Jharkhand's 24 Districts");
+  console.log("   Dataset: 50 team-written cases across Jharkhand (not collected from citizens)");
   console.log("===============================================================================\n");
 
   const started = Date.now();
   const metrics = evaluateBenchmark();
   const duration = Date.now() - started;
 
-  console.log(`Evaluated ${metrics.totalCases} authentic incident reports in ${duration}ms.\n`);
+  console.log(`Scored the real offline Compiler on ${metrics.totalCases} team-written cases in ${duration}ms.\n`);
   console.log("OVERALL PERFORMANCE SUMMARY:");
-  console.log(`  • Category Classification Accuracy:  ${metrics.categoryAccuracyPct}%  (Target: >= 95%)`);
-  console.log(`  • Vulnerability Entity Extraction F1: ${metrics.vulnerabilityF1Pct}%  (Target: >= 92%)`);
-  console.log(`  • Semantic Deduplication Precision:   ${metrics.deduplicationPrecisionPct}%  (Target: >= 95%)`);
+  console.log(`  • Category accuracy:                  ${metrics.categoryAccuracyPct}%`);
+  console.log(`  • Vulnerability tag F1:               ${metrics.vulnerabilityF1Pct}%`);
+  console.log(`  • Dedup precision / recall:           ${metrics.deduplicationPrecisionPct}% / ${metrics.deduplicationRecallPct}%  (${metrics.duplicatePairs} duplicate pairs, offline embedding)`);
   console.log(`  • Composite Reliability Score:        ${metrics.overallScorePct}%\n`);
 
   console.log("CATEGORY-BY-CATEGORY BREAKDOWN:");
@@ -30,11 +30,9 @@ async function main() {
   }
   console.log("-------------------------------------------------------------------------------\n");
 
-  if (metrics.categoryAccuracyPct >= 95.0) {
-    console.log("RESULT: BENCHMARK PASSED WITH EXCELLENCE (>=95% Accuracy achieved).");
-  } else {
-    console.log(`RESULT: BENCHMARK COMPLETED with ${metrics.categoryAccuracyPct}% accuracy.`);
-  }
+  console.log(`RESULT: ${metrics.categoryAccuracyPct}% category accuracy on this set.`);
+  console.log("These are measured numbers for the offline path. With an AI key the");
+  console.log("LLM answers first; see ml/RESULTS.md for the per-model breakdown.");
 }
 
 main().catch(console.error);

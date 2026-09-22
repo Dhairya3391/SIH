@@ -83,7 +83,11 @@ export interface DedupResult {
  */
 const NO_LOCATION_MERGE_SIMILARITY = 0.9;
 
-type Thresholds = typeof DEDUP_THRESHOLDS;
+/**
+ * Numbers, not the literal types of DEDUP_THRESHOLDS: our own dedup model
+ * scores in a different range and passes its own bars (TRAINED_DEDUP).
+ */
+type Thresholds = { -readonly [K in keyof typeof DEDUP_THRESHOLDS]: number };
 
 /** Positively the same place: within the radius, or the same district when there is no GPS. */
 function samePlace(c: DedupCandidate, t: Thresholds): boolean {

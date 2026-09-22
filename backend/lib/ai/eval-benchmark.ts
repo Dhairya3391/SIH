@@ -1,3 +1,7 @@
+import { compileWithRules } from "./fallback";
+import { localEmbed } from "./local-embed";
+import { DEDUP_THRESHOLDS } from "@/lib/domain/dedup";
+
 /**
  * Ground-Truth Evaluation Benchmark for JharSetu AI & Classification Engine.
  *
@@ -78,7 +82,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Bokaro",
     expectedCategory: "disaster_safety",
     expectedSeverity: 5,
-    expectedVulnerable: ["children", "medical"],
+    expectedVulnerable: ["children", "medical_dependency"],
   },
   {
     id: "BM-08",
@@ -94,7 +98,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Khunti",
     expectedCategory: "disaster_safety",
     expectedSeverity: 5,
-    expectedVulnerable: ["medical"],
+    expectedVulnerable: ["medical_dependency"],
   },
   {
     id: "BM-10",
@@ -137,7 +141,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Garhwa",
     expectedCategory: "water",
     expectedSeverity: 5,
-    expectedVulnerable: ["pregnancy", "medical"],
+    expectedVulnerable: ["pregnancy", "medical_dependency"],
   },
   {
     id: "BM-15",
@@ -195,7 +199,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Simdega",
     expectedCategory: "health",
     expectedSeverity: 5,
-    expectedVulnerable: ["medical"],
+    expectedVulnerable: ["medical_dependency"],
   },
   {
     id: "BM-22",
@@ -203,7 +207,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Pakur",
     expectedCategory: "health",
     expectedSeverity: 4,
-    expectedVulnerable: ["children", "medical"],
+    expectedVulnerable: ["children", "medical_dependency"],
   },
   {
     id: "BM-23",
@@ -211,7 +215,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Godda",
     expectedCategory: "health",
     expectedSeverity: 5,
-    expectedVulnerable: ["medical", "elderly"],
+    expectedVulnerable: ["medical_dependency", "elderly"],
   },
   {
     id: "BM-24",
@@ -235,7 +239,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Koderma",
     expectedCategory: "health",
     expectedSeverity: 5,
-    expectedVulnerable: ["medical", "elderly"],
+    expectedVulnerable: ["medical_dependency", "elderly"],
   },
   {
     id: "BM-27",
@@ -251,7 +255,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     id: "BM-28",
     text: "Culvert collapsed during torrential rain cutting off three panchayats from market town.",
     district: "Garhwa",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 4,
     expectedVulnerable: [],
   },
@@ -259,16 +263,16 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     id: "BM-29",
     text: "Pulliya toot gayi hai, gaadi aur ambulance nahi aa pa rahi hai bilkul.",
     district: "Garhwa",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 4,
-    expectedVulnerable: ["medical"],
+    expectedVulnerable: ["medical_dependency"],
     isDuplicateOf: "BM-28",
   },
   {
     id: "BM-30",
     text: "Paved road washed away leaving a 10-foot deep trench across the school route.",
     district: "Latehar",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 3,
     expectedVulnerable: ["children"],
   },
@@ -276,7 +280,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     id: "BM-31",
     text: "Wooden suspension footbridge over river has decayed planks, children risk falling.",
     district: "East Singhbhum",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 4,
     expectedVulnerable: ["children"],
   },
@@ -284,7 +288,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     id: "BM-32",
     text: "Landslide debris blocking ghat road between Patratu and valley settlements.",
     district: "Ramgarh",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 4,
     expectedVulnerable: [],
   },
@@ -292,7 +296,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     id: "BM-33",
     text: "Submerged causeway prevents milk and crop produce vans from reaching railway siding.",
     district: "Seraikela Kharsawan",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 3,
     expectedVulnerable: [],
   },
@@ -300,7 +304,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     id: "BM-34",
     text: "Village access path severely eroded by river bank cutting during high flow.",
     district: "Sahebganj",
-    expectedCategory: "roads_infrastructure",
+    expectedCategory: "roads_infra",
     expectedSeverity: 3,
     expectedVulnerable: [],
   },
@@ -428,7 +432,7 @@ export const GROUND_TRUTH_BENCHMARK: BenchmarkCase[] = [
     district: "Garhwa",
     expectedCategory: "energy_connectivity",
     expectedSeverity: 4,
-    expectedVulnerable: ["pregnancy", "medical"],
+    expectedVulnerable: ["pregnancy", "medical_dependency"],
   },
   {
     id: "BM-50",
@@ -445,6 +449,8 @@ export interface BenchmarkMetrics {
   categoryAccuracyPct: number;
   vulnerabilityF1Pct: number;
   deduplicationPrecisionPct: number;
+  deduplicationRecallPct: number;
+  duplicatePairs: number;
   overallScorePct: number;
   categoryBreakdown: Record<string, { total: number; correct: number; accuracy: number }>;
   evaluatedAt: string;
@@ -454,114 +460,97 @@ export interface BenchmarkMetrics {
  * Fast, deterministic classifier test over the benchmark set.
  * Uses domain vocabulary keywords and semantic categorization matching the production compiler fallback.
  */
+
+/**
+ * Scores the REAL pipeline against these 50 cases.
+ *
+ * The earlier version of this function carried its own keyword classifier with
+ * per-case disambiguation rules, and returned a hard-coded dedup number, so it
+ * measured itself rather than the product. It now calls the same code paths a
+ * report goes through: the keyword rules in fallback.ts, and our trained
+ * classifier (trained-classifier.ts). Dedup is measured, not asserted.
+ *
+ * These 50 cases were written by the team, not collected from citizens; say so.
+ */
 export function evaluateBenchmark(): BenchmarkMetrics {
   let categoryCorrect = 0;
   let vulnTruePositive = 0;
   let vulnFalsePositive = 0;
   let vulnFalseNegative = 0;
-
   const categoryBreakdown: Record<string, { total: number; correct: number; accuracy: number }> = {};
 
-  const KEYWORDS: Record<string, string[]> = {
-    disaster_safety: ["bijli", "lightning", "vajrapat", "ganga", "flood", "doob", "fire", "aag", "haathi", "elephant", "storm", "underground fire", "gas leak", "blast", "quarry"],
-    water: ["handpump", "chaapakal", "pani", "paani", "drinking water", "arsenic", "fluoride", "dam", "kuan", "borewell", "tanker", "drainage", "groundwater", "tap stand"],
-    health: ["snakebite", "saap", "anti-venom", "kala-azar", "fever", "hospital", "ambulance", "malnutrition", "vaccine", "oxygen", "diarrhea", "infections"],
-    roads_infrastructure: ["culvert", "pulliya", "paved road", "road", "sadak", "bridge", "landslide", "ghat road", "causeway", "path", "footbridge", "trench", "access path"],
-    agriculture: ["paddy", "crop", "khet", "kisan", "pest", "irrigation", "cattle", "warehouse", "harvest", "seedlings", "potato", "canal"],
-    education: ["school", "asbestos", "classes", "compound", "students", "toilet", "literacy"],
-    energy_connectivity: ["transformer", "blackout", "cellular", "tower", "cable", "generator", "fiber", "power", "kva", "transmission"],
-  };
-
   for (const b of GROUND_TRUTH_BENCHMARK) {
-    const textLower = b.text.toLowerCase();
-    let predictedCategory = "disaster_safety"; // default
-    let maxMatches = -1;
-
-    for (const [cat, words] of Object.entries(KEYWORDS)) {
-      let matches = 0;
-      for (const w of words) {
-        if (textLower.includes(w)) {
-          // Weight longer, more specific multi-word tokens higher
-          matches += w.includes(" ") ? 3 : 1;
-        }
-      }
-      if (matches > maxMatches) {
-        maxMatches = matches;
-        predictedCategory = cat;
-      }
-    }
-
-    // Specific disambiguation rules (e.g. road leading to school is road, clinic generator is energy)
-    if (textLower.includes("paved road") || textLower.includes("trench across") || textLower.includes("footbridge") || textLower.includes("causeway") || textLower.includes("access path")) {
-      predictedCategory = "roads_infrastructure";
-    }
-    if (textLower.includes("generator has no fuel") || textLower.includes("generator battery")) {
-      predictedCategory = "energy_connectivity";
-    }
-    if (textLower.includes("seedlings") || textLower.includes("grain warehouse")) {
-      predictedCategory = "agriculture";
-    }
-    if (textLower.includes("groundwater") || textLower.includes("drainage backflow")) {
-      predictedCategory = "water";
-    }
-
-    // Check category prediction
-    const isCatCorrect = predictedCategory === b.expectedCategory;
+    // The real offline Compiler: keyword rules plus our trained classifier.
+    const brief = compileWithRules({ text: b.text });
+    const isCatCorrect = brief.category === b.expectedCategory;
     if (isCatCorrect) categoryCorrect++;
 
-    // Track breakdown
     const cat = b.expectedCategory;
-    if (!categoryBreakdown[cat]) {
-      categoryBreakdown[cat] = { total: 0, correct: 0, accuracy: 0 };
-    }
+    categoryBreakdown[cat] ??= { total: 0, correct: 0, accuracy: 0 };
     categoryBreakdown[cat].total++;
     if (isCatCorrect) categoryBreakdown[cat].correct++;
 
-    // Check vulnerability tags
-    const predictedVuln: string[] = [];
-    if (textLower.includes("elderly") || textLower.includes("buzurg") || textLower.includes("kisan") || textLower.includes("hut") || textLower.includes("parivaar") || textLower.includes("dialysis")) predictedVuln.push("elderly");
-    if (textLower.includes("children") || textLower.includes("bacche") || textLower.includes("youth") || textLower.includes("anganwadi") || textLower.includes("malnutrition") || textLower.includes("school") || textLower.includes("haathi") || textLower.includes("diarrhea") || textLower.includes("kala-azar") || textLower.includes("parivaar") || textLower.includes("arsenic")) predictedVuln.push("children");
-    if (textLower.includes("women") || textLower.includes("delivery") || textLower.includes("maternity") || textLower.includes("pregnancy") || textLower.includes("mahila")) predictedVuln.push("pregnancy");
-    if (textLower.includes("patient") || textLower.includes("hospital") || textLower.includes("ambulance") || textLower.includes("anti-venom") || textLower.includes("vaccines") || textLower.includes("oxygen") || textLower.includes("dialysis") || textLower.includes("sick") || textLower.includes("fever") || textLower.includes("clinic") || textLower.includes("snakebite")) predictedVuln.push("medical");
-    if (textLower.includes("disability") || textLower.includes("deformation") || textLower.includes("fluoride")) predictedVuln.push("disability");
-
-    // Clean deduplicated predictions
-    const uniquePred = [...new Set(predictedVuln)];
-
-    for (const t of uniquePred) {
+    const predicted = new Set(brief.vulnerable as string[]);
+    for (const t of predicted) {
       if (b.expectedVulnerable.includes(t)) vulnTruePositive++;
       else vulnFalsePositive++;
     }
-    for (const t of b.expectedVulnerable) {
-      if (!uniquePred.includes(t)) vulnFalseNegative++;
+    for (const t of b.expectedVulnerable) if (!predicted.has(t)) vulnFalseNegative++;
+  }
+
+  // Dedup, measured: every pair of cases, scored with the embedding the
+  // deployment actually uses offline. Pairs marked isDuplicateOf are the
+  // positives; every other pair is a negative.
+  let dedupTp = 0;
+  let dedupFp = 0;
+  let dedupFn = 0;
+  const vectors = new Map(GROUND_TRUTH_BENCHMARK.map((b) => [b.id, localEmbed(b.text)]));
+  for (let i = 0; i < GROUND_TRUTH_BENCHMARK.length; i++) {
+    for (let j = i + 1; j < GROUND_TRUTH_BENCHMARK.length; j++) {
+      const a = GROUND_TRUTH_BENCHMARK[i];
+      const c = GROUND_TRUTH_BENCHMARK[j];
+      const shouldMerge = a.isDuplicateOf === c.id || c.isDuplicateOf === a.id;
+      const merged = cosine(vectors.get(a.id)!, vectors.get(c.id)!) >= DEDUP_THRESHOLDS.mergeSimilarity;
+      if (merged && shouldMerge) dedupTp++;
+      else if (merged) dedupFp++;
+      else if (shouldMerge) dedupFn++;
     }
   }
 
-  // Calculate final metrics
   const total = GROUND_TRUTH_BENCHMARK.length;
   const categoryAccuracy = (categoryCorrect / total) * 100;
-
   for (const k of Object.keys(categoryBreakdown)) {
     const item = categoryBreakdown[k];
     item.accuracy = Math.round((item.correct / item.total) * 100);
   }
-
   const precision = vulnTruePositive / (vulnTruePositive + vulnFalsePositive || 1);
   const recall = vulnTruePositive / (vulnTruePositive + vulnFalseNegative || 1);
   const vulnF1 = ((2 * precision * recall) / (precision + recall || 1)) * 100;
-
-  // Deduplication precision over the 3 pairs
-  const deduplicationPrecision = 97.4;
-
-  const overall = (categoryAccuracy * 0.5 + vulnF1 * 0.25 + deduplicationPrecision * 0.25);
+  const dedupPrecision = dedupTp + dedupFp === 0 ? 0 : (dedupTp / (dedupTp + dedupFp)) * 100;
+  const dedupRecall = dedupTp + dedupFn === 0 ? 0 : (dedupTp / (dedupTp + dedupFn)) * 100;
+  const overall = categoryAccuracy * 0.5 + vulnF1 * 0.25 + dedupPrecision * 0.25;
 
   return {
     totalCases: total,
     categoryAccuracyPct: Number(categoryAccuracy.toFixed(1)),
     vulnerabilityF1Pct: Number(vulnF1.toFixed(1)),
-    deduplicationPrecisionPct: deduplicationPrecision,
+    deduplicationPrecisionPct: Number(dedupPrecision.toFixed(1)),
+    deduplicationRecallPct: Number(dedupRecall.toFixed(1)),
+    duplicatePairs: dedupTp + dedupFn,
     overallScorePct: Number(overall.toFixed(1)),
     categoryBreakdown,
     evaluatedAt: new Date().toISOString(),
   };
+}
+
+function cosine(x: number[], y: number[]): number {
+  let d = 0;
+  let nx = 0;
+  let ny = 0;
+  for (let i = 0; i < x.length; i++) {
+    d += x[i] * y[i];
+    nx += x[i] * x[i];
+    ny += y[i] * y[i];
+  }
+  return d / (Math.sqrt(nx * ny) || 1);
 }

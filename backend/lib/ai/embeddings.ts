@@ -1,5 +1,6 @@
 import "server-only";
 import { EMBEDDING_DIM, localEmbed, l2Normalise, toPgVector } from "./local-embed";
+import { embedWithService, isModelServiceEnabled } from "./model-service";
 
 /**
  * Embeddings, used for deduplication, the do-not-duplicate library, and the
@@ -17,7 +18,23 @@ import { EMBEDDING_DIM, localEmbed, l2Normalise, toPgVector } from "./local-embe
 
 export { EMBEDDING_DIM, localEmbed, toPgVector };
 
-export type EmbeddingSource = "gemini" | "local";
+export type EmbeddingSource = "gemini" | "trained" | "local";
+
+/**
+ * Our own dedup model (ml/dedup, fine-tuned MiniLM) via the sidecar.
+ *
+ * Off by default and gated on its own flag, because vectors from different
+ * models are not comparable: switching source without re-embedding every row
+ * would silently break clustering. Turn it on, then re-seed or re-embed.
+ */
+export function isTrainedEmbeddingEnabled(): boolean {
+  return process.env.ML_EMBEDDINGS === "true" && isModelServiceEnabled();
+}
+
+/** 384 dims from MiniLM into the DB's vector(768). Zeros do not change cosine. */
+function padTo768(v: number[]): number[] {
+  return v.length >= EMBEDDING_DIM ? v.slice(0, EMBEDDING_DIM) : [...v, ...new Array(EMBEDDING_DIM - v.length).fill(0)];
+}
 
 export interface EmbeddingResult {
   vector: number[];
@@ -34,6 +51,13 @@ export async function embed(text: string): Promise<EmbeddingResult> {
   const clean = text.trim();
   if (!clean) {
     return { vector: new Array(EMBEDDING_DIM).fill(0), source: "local", ms: 0 };
+  }
+
+  if (isTrainedEmbeddingEnabled()) {
+    const own = await embedWithService([clean]).catch(() => null);
+    if (own?.embeddings?.[0]) {
+      return { vector: padTo768(own.embeddings[0]), source: "trained", ms: Date.now() - started };
+    }
   }
 
   if (isRemoteEmbeddingEnabled()) {

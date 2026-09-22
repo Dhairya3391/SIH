@@ -8,9 +8,15 @@
  * function signature afterwards.
  *
  * It also means we can switch the AI off live in front of a judge.
+ *
+ * Our own trained classifier (trained-classifier.ts) runs here too, offline:
+ * when it is confident it sets the category and DM phase, and it suggests
+ * vulnerable groups. When it is not, the keyword rules decide and the brief
+ * says the category is uncertain.
  */
 
 import type { CompiledBrief } from "./brief";
+import { classifyReport, CONFIDENT, type Classification } from "./trained-classifier";
 import type { Category, DmPhase, VulnerabilityTag } from "@/lib/domain/types";
 
 interface Rule {
@@ -155,6 +161,14 @@ export interface FallbackInput {
   lang?: string;
   /** Reports already in this cluster, so the brief can say how many voices it carries. */
   reportCount?: number;
+  /** False gives the keywords-only baseline, for measuring the trained model. */
+  useTrainedModel?: boolean;
+  /**
+   * Result from the bigger trained model in ml/serve.py, when the sidecar is
+   * reachable. It replaces the in-process classifier; everything downstream
+   * (thresholds, uncertainty wording) is identical.
+   */
+  serviceClassification?: Classification | null;
 }
 
 export function compileWithRules(input: FallbackInput): CompiledBrief {
@@ -171,6 +185,22 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
     }
   }
 
+  // --- trained classifier -------------------------------------------------
+  // Trusted over the keywords only when confident; see ml/RESULTS.md.
+  const model: Classification | null =
+    input.useTrainedModel === false || !input.text
+      ? null
+      : (input.serviceClassification ?? classifyReport(input.text));
+  const modelTrusted = !!model && model.hasSignal && model.categoryConfidence >= CONFIDENT;
+  if (modelTrusted && best?.category !== model.category) {
+    // Keep the best keyword rule inside the model's category (for hazard,
+    // needs, capabilities); else that category's first rule, with no hazard.
+    const inCategory = RULES.filter((r) => r.category === model.category);
+    const scored = inCategory.map((r) => ({ r, s: scoreRule(text, r) })).sort((a, b) => b.s - a.s);
+    best = scored[0]?.s ? scored[0].r : { ...inCategory[0], hazard: undefined };
+    bestScore = Math.max(bestScore, 1);
+  }
+
   const matched = best ?? RULES[0];
   const classified = bestScore > 0;
 
@@ -183,6 +213,15 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
   const detected = new Set<VulnerabilityTag>(input.vulnerable ?? []);
   for (const [tag, terms] of VULNERABILITY_TERMS) {
     if (terms.some((t) => text.includes(t))) detected.add(tag);
+  }
+  const modelVulnerable: VulnerabilityTag[] = [];
+  if (model?.hasSignal) {
+    for (const [tag, p] of Object.entries(model.vulnerable) as [VulnerabilityTag, number][]) {
+      if (p >= 0.5 && !detected.has(tag)) {
+        detected.add(tag);
+        modelVulnerable.push(tag);
+      }
+    }
   }
 
   // --- people affected ----------------------------------------------------
@@ -230,6 +269,16 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
     uncertainties.push(
       "No category keyword matched, so this was filed under disaster and safety by default. A coordinator should set the right category.",
     );
+  } else if (model?.hasSignal && !modelTrusted) {
+    const pct = (p: number) => `${Math.round(p * 100)}%`;
+    uncertainties.push(
+      `Category is uncertain: our trained classifier leaned ${model.category.replace(/_/g, " ")} (${pct(model.categoryConfidence)}) or ${model.categoryRunnerUp.label.replace(/_/g, " ")} (${pct(model.categoryRunnerUp.prob)}), below its ${pct(CONFIDENT)} bar, so the keyword rules decided. A coordinator should confirm it.`,
+    );
+  }
+  if (modelVulnerable.length) {
+    uncertainties.push(
+      `Vulnerable groups suggested by the trained classifier, not stated on the form: ${modelVulnerable.join(", ").replace(/_/g, " ")}. Please confirm.`,
+    );
   }
   if (peopleInferred) {
     uncertainties.push(
@@ -237,7 +286,11 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
     );
   }
   if (!district) uncertainties.push("No district could be identified from the report text or its location.");
-  uncertainties.push("This brief was drafted by the rule-based compiler with no AI, so the wording is generic.");
+  uncertainties.push(
+    modelTrusted
+      ? "Category set by JharSetu's own trained classifier; the wording was drafted from a template, so it is generic."
+      : "This brief was drafted by the rule-based compiler with no AI, so the wording is generic.",
+  );
 
   return {
     title,
@@ -245,7 +298,7 @@ export function compileWithRules(input: FallbackInput): CompiledBrief {
       ? `${capitalise(subject)} in ${where || "this area"} are affected by ${matched.hazard ?? matched.category.replace(/_/g, " ")}. Reported as: "${snippet}".`
       : `A local need was reported that the rule-based compiler could not categorise. Reported as: "${snippet}".`,
     category: matched.category,
-    dm_phase: matched.dmPhase ?? "preparedness",
+    dm_phase: modelTrusted ? model.dmPhase : (matched.dmPhase ?? "preparedness"),
     severity,
     urgency: input.urgency ?? Math.max(1, severity - 1),
     people_est: peopleEst,

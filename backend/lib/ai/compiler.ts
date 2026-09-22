@@ -2,6 +2,8 @@ import "server-only";
 import { llmJson, MODEL_DRAFT, AiUnavailableError, isAiEnabled } from "./llm";
 import { BRIEF_SCHEMA, COMPILER_SYSTEM, isCompiledBrief, type CompiledBrief } from "./brief";
 import { compileWithRules, type FallbackInput } from "./fallback";
+import { classifyReport, CLASSIFIER_VERSION, CONFIDENT, type Classification } from "./trained-classifier";
+import { classifyWithService, transcribeWithService } from "./model-service";
 import { embed, type EmbeddingSource } from "./embeddings";
 import { transcribe, isSttEnabled } from "./stt";
 import type { VulnerabilityTag } from "@/lib/domain/types";
@@ -87,27 +89,61 @@ export async function compile(input: CompileInput): Promise<CompileResult> {
       });
     } catch (err) {
       degraded = true;
-      // isSttEnabled() is the only thing that distinguishes "we cannot do this
-      // at all" from "we tried and this particular audio did not work".
-      transcriptionFailure = isSttEnabled() ? "failed" : "not_configured";
-      const detail =
-        transcriptionFailure === "not_configured"
-          ? "Speech to text is not configured on this deployment. The voice note is saved and the transcript is pending."
-          : `The transcriber could not read this recording: ${
-              err instanceof Error ? err.message : "unknown error"
-            }`;
-      trace.push({
-        step: "transcribe",
-        label: "Transcribe",
-        ms: Date.now() - started,
-        detail,
-        usedAi: false,
-      });
+      // Before giving up: our own Whisper fine-tune, trained on rural Hindi
+      // phone audio. It runs locally, so it works with no Groq key at all.
+      const own = await transcribeWithService(input.audio as File).catch(() => null);
+      if (own?.text) {
+        transcript = own.text;
+        text = text ? `${text}\n\n${transcript}` : transcript;
+        trace.push({
+          step: "transcribe",
+          label: "Transcribe (JharSetu fine-tune)",
+          ms: Date.now() - started,
+          detail: `${own.model}, ${own.seconds}s of audio, transcribed locally with no external service`,
+          usedAi: false,
+        });
+      } else {
+        // isSttEnabled() is the only thing that distinguishes "we cannot do this
+        // at all" from "we tried and this particular audio did not work".
+        transcriptionFailure = isSttEnabled() ? "failed" : "not_configured";
+        const detail =
+          transcriptionFailure === "not_configured"
+            ? "Speech to text is not configured on this deployment. The voice note is saved and the transcript is pending."
+            : `The transcriber could not read this recording: ${
+                err instanceof Error ? err.message : "unknown error"
+              }`;
+        trace.push({
+          step: "transcribe",
+          label: "Transcribe",
+          ms: Date.now() - started,
+          detail,
+          usedAi: false,
+        });
+      }
     }
   }
 
+  // Our bigger trained classifier, if the sidecar is up. Null means it is not
+  // configured or did not answer in time, and the in-process model takes over.
+  const service = await classifyWithService(text).catch(() => null);
+  const serviceClassification: Classification | null = service
+    ? {
+        category: service.category,
+        categoryConfidence: service.category_confidence,
+        categoryRunnerUp: { label: service.category_runner_up.label, prob: service.category_runner_up.prob },
+        severity: service.severity,
+        severityConfidence: service.severity_confidence,
+        dmPhase: service.dm_phase,
+        dmPhaseConfidence: service.dm_phase_confidence,
+        vulnerable: service.vulnerable,
+        hasSignal: true,
+        ms: 0,
+      }
+    : null;
+
   const fallbackInput: FallbackInput = {
     text,
+    serviceClassification,
     peopleEst: input.peopleEst,
     urgency: input.urgency,
     vulnerable: input.vulnerable,
@@ -179,6 +215,23 @@ export async function compile(input: CompileInput): Promise<CompileResult> {
         usedAi: false,
       });
     }
+  }
+
+  // The offline path ran our own trained classifier inside the rules; show it.
+  if (brief.source === "fallback" && text) {
+    const c = serviceClassification ?? classifyReport(text);
+    const name = service ? service.model : CLASSIFIER_VERSION;
+    const trusted = c.hasSignal && c.categoryConfidence >= CONFIDENT;
+    trace.push({
+      step: "classify",
+      label: "Classify (JharSetu trained model)",
+      ms: c.ms,
+      detail: !c.hasSignal
+        ? `${name}: no familiar words, keyword rules decided.`
+        : `${name}: ${c.category.replace(/_/g, " ")} ${Math.round(c.categoryConfidence * 100)}%` +
+          (trusted ? ", used" : `, below ${Math.round(CONFIDENT * 100)}% so keyword rules decided`),
+      usedAi: false,
+    });
   }
 
   // A plain SMS from a basic phone names a village at best. Say so, rather than

@@ -111,7 +111,7 @@ Coded SMS (≤160ch): `JS1 K7F2 W5 25.2481,87.6412 P200 VCE "pani nahi 2 din"` =
 ## 11. Build tiers — strict order
 
 MUST (golden path first): auth+switcher, report, Compiler+fallback, dedup, confidence+priority+approve, org/resource registry+nearby, matching+team builder, proposals+readiness+pilot, swarm pledges+gap bar, lifecycle+closure, impact record, map/list/dashboard, notifications, seed+`/demo/reset`+cached AI.
-WOW in order: 1 Crisis Mode, 2 SMS, 3 Region switch, 4 Silent zones+hazards, 5 community checks+ledger+PDFs, 6 trace panel (`Transcribe→Translate→Extract→Dedup→Score→Draft` with real timings), 7 offline queue, 8 do-not-duplicate library, 9 solution co-pilot (only if all above done).
+WOW in order: 1 Crisis Mode, 2 SMS, 3 Region switch, 4 Silent zones+hazards, 5 community checks+ledger+PDFs, 6 trace panel (`Transcribe→Translate→Extract→Dedup→Score→Draft` with real timings), 7 offline queue, 8 do-not-duplicate library, 9 solution co-pilot (only if all above done), 10 our own trained models (report classifier + dedup embeddings; see §17a) — do only after everything above is frozen-stable, never at the cost of the golden path.
 PITCH ONLY (never build): Bhashini tribal langs, missed call/IVR/USSD/WhatsApp/Telegram, native app, report helper/ask-data, alert relay, weather/satellite, DigiLocker/APAAR, state relief portal integration.
 NEVER: rescue dispatch (112's job), disaster prediction, blockchain (hash-chain instead), payments, general chatbot, native apps in 24h, fake metrics/live feeds, screens off golden path.
 
@@ -152,3 +152,14 @@ Grievance/SIH diff: continuous citizen sourcing + pilot to verified impact. 112 
 - Every slide number needs source or own measurement.
 - Small PRs, merge q2-3h, one owner/task, don't edit others' files unasked.
 - Check `context.pdf` decisions log before reopening: JharSetu name (not ResQGrid/AegisGrid), lightning main (not flood/drone delivery), SMS over Telegram, no chatbot, Rajkot switch (not Jharkhand-only).
+
+### 17a. Decision reversal (2026-09) — we now train our own models
+
+An earlier draft of `context.pdf`'s Q&A/objections material said "use APIs and embeddings, don't train our own ML models." **That line is overridden — superseded by this file, which is the checked-in source of truth.** Faculty evaluation requires original trained models, so we build them, on top of (not instead of) the existing rule-based/API fallback chain (`AI_ENABLED=false` must keep working).
+
+Approved training targets, in build order:
+1. **Report classifier** (category + hazard + severity) — fine-tuned MuRIL/IndicBERT/xlm-roberta or a TF-IDF+logreg baseline, trained on the 40 hand-labeled reports + seed data + public disaster-tweet sets (HumAID/CrisisNLP). Replaces/augments `backend/lib/ai/fallback.ts`'s keyword rules; report accuracy vs. rules vs. LLM on the same held-out set.
+2. **Dedup embeddings** — contrastive-fine-tuned multilingual MiniLM, replacing/augmenting the hashing vectoriser in `backend/lib/ai/local-embed.ts`. Report dedup precision/recall at the 0.85/0.75 thresholds.
+3. (Stretch) vulnerability-tag extraction, silent-zone report-expectation model, evidence-photo plausibility check.
+
+Rules unchanged: still no disaster prediction, still no general chatbot, still AI-assisted-recommendation-only (human approves), still must degrade to the rule-based path with AI keys removed. `context.pdf` and any exported deck text still saying "don't train our own models" is stale — regenerate that document from its own source (this repo doesn't hold PDF source) or route the correction through whoever owns that export.

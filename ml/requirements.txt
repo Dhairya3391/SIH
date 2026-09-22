@@ -1,0 +1,12 @@
+transformers
+datasets
+peft
+accelerate
+evaluate
+jiwer
+librosa
+soundfile
+sentence-transformers
+scikit-learn
+pandas
+huggingface_hub[hf_xet]

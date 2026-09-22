@@ -1,0 +1,61 @@
+{"text": "hamar gaon me kal sham ko bijli padi, ek bail mar gaya aur do aadmi jhulas gaye. Bishunpur Gumla", "category": "disaster_safety", "severity": 5, "dm_phase": "response", "vulnerable": []}
+{"text": "बरसात में हर साल ठनका गिरता है, खेत में काम करने वालों को कोई अलर्ट नहीं मिलता", "category": "disaster_safety", "severity": 4, "dm_phase": "preparedness", "vulnerable": []}
+{"text": "Ganga ka paani badh raha hai, tola ke 60 ghar khatre me, bache aur budhe log chhat pe baithe hai", "category": "disaster_safety", "severity": 5, "dm_phase": "response", "vulnerable": ["children", "elderly"]}
+{"text": "river embankment has a crack near Rajmahal, if it breaks the whole basti will go under", "category": "disaster_safety", "severity": 4, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "raat me jhund me haathi aaye, teen ghar gira diye, log school me so rahe hai", "category": "disaster_safety", "severity": 4, "dm_phase": "response", "vulnerable": []}
+{"text": "Jharia ke paas zameen se dhuan nikal raha hai aur ghar ki deewar me darar", "category": "disaster_safety", "severity": 4, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "महुआ बीनने गई महिलाएं जंगल की आग में फंसी थी, अब आग गांव की तरफ बढ़ रही है", "category": "disaster_safety", "severity": 5, "dm_phase": "response", "vulnerable": []}
+{"text": "we need a lightning shelter near the paddy fields, farmers have nowhere to hide when storm comes", "category": "disaster_safety", "severity": 3, "dm_phase": "preparedness", "vulnerable": []}
+{"text": "toofan me tin ki chhat udd gayi, 12 parivar khule me hai, ek aurat pet se hai", "category": "disaster_safety", "severity": 4, "dm_phase": "response", "vulnerable": ["pregnancy"]}
+{"text": "jaha pe log nahate hai waha nadi me doob ke 2 bache mar gaye is mahine, koi board ya ghera nahi", "category": "disaster_safety", "severity": 4, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "tola me ek hi chapakal tha wo bhi 10 din se kharab, 2 km door se pani dhote hai", "category": "water", "severity": 3, "dm_phase": "response", "vulnerable": []}
+{"text": "नल जल योजना का पाइप बिछा पर आज तक पानी नहीं आया", "category": "water", "severity": 2, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "the well water smells of kerosene after the mine blast, kids are drinking it", "category": "water", "severity": 4, "dm_phase": "response", "vulnerable": ["children"]}
+{"text": "garmi me dadi ma ko pani lene 3 km jana padta hai, chal nahi pati", "category": "water", "severity": 3, "dm_phase": "response", "vulnerable": ["elderly", "disability"]}
+{"text": "PANI TANKER 4 DIN SE NAHI AAYA 300 LOG PYASE HAI JALDI BHEJO", "category": "water", "severity": 4, "dm_phase": "response", "vulnerable": []}
+{"text": "बाढ़ के बाद कुएं का पानी मटमैला है, उबाल कर भी पी नहीं सकते", "category": "water", "severity": 4, "dm_phase": "recovery", "vulnerable": []}
+{"text": "check dam toot gaya hai, barsat ka pani ruk nahi pata, gaon me pani ka star neeche ja raha", "category": "water", "severity": 2, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "school ki tanki me paani nahi, bachhe ghar se bottle laate hai", "category": "water", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "anganwadi ke 15 bacchon ko pet dard aur ulti, doctor babu nahi mil rahe", "category": "health", "severity": 4, "dm_phase": "response", "vulnerable": ["children"]}
+{"text": "प्रसव के लिए अस्पताल 25 किलोमीटर दूर है, सड़क खराब होने से एंबुलेंस नहीं आती", "category": "health", "severity": 4, "dm_phase": "mitigation", "vulnerable": ["pregnancy", "isolated"]}
+{"text": "tola me 6 log ko peelia ho gaya hai, sab ek hi kuan ka pani peete hai", "category": "health", "severity": 4, "dm_phase": "response", "vulnerable": []}
+{"text": "sub centre me ANM mahine me ek baar aati hai, tikakaran chhoot jata hai", "category": "health", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "my father needs insulin every day and the medical shop is closed since the flood", "category": "health", "severity": 4, "dm_phase": "response", "vulnerable": ["elderly", "medical_dependency"]}
+{"text": "machhar bahut hai, har ghar me koi na koi bimar, dawai chhidkaav nahi hua", "category": "health", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "बिच्छू काटा बच्ची को, रात में कोई गाड़ी नहीं मिली", "category": "health", "severity": 5, "dm_phase": "response", "vulnerable": ["children", "isolated"]}
+{"text": "kidney wale mareez ko hafte me 2 baar Ranchi jana padta hai, bus bandh hai", "category": "health", "severity": 4, "dm_phase": "response", "vulnerable": ["medical_dependency"]}
+{"text": "mid day meal me chawal me kankar, bache khana chhod dete hai", "category": "education", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "हमारे स्कूल में सिर्फ एक मास्टर हैं पांच कक्षाओं के लिए", "category": "education", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "the only school building is being used as a relief camp so classes stopped for a month", "category": "education", "severity": 2, "dm_phase": "recovery", "vulnerable": ["children"]}
+{"text": "ladkiyon ke liye school me shauchalay nahi, isliye 8vi ke baad padhai chhod deti hai", "category": "education", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "online class ka bola par gaon me na phone hai na net", "category": "education", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children", "no_signal"]}
+{"text": "school jaane ke raste me nala padta hai, barsat me bache nahi ja paate", "category": "education", "severity": 3, "dm_phase": "mitigation", "vulnerable": ["children", "isolated"]}
+{"text": "dhan ropne ka time hai aur barish nahi hui, bichda sookh raha hai", "category": "agriculture", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "ओलावृष्टि से गेहूं और सरसों की फसल पूरी तरह चौपट", "category": "agriculture", "severity": 3, "dm_phase": "recovery", "vulnerable": []}
+{"text": "soil testing lab is too far, we do not know which fertiliser to use", "category": "agriculture", "severity": 1, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "sabzi mandi tak le jaane ka saadhan nahi, tamatar khet me sad raha", "category": "agriculture", "severity": 2, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "bakriyon me bimari faili hai, 20 bakri mar gayi, pashu doctor nahi aaya", "category": "agriculture", "severity": 3, "dm_phase": "response", "vulnerable": []}
+{"text": "lift irrigation ka motor chori ho gaya, 40 kisan ka khet sukha", "category": "agriculture", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "baadh ka balu khet me bhar gaya, agli fasal nahi lag payegi", "category": "agriculture", "severity": 3, "dm_phase": "recovery", "vulnerable": []}
+{"text": "kachi sadak barsat me keechad ban jaati hai, mareez ko khaat pe utha ke le jaate hai", "category": "roads_infra", "severity": 4, "dm_phase": "mitigation", "vulnerable": ["isolated", "medical_dependency"]}
+{"text": "नदी पर पुल नहीं है, बरसात में चार गांव का संपर्क टूट जाता है", "category": "roads_infra", "severity": 3, "dm_phase": "mitigation", "vulnerable": ["isolated"]}
+{"text": "the new culvert was built last year and already caved in, a bike rider fell in yesterday", "category": "roads_infra", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "pahad se patthar gir ke rasta band, 2 din se koi gaadi nahi", "category": "roads_infra", "severity": 4, "dm_phase": "response", "vulnerable": ["isolated"]}
+{"text": "anganwadi bhawan ki chhat se plaster girta hai, bacche andar baithte hai", "category": "roads_infra", "severity": 3, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "railway crossing pe phatak nahi hai, pichhle mahine accident hua", "category": "roads_infra", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "solar light lagi thi, 6 mahine se band, raat me haathi aane ka dar", "category": "energy_connectivity", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "ट्रांसफार्मर फूंके एक महीना हो गया, बिजली विभाग सुनता नहीं", "category": "energy_connectivity", "severity": 2, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "no network at all in our tola, when someone is sick we climb the hill to call", "category": "energy_connectivity", "severity": 3, "dm_phase": "preparedness", "vulnerable": ["no_signal", "isolated"]}
+{"text": "11000 volt ka taar ghar ke upar se jhool raha hai, bache chhat pe khelte hai", "category": "energy_connectivity", "severity": 4, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "light nahi rehti to oxygen machine nahi chalti, dadaji ko saans ki bimari hai", "category": "energy_connectivity", "severity": 4, "dm_phase": "response", "vulnerable": ["elderly", "medical_dependency"]}
+{"text": "bank mitra ka internet nahi chalta, pension nikalne 20 km jana padta", "category": "energy_connectivity", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["elderly", "no_signal"]}
+{"text": "kolyari ka kaala paani khet aur talab me aa raha hai", "category": "environment", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "ईंट भट्टे के धुएं से बच्चों को खांसी रहती है", "category": "environment", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children"]}
+{"text": "sand mafia is digging the river bed day and night, the river bank is collapsing", "category": "environment", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "garmi me paara 46 pahuch gaya, mazdooron ke liye koi chhaya ya pani ka intezaam nahi", "category": "environment", "severity": 3, "dm_phase": "preparedness", "vulnerable": []}
+{"text": "plastic aur kachra naale me bhar gaya, barsat me gali me pani ruk jata", "category": "environment", "severity": 2, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "jungle kat gaya to haathi ab gaon me aate hai", "category": "environment", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "Sahebganj Barhait: barish se 30 ghar dhah gaye, log khule me, khana nahi", "category": "disaster_safety", "severity": 5, "dm_phase": "response", "vulnerable": []}
+{"text": "chapakal ke paas gandagi, pani me keede dikhte hai", "category": "water", "severity": 3, "dm_phase": "mitigation", "vulnerable": []}
+{"text": "गर्भवती महिलाओं को आयरन की गोली नहीं मिल रही", "category": "health", "severity": 3, "dm_phase": "mitigation", "vulnerable": ["pregnancy"]}
+{"text": "divyang bachche ke liye school me ramp nahi hai", "category": "education", "severity": 2, "dm_phase": "mitigation", "vulnerable": ["children", "disability"]}

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { compile, type TraceStep } from "@/lib/ai/compiler";
 import { toPgVector } from "@/lib/ai/embeddings";
-import { decideDedup, DEDUP_THRESHOLDS, type DedupCandidate } from "@/lib/domain/dedup";
+import { decideDedup, DEDUP_THRESHOLDS, TRAINED_DEDUP, type DedupCandidate } from "@/lib/domain/dedup";
 import { appendLedger } from "./ledger";
 import { rescoreChallenge } from "./scoring";
 import { notifyReporter } from "./notify";
@@ -168,7 +168,15 @@ export async function intakeReport(
     input.district ?? compiled.brief.district ?? null,
     compiled.brief.category ?? null,
   );
-  const dedup = decideDedup(candidates, DEDUP_THRESHOLDS, {
+  // Our own dedup model lives in a different vector space from Gemini's, so it
+  // needs its own bars: 0.47 to merge, 0.40 to review, both calibrated on
+  // hand-written pairs (ml/dedup/calibration_pairs.jsonl, see ml/RESULTS.md).
+  // Using Gemini's 0.85 here would find almost nothing.
+  const dedupThresholds =
+    compiled.embeddingSource === "trained"
+      ? { ...DEDUP_THRESHOLDS, mergeSimilarity: TRAINED_DEDUP.merge, reviewSimilarity: TRAINED_DEDUP.review }
+      : DEDUP_THRESHOLDS;
+  const dedup = decideDedup(candidates, dedupThresholds, {
     lexicalEmbedding: compiled.embeddingSource === "local",
   });
 

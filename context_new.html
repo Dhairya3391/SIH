@@ -1,0 +1,2128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JharSetu — SIH26043 — Project Playbook v5</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --ink: #102027;
+    --ground: #F4F6F5;
+    --line: #CCD1C7;
+    --teal: #2E7180;
+    --teal-dark: #1f5160;
+    --critical: #D94F45;
+    --critical-text: #A8332A;
+    --high: #E07B2E;
+    --high-text: #9A4A12;
+    --moderate: #E5A83B;
+    --moderate-text: #8A5A00;
+    --long-term: #3867A6;
+    --resolved: #3E8064;
+    --resolved-text: #2F6B52;
+    --white: #ffffff;
+    --page-w: 210mm;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
+    color: var(--ink);
+    background: var(--white);
+  }
+
+  /* ── Cover Page ─────────────────────────────────────── */
+  .cover {
+    min-height: 297mm;
+    background: linear-gradient(145deg, var(--ink) 0%, #1a3a46 60%, var(--teal-dark) 100%);
+    color: var(--white);
+    display: flex;
+    flex-direction: column;
+    padding: 48pt 48pt 40pt;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 360px; height: 360px;
+    border-radius: 50%;
+    background: rgba(46,113,128,0.2);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: 40px; left: -40px;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: rgba(46,113,128,0.12);
+  }
+
+  .cover-top { flex: 1; }
+  .cover-govt {
+    font-size: 8.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    font-weight: 500;
+  }
+  .cover-sih {
+    display: inline-block;
+    margin-top: 10pt;
+    padding: 4pt 10pt;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4pt;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    letter-spacing: 0.08em;
+    opacity: 0.8;
+  }
+
+  .cover h1 {
+    margin-top: 40pt;
+    font-size: 38pt;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  .cover h1 span { color: #7ecfe0; }
+
+  .cover-tagline {
+    margin-top: 16pt;
+    font-size: 13.5pt;
+    font-weight: 400;
+    opacity: 0.85;
+    max-width: 480pt;
+    line-height: 1.5;
+  }
+
+  .cover-loop {
+    margin-top: 28pt;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6pt;
+  }
+  .cover-loop-step {
+    padding: 5pt 10pt;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 3pt;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .cover-loop-arrow {
+    display: flex;
+    align-items: center;
+    font-size: 10pt;
+    opacity: 0.5;
+  }
+
+  .cover-bottom {
+    border-top: 1px solid rgba(255,255,255,0.2);
+    padding-top: 18pt;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10pt;
+  }
+  .cover-meta { font-size: 8.5pt; opacity: 0.65; line-height: 1.8; }
+  .cover-version {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9pt;
+    font-weight: 500;
+    color: #7ecfe0;
+  }
+
+  /* ── Page Layout ─────────────────────────────────────── */
+  .page {
+    padding: 28pt 44pt 32pt;
+    page-break-before: always;
+  }
+  .page:first-of-type { page-break-before: avoid; }
+
+  /* ── Section Numbering ───────────────────────────────── */
+  .section {
+    margin-top: 32pt;
+  }
+  .section:first-child { margin-top: 0; }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10pt;
+    border-bottom: 2px solid var(--teal);
+    padding-bottom: 7pt;
+    margin-bottom: 14pt;
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9pt;
+    font-weight: 500;
+    color: var(--teal);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .section h2 {
+    font-size: 16pt;
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  h3 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 18pt 0 8pt;
+  }
+
+  h4 {
+    font-size: 10pt;
+    font-weight: 600;
+    color: var(--teal-dark);
+    margin: 12pt 0 5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  p { margin-bottom: 9pt; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── Pull quote / lead ───────────────────────────────── */
+  .lead {
+    font-size: 13pt;
+    font-weight: 400;
+    line-height: 1.55;
+    color: #2a4850;
+    margin-bottom: 14pt;
+    border-left: 3pt solid var(--teal);
+    padding-left: 14pt;
+  }
+
+  /* ── Callout boxes ───────────────────────────────────── */
+  .callout {
+    border-radius: 6pt;
+    padding: 12pt 14pt;
+    margin: 12pt 0;
+    border-left: 4pt solid;
+  }
+  .callout.teal { background: #e8f4f7; border-color: var(--teal); }
+  .callout.critical { background: #fdf0ef; border-color: var(--critical); }
+  .callout.resolved { background: #eaf4f0; border-color: var(--resolved); }
+  .callout.moderate { background: #fdf7ea; border-color: var(--moderate); }
+  .callout-label {
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 4pt;
+  }
+  .callout.teal .callout-label { color: var(--teal-dark); }
+  .callout.critical .callout-label { color: var(--critical-text); }
+  .callout.resolved .callout-label { color: var(--resolved-text); }
+  .callout.moderate .callout-label { color: var(--moderate-text); }
+
+  /* ── Tables ──────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10pt 0;
+    font-size: 9.5pt;
+  }
+  th {
+    background: var(--ink);
+    color: var(--white);
+    padding: 7pt 10pt;
+    text-align: left;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  td {
+    padding: 7pt 10pt;
+    border-bottom: 1pt solid var(--line);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f9faf9; }
+  td code, th code {
+    background: rgba(46,113,128,0.1);
+    padding: 1pt 4pt;
+    border-radius: 2pt;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    color: var(--teal-dark);
+  }
+
+  /* ── Code blocks ─────────────────────────────────────── */
+  pre {
+    background: #0e1f27;
+    color: #c9e8f0;
+    border-radius: 6pt;
+    padding: 12pt 14pt;
+    margin: 10pt 0;
+    overflow: hidden;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    line-height: 1.7;
+  }
+  code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8.5pt;
+    background: rgba(46,113,128,0.1);
+    padding: 1pt 4pt;
+    border-radius: 2pt;
+    color: var(--teal-dark);
+  }
+
+  /* ── Formula boxes ───────────────────────────────────── */
+  .formula {
+    background: var(--ground);
+    border: 1.5pt solid var(--line);
+    border-radius: 7pt;
+    padding: 14pt 16pt;
+    margin: 12pt 0;
+  }
+  .formula-title {
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--teal);
+    margin-bottom: 10pt;
+  }
+  .formula-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10pt;
+    margin-bottom: 5pt;
+    font-size: 10pt;
+  }
+  .formula-weight {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10pt;
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 38pt;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .formula-label { color: #2a4850; font-size: 9.5pt; }
+  .formula-note { font-size: 8.5pt; color: #5a7a82; margin-left: 48pt; }
+  .formula-total {
+    border-top: 1.5pt solid var(--ink);
+    margin-top: 8pt;
+    padding-top: 8pt;
+    font-weight: 700;
+    font-size: 10pt;
+  }
+
+  /* ── Band pills ──────────────────────────────────────── */
+  .band {
+    display: inline-block;
+    padding: 2pt 7pt;
+    border-radius: 3pt;
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .band.critical { background: #fdf0ef; color: var(--critical-text); border: 1pt solid #f5b9b5; }
+  .band.high { background: #fdf3ea; color: var(--high-text); border: 1pt solid #f5c9a0; }
+  .band.moderate { background: #fdf7ea; color: var(--moderate-text); border: 1pt solid #f0d685; }
+  .band.long-term { background: #edf2fb; color: var(--long-term); border: 1pt solid #b5c7e8; }
+  .band.resolved { background: #eaf4f0; color: var(--resolved-text); border: 1pt solid #9ecfb9; }
+
+  /* ── Status chips ────────────────────────────────────── */
+  .status-chip {
+    display: inline-block;
+    padding: 2pt 7pt;
+    border-radius: 12pt;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    font-weight: 500;
+    background: var(--ground);
+    border: 1pt solid var(--line);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* ── Lifecycle chain ─────────────────────────────────── */
+  .lifecycle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5pt;
+    margin: 12pt 0;
+    background: var(--ground);
+    border-radius: 7pt;
+    padding: 12pt 14pt;
+    border: 1pt solid var(--line);
+  }
+  .lc-step {
+    background: var(--white);
+    border: 1pt solid var(--teal);
+    border-radius: 4pt;
+    padding: 4pt 8pt;
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: var(--teal-dark);
+    white-space: nowrap;
+  }
+  .lc-arrow { font-size: 10pt; color: var(--teal); opacity: 0.6; }
+  .lc-side { border-color: var(--line); color: #666; font-style: italic; }
+
+  /* ── Lists ───────────────────────────────────────────── */
+  ul, ol {
+    padding-left: 16pt;
+    margin-bottom: 9pt;
+  }
+  li { margin-bottom: 4pt; }
+  li:last-child { margin-bottom: 0; }
+
+  /* ── Roles grid ──────────────────────────────────────── */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 9pt;
+    margin: 12pt 0;
+  }
+  .role-card {
+    background: var(--ground);
+    border: 1pt solid var(--line);
+    border-radius: 6pt;
+    padding: 10pt 12pt;
+  }
+  .role-name {
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--teal-dark);
+    margin-bottom: 5pt;
+  }
+  .role-desc { font-size: 8.5pt; line-height: 1.55; color: #2a4a55; }
+
+  /* ── Two-column layout ───────────────────────────────── */
+  .cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14pt;
+    margin: 12pt 0;
+  }
+
+  /* ── API list ────────────────────────────────────────── */
+  .api-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8pt;
+    padding: 5pt 0;
+    border-bottom: 1pt solid var(--line);
+    font-size: 9pt;
+  }
+  .api-method {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    font-weight: 600;
+    padding: 2pt 5pt;
+    border-radius: 2pt;
+    flex-shrink: 0;
+  }
+  .method-GET { background: #e8f4f7; color: var(--teal-dark); }
+  .method-POST { background: #e8f0fb; color: #1f3980; }
+  .method-DELETE { background: #fdf0ef; color: var(--critical-text); }
+  .api-path {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    color: var(--ink);
+    flex: 1;
+    word-break: break-all;
+  }
+
+  /* ── Page header ─────────────────────────────────────── */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1pt solid var(--line);
+    padding-bottom: 8pt;
+    margin-bottom: 24pt;
+    font-size: 8pt;
+    color: #888;
+  }
+  .page-header-title { font-weight: 600; color: var(--teal-dark); letter-spacing: 0.04em; }
+
+  /* ── Demo steps ──────────────────────────────────────── */
+  .demo-steps { margin: 12pt 0; }
+  .demo-step {
+    display: flex;
+    gap: 12pt;
+    margin-bottom: 12pt;
+    padding-bottom: 12pt;
+    border-bottom: 1pt solid var(--line);
+  }
+  .demo-step:last-child { border-bottom: none; margin-bottom: 0; }
+  .demo-num {
+    width: 24pt;
+    height: 24pt;
+    border-radius: 50%;
+    background: var(--teal);
+    color: var(--white);
+    font-size: 10pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .demo-content { flex: 1; }
+  .demo-title { font-size: 10pt; font-weight: 700; color: var(--ink); margin-bottom: 3pt; }
+  .demo-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    font-weight: 500;
+    color: var(--teal);
+    margin-bottom: 4pt;
+  }
+  .demo-line { font-size: 9pt; line-height: 1.55; }
+  .demo-quote {
+    background: var(--ground);
+    border-left: 3pt solid var(--teal);
+    padding: 6pt 10pt;
+    margin-top: 5pt;
+    font-size: 9pt;
+    font-style: italic;
+    color: var(--teal-dark);
+    border-radius: 0 3pt 3pt 0;
+  }
+
+  /* ── Stack diagram ───────────────────────────────────── */
+  .stack-tier {
+    border: 1.5pt solid var(--line);
+    border-radius: 6pt;
+    margin-bottom: 8pt;
+    overflow: hidden;
+  }
+  .stack-label {
+    background: var(--ink);
+    color: var(--white);
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 5pt 10pt;
+  }
+  .stack-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6pt;
+    padding: 10pt 12pt;
+    background: var(--ground);
+  }
+  .stack-item {
+    background: var(--white);
+    border: 1pt solid var(--line);
+    border-radius: 4pt;
+    padding: 4pt 9pt;
+    font-size: 8.5pt;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .stack-item.primary { border-color: var(--teal); color: var(--teal-dark); font-weight: 600; }
+  .stack-item.fallback { border-color: var(--moderate); color: var(--moderate-text); }
+
+  /* ── Scoring table ───────────────────────────────────── */
+  .score-grid {
+    margin: 10pt 0;
+    border: 1.5pt solid var(--line);
+    border-radius: 6pt;
+    overflow: hidden;
+  }
+  .score-row {
+    display: grid;
+    grid-template-columns: 28pt 1fr 90pt;
+    align-items: center;
+    border-bottom: 1pt solid var(--line);
+    font-size: 9pt;
+  }
+  .score-row:last-child { border-bottom: none; }
+  .score-row-header {
+    background: var(--ink);
+    color: var(--white);
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .score-pts {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    text-align: center;
+    padding: 6pt;
+    font-size: 10.5pt;
+    color: var(--teal-dark);
+    background: #e8f4f7;
+  }
+  .score-pts.header { color: var(--white); background: var(--teal-dark); font-size: 8pt; }
+  .score-name { padding: 6pt 10pt; }
+  .score-note { padding: 6pt 10pt; font-size: 8.5pt; color: #5a7a82; }
+
+  /* ── TOC ─────────────────────────────────────────────── */
+  .toc-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 6pt;
+    padding: 5pt 0;
+    border-bottom: 1pt solid var(--line);
+    font-size: 10pt;
+  }
+  .toc-num { font-family: 'IBM Plex Mono', monospace; font-size: 9pt; color: var(--teal); min-width: 28pt; }
+  .toc-title { flex: 1; font-weight: 500; }
+  .toc-dots { flex: 1; border-bottom: 1pt dotted var(--line); }
+  .toc-page { font-family: 'IBM Plex Mono', monospace; font-size: 9pt; color: #888; }
+
+  /* ── Connectivity ladder ─────────────────────────────── */
+  .ladder {
+    margin: 10pt 0;
+  }
+  .ladder-step {
+    display: flex;
+    gap: 12pt;
+    margin-bottom: 8pt;
+    align-items: flex-start;
+  }
+  .ladder-icon {
+    width: 22pt;
+    height: 22pt;
+    border-radius: 50%;
+    background: var(--teal);
+    color: var(--white);
+    font-size: 8.5pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ladder-icon.partial { background: var(--moderate); }
+  .ladder-icon.offline { background: #888; }
+  .ladder-content { flex: 1; }
+  .ladder-label { font-size: 9pt; font-weight: 600; color: var(--ink); margin-bottom: 2pt; }
+  .ladder-desc { font-size: 8.5pt; color: #3a6a75; line-height: 1.5; }
+
+  /* ── Data model ──────────────────────────────────────── */
+  .model-table { font-size: 8.5pt; }
+  .model-table th { font-size: 7.5pt; }
+  .model-table td { padding: 5pt 8pt; }
+  .col-key {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8pt;
+    font-weight: 500;
+    color: var(--teal-dark);
+  }
+  .col-type {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 7.5pt;
+    color: #666;
+  }
+
+  /* ── Page breaks ─────────────────────────────────────── */
+  @media print {
+    .page { padding: 24pt 40pt 28pt; }
+    .cover { min-height: 0; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    pre, .formula, .score-grid, table { break-inside: avoid; }
+    h2, h3, h4 { break-after: avoid; }
+    .section { break-inside: auto; }
+  }
+
+  /* ── Misc ─────────────────────────────────────────────── */
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .teal { color: var(--teal); }
+  .muted { color: #6a8a94; font-size: 9pt; }
+  .badge {
+    display: inline-block;
+    padding: 1.5pt 6pt;
+    border-radius: 3pt;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-teal { background: #d5edf2; color: var(--teal-dark); }
+  .badge-red { background: #fde8e7; color: var(--critical-text); }
+  .badge-green { background: #e4f3ec; color: var(--resolved-text); }
+  .badge-amber { background: #fdf3de; color: var(--moderate-text); }
+  .badge-blue { background: #e4edf9; color: #1f3980; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ COVER ═══ -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-govt">Government of Jharkhand · Department of Disaster Management</div>
+    <div class="cover-sih">SIH26043 — Smart India Hackathon 2026 · 24-hour Build · 100 marks</div>
+
+    <h1>Jhar<span>Setu</span></h1>
+    <p class="cover-tagline">
+      "Communities raise it. Campuses solve it. Industry scales it."<br>
+      AI-assisted challenge exchange: citizen voice → compiled brief → verified → matched → funded → delivered with evidence.
+    </p>
+
+    <div class="cover-loop">
+      <span class="cover-loop-step">Report</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Compile</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Verify</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Prioritise</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Match</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Propose</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Pilot</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Pledge Swarm</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Deliver</span>
+      <span class="cover-loop-arrow">→</span>
+      <span class="cover-loop-step">Impact Verified</span>
+    </div>
+  </div>
+
+  <div class="cover-bottom">
+    <div class="cover-meta">
+      Team: Computer Smashers · Platform: JharSetu v1.0<br>
+      Build: Next.js 16 + Supabase + Gemini · Region: Jharkhand (24 districts) + Rajkot
+    </div>
+    <div class="cover-version">Playbook v5 · September 2026</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ TABLE OF CONTENTS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>Table of Contents</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">—</span>
+      <h2>Table of Contents</h2>
+    </div>
+
+    <div class="toc-entry"><span class="toc-num">01</span><span class="toc-title">What We're Building</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">02</span><span class="toc-title">Three Pitch Ideas</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">03</span><span class="toc-title">Roles & Demo Switcher (6 roles)</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">04</span><span class="toc-title">Technology Stack (locked)</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">05</span><span class="toc-title">Data Model</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">06</span><span class="toc-title">API Routes (23 groups, 50+ endpoints)</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">07</span><span class="toc-title">The Five Formulas</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">08</span><span class="toc-title">Lifecycle + State Machine</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">09</span><span class="toc-title">Frontend Screens</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">10</span><span class="toc-title">Connectivity Ladder + SMS</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">11</span><span class="toc-title">Build Tiers — Strict Order</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">12</span><span class="toc-title">Demo Script (8 steps, 4:35)</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">13</span><span class="toc-title">Execution Checkpoints</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">14</span><span class="toc-title">Scoring & KPIs (100 marks)</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">15</span><span class="toc-title">Jharkhand Context & Q&A</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">16</span><span class="toc-title">Design Tokens & Color System</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">17</span><span class="toc-title">Key Architectural Decisions</span><span class="toc-dots"></span></div>
+    <div class="toc-entry"><span class="toc-num">18</span><span class="toc-title">Working Agreements</span><span class="toc-dots"></span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ §1 WHAT WE'RE BUILDING ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§01 · What We're Building</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>What We're Building</h2>
+    </div>
+
+    <p class="lead">
+      Platform for <strong>Govt. of Jharkhand, SIH26043 (Disaster Management theme, 24h build, 100 marks).</strong>
+      Not a complaint portal. A <strong>challenge exchange</strong>: villager voice note → verified, funded, staffed, tracked project with evidence.
+    </p>
+
+    <div class="callout teal">
+      <div class="callout-label">Landing Headline</div>
+      "See a need. Form a team. Close the loop."<br>
+      <span style="font-size:9pt; opacity:0.8;">Every university becomes the R&D department of its district.</span>
+    </div>
+
+    <h3>The Full Loop</h3>
+    <div class="lifecycle">
+      <span class="lc-step">Report</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Compile</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Verify</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Prioritise</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Match</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Propose</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Pilot</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Pledge (Resource Swarm)</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Deliver with evidence</span>
+      <span class="lc-arrow">→</span>
+      <span class="lc-step">Impact Verified</span>
+    </div>
+
+    <h3>Two Operational Modes</h3>
+    <div class="cols-2">
+      <div class="callout resolved">
+        <div class="callout-label">Peace Mode (Default)</div>
+        Long-term challenges: education, health, farming, preparedness. Standard workflow, proposal competition, pilot phases.
+      </div>
+      <div class="callout critical">
+        <div class="callout-label">Crisis Mode</div>
+        Triggered by real IMD/CAP alert or mock drill. Red top band + red districts + crisis room (needs, gaps, nearby resources, SMS reports, tech-squad call-up). Fast path: OPEN → DEPLOYED.
+      </div>
+    </div>
+
+    <h3>Geographic Scope</h3>
+    <p>Region-first for <strong>Jharkhand (24 districts)</strong>, with live <strong>region switch to Rajkot</strong> (college round). Every seeded number labeled <em>"Simulated scenario"</em>.</p>
+
+    <h3>What This Is — and Is Not</h3>
+    <table>
+      <tr>
+        <th>✓ This is</th>
+        <th>✗ Not this</th>
+      </tr>
+      <tr>
+        <td>A challenge exchange: voice → verified → funded → tracked</td>
+        <td>A complaint portal (no feedback loop, no evidence, no closure)</td>
+      </tr>
+      <tr>
+        <td>University–industry collaboration platform with NEP 2020 credit</td>
+        <td>An emergency dispatch system (that's 112's job)</td>
+      </tr>
+      <tr>
+        <td>Evidence-gated closure (photos + beneficiary count + sign-off)</td>
+        <td>A disaster prediction AI</td>
+      </tr>
+      <tr>
+        <td>Hash-chained Impact Ledger for audit + CSR/NAAC PDFs</td>
+        <td>A general chatbot or payments system</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ §2 PITCH IDEAS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§02 · Three Pitch Ideas</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Three Pitch Ideas</h2>
+    </div>
+    <p class="muted">These are the three demo beats that must land in every presentation:</p>
+
+    <div class="callout teal" style="margin-top:14pt;">
+      <div class="callout-label">Pitch Idea 1 — Challenge Compiler</div>
+      Hindi/English voice/photo/text/SMS → structured brief + confidence score + <em>"AI is unsure about…"</em> + human approval gate. One call in, one brief out, every step timed and shown in the trace panel.
+    </div>
+
+    <div class="callout moderate" style="margin-top:10pt;">
+      <div class="callout-label">Pitch Idea 2 — Matching + Resource Swarm</div>
+      List what's already nearby first (PostGIS radius query), then recommend university + company + NGO with reasons scored on 5 factors. Multiple partial pledges from different orgs fill a live gap bar. 8 pledges + 4 pledges = gap closes on stage.
+    </div>
+
+    <div class="callout resolved" style="margin-top:10pt;">
+      <div class="callout-label">Pitch Idea 3 — Impact Ledger</div>
+      Closes <em>only</em> with photos + beneficiary count + volunteer check + community sign-off. Every action is hash-chained. Auto-generates CSR/NAAC/NIRF accreditation PDFs. Ledger can be independently verified at <code>GET /api/ledger/verify</code>.
+    </div>
+
+    <h3>Three Demo Beats (repeat everywhere)</h3>
+    <ul>
+      <li><strong>Readiness Score 48 vs 84</strong> — cheap deployable wins over impressive-but-impractical</li>
+      <li><strong>Crisis drill + live SMS</strong> — airplane mode on phone, SMS arrives with exact pin on map</li>
+      <li><strong>Silent zones</strong> — high hazard + real population + almost no reports = digital divide visualised</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ §3 ROLES ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§03 · Roles & Demo Switcher</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Roles &amp; Demo Switcher</h2>
+    </div>
+
+    <p>Six seeded accounts — one per role. One-click role switcher, no passwords on stage. Roles are real Supabase sessions enforced by PostgreSQL RLS, not hidden buttons.</p>
+
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="role-name">Citizen</div>
+        <div class="role-desc">Report in &lt;1 min. Track status. Confirm fix. No account required for reporting. Name and number never published.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Field Volunteer / NGO</div>
+        <div class="role-desc">Field verify with photo + sources. List resources in registry. Confirm work on the ground.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Coordinator</div>
+        <div class="role-desc">District officer / faculty. Approve briefs. Rate readiness (1–5). Approve pilots. Close with evidence. Start drill. Override AI ranking.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">University</div>
+        <div class="role-desc">Adopt challenge. Build team (skill-gap plan). Submit PDF proposal. Execute pilot stages. Post progress updates.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Industry / Company</div>
+        <div class="role-desc">Pledge materials (partial allowed). Get auto-generated CSR PDF. Message the college. Track delivery.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Admin</div>
+        <div class="role-desc">Verify orgs. Manage regions. Edit formula weights (logged). Award competition windows early. Full history of any challenge.</div>
+      </div>
+    </div>
+
+    <h3>NGO — Separate Role (Decision §8)</h3>
+    <div class="callout teal">
+      <div class="callout-label">Architecture Decision</div>
+      NGOs are their own role (migration <code>0013_ngo_role.sql</code>), separate from <code>industry</code>. Companies give materials; NGOs give money. They see different default boards.
+    </div>
+
+    <h3>What the Role Switcher Shows (RLS Proof)</h3>
+    <table>
+      <tr>
+        <th>Role</th>
+        <th>Sees phone/location?</th>
+        <th>Can adopt?</th>
+        <th>Can approve?</th>
+        <th>Demo login body</th>
+      </tr>
+      <tr><td>citizen</td><td>Own reports only</td><td>No</td><td>No</td><td><code>{"role":"citizen"}</code></td></tr>
+      <tr><td>volunteer</td><td>Fuzzed ~500m</td><td>No</td><td>No</td><td><code>{"role":"volunteer"}</code></td></tr>
+      <tr><td>coordinator</td><td>Yes (full)</td><td>No</td><td>Yes</td><td><code>{"role":"coordinator"}</code></td></tr>
+      <tr><td>university</td><td>No phone/location</td><td>Yes (verified)</td><td>No</td><td><code>{"role":"university"}</code></td></tr>
+      <tr><td>industry</td><td>No</td><td>Pledge only</td><td>No</td><td><code>{"role":"industry"}</code></td></tr>
+      <tr><td>ngo</td><td>No</td><td>Fund only</td><td>No</td><td><code>{"role":"ngo"}</code></td></tr>
+      <tr><td>admin</td><td>Yes</td><td>Yes</td><td>Yes</td><td><code>{"role":"admin"}</code></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ §4 TECH STACK ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§04 · Technology Stack</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Technology Stack (Locked)</h2>
+    </div>
+
+    <div class="stack-tier">
+      <div class="stack-label">Frontend</div>
+      <div class="stack-items">
+        <span class="stack-item primary">Next.js 16 (App Router)</span>
+        <span class="stack-item primary">TypeScript</span>
+        <span class="stack-item primary">Tailwind CSS v4</span>
+        <span class="stack-item primary">shadcn/ui</span>
+        <span class="stack-item">Lucide React icons</span>
+        <span class="stack-item">PWA (installable)</span>
+        <span class="stack-item">Service Worker + IndexedDB offline queue</span>
+      </div>
+    </div>
+
+    <div class="stack-tier">
+      <div class="stack-label">Backend (port 3001)</div>
+      <div class="stack-items">
+        <span class="stack-item primary">Next.js 15 (App Router, server-only)</span>
+        <span class="stack-item primary">Supabase (Postgres + Auth + RLS + Storage + Realtime + pgvector + PostGIS)</span>
+        <span class="stack-item">23 API route groups · 50+ endpoints</span>
+        <span class="stack-item">14+ DB migrations</span>
+        <span class="stack-item">Zod validation</span>
+        <span class="stack-item">Anthropic SDK + Gemini SDK</span>
+      </div>
+    </div>
+
+    <div class="stack-tier">
+      <div class="stack-label">AI / LLM (with fallbacks)</div>
+      <div class="stack-items">
+        <span class="stack-item primary">Gemini 3.8/3.7/3.6/3.5-flash (cascade)</span>
+        <span class="stack-item">Anthropic Claude (secondary)</span>
+        <span class="stack-item">Groq / Whisper large-v3 (STT)</span>
+        <span class="stack-item">gemini-embedding-001 (768 dims)</span>
+        <span class="stack-item fallback">Local hashing vectoriser (fallback)</span>
+        <span class="stack-item fallback">Keyword classifier fallback</span>
+        <span class="stack-item fallback">Rule-based Compiler (AI_ENABLED=false)</span>
+      </div>
+    </div>
+
+    <div class="stack-tier">
+      <div class="stack-label">Corroboration (3 providers)</div>
+      <div class="stack-items">
+        <span class="stack-item primary">Open-Meteo historical weather (free, unauthenticated)</span>
+        <span class="stack-item primary">News API / GNews / Newsdata (NEWS_API_KEY)</span>
+        <span class="stack-item primary">Tavily web search (SEARCH_API_KEY)</span>
+      </div>
+    </div>
+
+    <div class="stack-tier">
+      <div class="stack-label">Maps / Charts</div>
+      <div class="stack-items">
+        <span class="stack-item primary">Leaflet + OSM</span>
+        <span class="stack-item">leaflet.heat (heatmap)</span>
+        <span class="stack-item">Datameet district GeoJSON (Jharkhand + Rajkot)</span>
+        <span class="stack-item">Recharts</span>
+        <span class="stack-item">List-view fallback (always)</span>
+      </div>
+    </div>
+
+    <div class="stack-tier">
+      <div class="stack-label">Deployment</div>
+      <div class="stack-items">
+        <span class="stack-item primary">Vercel (frontend: jharsetu-lilac.vercel.app)</span>
+        <span class="stack-item primary">Vercel (backend: separate project, Root Dir = backend/)</span>
+        <span class="stack-item">Supabase (ap-south-1 Mumbai)</span>
+        <span class="stack-item">SMS Gateway for Android (spare phone)</span>
+      </div>
+    </div>
+
+    <h3>Environment Variables Summary</h3>
+    <table>
+      <tr><th>Variable</th><th>Required</th><th>Without it</th></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code> + anon key</td><td>Yes</td><td>Platform does not start</td></tr>
+      <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Yes</td><td>Reads fall back to anon (RLS blocks)</td></tr>
+      <tr><td><code>GEMINI_API_KEY</code> (up to 10 keys rotate)</td><td>Strongly rec.</td><td>Rule-based compiler + no proposal scoring</td></tr>
+      <tr><td><code>GROQ_API_KEY</code></td><td>Strongly rec.</td><td>Voice notes save but don't transcribe</td></tr>
+      <tr><td><code>NEWS_API_KEY</code></td><td>Optional</td><td>Corroboration runs on weather + web only</td></tr>
+      <tr><td><code>SEARCH_API_KEY</code> (Tavily)</td><td>Optional</td><td>Corroboration runs on weather + news only</td></tr>
+      <tr><td><code>SMS_INBOUND_SECRET</code></td><td>Optional</td><td>SMS webhook unguarded</td></tr>
+      <tr><td><code>DEMO_PASSWORD</code></td><td>Optional</td><td>Role switcher disabled</td></tr>
+      <tr><td><code>AI_ENABLED=false</code></td><td>—</td><td>Forces full fallback mode (demo kill-switch)</td></tr>
+    </table>
+
+    <div class="callout teal">
+      <div class="callout-label">Golden Rule</div>
+      The <strong>golden path must run with all AI keys removed</strong>. The flow was built on the rule-based path first. <code>GET /api/health</code> shows what is wired up on each deployment.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ §5 DATA MODEL ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§05 · Data Model</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Data Model (Supabase / PostgreSQL)</h2>
+    </div>
+    <p class="muted">14 migrations applied: 0001_extensions → 0014_ngo_rls_parity. Every table carries <code>region_id</code>.</p>
+
+    <h3>Core Tables</h3>
+    <table class="model-table">
+      <tr><th>Table</th><th>Key columns</th></tr>
+      <tr>
+        <td><strong>regions</strong></td>
+        <td><span class="col-key">id, name, center, zoom, boundary, languages[]</span></td>
+      </tr>
+      <tr>
+        <td><strong>users</strong></td>
+        <td><span class="col-key">id, role, org_id, region_id, language, district, skills[], reputation</span></td>
+      </tr>
+      <tr>
+        <td><strong>organizations</strong></td>
+        <td><span class="col-key">id, region_id, type[univ|company|ngo|govt|volunteers], name, district, lat, lng, response_radius_km, csr_focus[], csr_budget, verified, embedding</span></td>
+      </tr>
+      <tr>
+        <td><strong>resources</strong></td>
+        <td><span class="col-key">id, org_id, type, quantity, geom, availability</span></td>
+      </tr>
+      <tr>
+        <td><strong>reports</strong></td>
+        <td><span class="col-key">id, client_id (idempotency), region_id, channel[web|sms|volunteer], phone_hash?, original_text, lang, audio_url, photo_urls[], geom, people_est, urgency, vulnerable[], translated_text, extracted jsonb, embedding, cluster_id, consent, created_at</span></td>
+      </tr>
+      <tr>
+        <td><strong>challenges</strong></td>
+        <td><span class="col-key">id, region_id, title, brief jsonb, category, dm_phase, district, geom, people_est, severity, priority(0-100), score_breakdown, confidence, status, report_count, capabilities[], mode, crisis_id?, is_simulated</span></td>
+      </tr>
+      <tr>
+        <td><strong>verifications</strong></td>
+        <td><span class="col-key">id, challenge_id, type, source_urls[], photo_paths[], note, verifier_id, created_at</span></td>
+      </tr>
+      <tr>
+        <td><strong>matches</strong></td>
+        <td><span class="col-key">challenge_id, org_id, score, reasons[], status</span> — write-through cache, recomputed on refresh</td>
+      </tr>
+      <tr>
+        <td><strong>solutions</strong></td>
+        <td><span class="col-key">id, challenge_id, team_id, title, approach, cost_estimate, deploy_days, risks, readiness(0-100), status, proposal_pdf_path</span></td>
+      </tr>
+      <tr>
+        <td><strong>resource_needs</strong></td>
+        <td><span class="col-key">id, solution_id, kind[money|equipment|people|expertise], qty, unit, open_qty</span></td>
+      </tr>
+      <tr>
+        <td><strong>pledges</strong></td>
+        <td><span class="col-key">id, need_id, org_id, qty, kind, status[pending|sent|received|withdrawn]</span></td>
+      </tr>
+      <tr>
+        <td><strong>ledger</strong></td>
+        <td><span class="col-key">id, entity, entity_id, action, actor, payload, prev_hash, hash, at</span> — append-only hash chain</td>
+      </tr>
+      <tr>
+        <td><strong>crisis_events</strong></td>
+        <td><span class="col-key">id, region_id, hazard, source, is_drill, districts[], severity, started, ended</span></td>
+      </tr>
+      <tr>
+        <td><strong>notifications</strong></td>
+        <td><span class="col-key">id, user_id, challenge_id, type, message, read, created_at</span></td>
+      </tr>
+      <tr>
+        <td><strong>progress_updates</strong></td>
+        <td><span class="col-key">id, challenge_id, stage_id (NOT NULL), note, photo_paths[], actor_id, created_at</span></td>
+      </tr>
+      <tr>
+        <td><strong>proposal_competition_windows</strong></td>
+        <td><span class="col-key">id, challenge_id, opens_at, closes_at, winner_solution_id, status</span> — migration 0010</td>
+      </tr>
+    </table>
+
+    <h3>Categories (8 fixed)</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:5pt; margin-top:6pt;">
+      <span class="badge badge-red">disaster/safety</span>
+      <span class="badge badge-blue">water</span>
+      <span class="badge badge-teal">health</span>
+      <span class="badge badge-amber">education</span>
+      <span class="badge badge-green">agriculture</span>
+      <span class="badge badge-blue">roads/infra</span>
+      <span class="badge badge-amber">energy/connectivity</span>
+      <span class="badge badge-green">environment</span>
+    </div>
+
+    <h3>Hazard Tags + DM Phase</h3>
+    <p>DM Phase (Sendai-aligned): <code>mitigation</code> | <code>preparedness</code> | <code>response</code> | <code>recovery</code></p>
+
+    <h3>Realtime Subscriptions (Supabase)</h3>
+    <p>Enable Realtime in Supabase dashboard for: <code>challenges</code>, <code>pledges</code>, <code>resource_needs</code>, <code>notifications</code>. The gap bars and coordinator queue update without polling.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ §6 API ROUTES ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§06 · API Routes</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>API Routes (23 Groups · 50+ Endpoints)</h2>
+    </div>
+
+    <p class="muted">All responses: <code>{"ok":true,"data":{...}}</code> or <code>{"ok":false,"error":{"message":"...","code":"..."}}</code>. Frontend proxies <code>/api/*</code> via <code>next.config.ts</code> rewrite → same-origin cookie session.</p>
+
+    <h3>Auth</h3>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/auth/demo-login</span><span style="font-size:8.5pt; color:#666;">Role switcher — body: {role}</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/auth/demo-login</span><span style="font-size:8.5pt; color:#666;">Who am I now?</span></div>
+
+    <h3>Reporting &amp; Intake</h3>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/reports</span><span style="font-size:8.5pt; color:#666;">JSON or multipart (audio file). Idempotent on client_id. Returns trace, priority, confidence, decision.</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/reports/:id/trace</span><span style="font-size:8.5pt; color:#666;">Transcribe→Translate→Extract→Dedup→Score→Draft with real timings (ms)</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/sms/inbound</span><span style="font-size:8.5pt; color:#666;">Guarded by x-jharsetu-secret header</span></div>
+
+    <h3>Challenges (Read)</h3>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges</span><span style="font-size:8.5pt; color:#666;">filters: region_id, district, category, status, band, mode, org_id, q, limit, offset</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id</span><span style="font-size:8.5pt; color:#666;">Full detail — everything the detail screen needs in one call</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/solutions</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/actions</span><span style="font-size:8.5pt; color:#666;">Drives the next-action button. Returns ready + problems.</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/nearby</span><span style="font-size:8.5pt; color:#666;">Registry resources within radius_km</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/matches</span><span style="font-size:8.5pt; color:#666;">?refresh=true recomputes + upserts cache</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/gap</span><span style="font-size:8.5pt; color:#666;">Live Resource Swarm bar</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/timeline</span><span style="font-size:8.5pt; color:#666;">Hash-chained ledger for this challenge</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/challenges/:id/similar</span><span style="font-size:8.5pt; color:#666;">Do-not-duplicate library</span></div>
+
+    <h3>Challenge Lifecycle (Write)</h3>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/approve</span><span style="font-size:8.5pt; color:#666;">coordinator — returns full score_breakdown</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/corroborate</span><span style="font-size:8.5pt; color:#666;">AI check: weather + news + web, verdict + sources cited</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/validate</span><span style="font-size:8.5pt; color:#666;">field | still_exists | improved | inaccurate | more_affected | unsuitable</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/adopt</span><span style="font-size:8.5pt; color:#666;">verified orgs only</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/team</span><span style="font-size:8.5pt; color:#666;">skill-gap team plan</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/solutions</span><span style="font-size:8.5pt; color:#666;">returns prefilled_ratings for reviewer</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/pledges</span><span style="font-size:8.5pt; color:#666;">partial pledge against one need</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/evidence</span><span style="font-size:8.5pt; color:#666;">before|during|after|closure phases</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/deploy</span><span style="font-size:8.5pt; color:#666;">Evidence-gated closure. 422 with every unmet req if not ready.</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/challenges/:id/confirm</span><span style="font-size:8.5pt; color:#666;">Community sign-off (the reporter)</span></div>
+
+    <h3>Proposals &amp; Competition</h3>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/solutions/:id/review</span><span style="font-size:8.5pt; color:#666;">7 readiness factors, each 1–5</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/solutions/:id/approve-pilot</span><span style="font-size:8.5pt; color:#666;">creates needs + fires capability alerts</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/college/problems</span><span style="font-size:8.5pt; color:#666;">university role — verified open challenges</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/college/proposals</span><span style="font-size:8.5pt; color:#666;">multipart: challenge_id + document PDF</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/admin/windows</span><span style="font-size:8.5pt; color:#666;">open competition windows</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/admin/windows/:id/award</span><span style="font-size:8.5pt; color:#666;">award now (early close)</span></div>
+
+    <h3>Crisis, Dashboard, System</h3>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/crisis/start</span><span style="font-size:8.5pt; color:#666;">{drill:true} or real IMD webhook</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/crisis/:id/room</span><span style="font-size:8.5pt; color:#666;">needs board + gaps + nearby resources + tech squad</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/dashboard/metrics</span><span style="font-size:8.5pt; color:#666;">KPIs, headline time-to-match, % reaching pilot</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/map/silent-zones</span><span style="font-size:8.5pt; color:#666;">high hazard + real population + almost no reports</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/ledger/verify</span><span style="font-size:8.5pt; color:#666;">recomputes every hash in the chain</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/health</span><span style="font-size:8.5pt; color:#666;">what is wired up on this deployment</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/demo/reset</span><span style="font-size:8.5pt; color:#666;">needs x-jharsetu-secret header</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/regions</span><span style="font-size:8.5pt; color:#666;">region switch</span></div>
+    <div class="api-row"><span class="api-method method-POST">POST</span><span class="api-path">/api/admin/assistant</span><span style="font-size:8.5pt; color:#666;">{question, challenge_ref?} — admin only</span></div>
+    <div class="api-row"><span class="api-method method-GET">GET</span><span class="api-path">/api/verify/queue</span><span style="font-size:8.5pt; color:#666;">verifier, volunteer, coordinator, admin</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ §7 FIVE FORMULAS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§07 · The Five Formulas</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>The Five Formulas</h2>
+    </div>
+    <p class="muted">All formulas are <strong>deterministic code</strong>. AI proposes inputs (severity, capability similarity); humans override. Admin-editable weights are logged in the ledger.</p>
+
+    <h3>Formula 1 — Priority Score (0–100)</h3>
+    <div class="formula">
+      <div class="formula-title">Priority Score = sum of weighted factors (total capped at 100)</div>
+      <div class="formula-row"><span class="formula-weight">25 pts</span><span class="formula-label">Severity (1–5). AI proposes; coordinator overrides.</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Urgency (deadline proximity + worsening rate)</span></div>
+      <div class="formula-note">Crisis Mode floors urgency at 80%. Inside 72h deadline it starts to dominate.</div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">People affected (log scale, saturates at 5,000)</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Vulnerability (children, elderly, disability, pregnancy, medical, isolation, no_signal)</span></div>
+      <div class="formula-note">Weighted individually (medical_dependency=1.0 → no_signal=0.5). Divisor = 3.4 (worst realistic combo).</div>
+      <div class="formula-row"><span class="formula-weight">10 pts</span><span class="formula-label">Hazard exposure (0–1 from GIS hazard_cells)</span></div>
+      <div class="formula-row"><span class="formula-weight">10 pts</span><span class="formula-label">Resource gap (% of need still unpledged)</span></div>
+      <div class="formula-row"><span class="formula-weight">5 pts</span><span class="formula-label">Recurrence (seasonal/repeated, saturates at 3×)</span></div>
+      <div class="formula-row"><span class="formula-weight">5 pts</span><span class="formula-label">Community signal (unique reporters, log scale, CAPPED)</span></div>
+      <div class="formula-note">Reporter count saturates fast — capped so loud urban areas cannot outrank remote villages.</div>
+      <div class="formula-row formula-total"><span class="formula-weight">= 100</span><span class="formula-label">Total</span></div>
+    </div>
+    <p style="font-size:9pt;">Bands: <span class="band critical">≥75 Critical</span> <span class="band high">50–74 High</span> <span class="band moderate">25–49 Moderate</span> <span class="band long-term">&lt;25 Long-term</span></p>
+
+    <h3>Formula 2 — Confidence Ladder</h3>
+    <p>Answers "is it real?" (separate from priority). Never hidden. An <code>inaccurate</code> flag drops one rung. AI never rejects.</p>
+    <div class="lifecycle">
+      <span class="lc-step">unverified</span><span class="lc-arrow">→</span>
+      <span class="lc-step">community_corroborated<br><span style="font-size:7.5pt; font-weight:400;">(≥3 reporters)</span></span><span class="lc-arrow">→</span>
+      <span class="lc-step">externally_corroborated<br><span style="font-size:7.5pt; font-weight:400;">(AI found independent proof)</span></span><span class="lc-arrow">→</span>
+      <span class="lc-step">field_verified</span><span class="lc-arrow">→</span>
+      <span class="lc-step">coordinator_approved</span><span class="lc-arrow">→</span>
+      <span class="lc-step">resolved_with_evidence</span>
+    </div>
+    <p style="font-size:9pt;">Plain SMS from unknown number starts at bottom. External corroboration = AI checked Open-Meteo weather + news + web and cited every source. From <code>externally_corroborated</code> up, problems are open to colleges.</p>
+
+    <h3>Formula 3 — Deduplication &amp; Clustering</h3>
+    <div class="formula">
+      <div class="formula-title">With semantic embeddings (Gemini)</div>
+      <div class="formula-row"><span class="formula-weight" style="font-size:9pt; min-width:60pt;">cosine ≥ 0.85</span><span class="formula-label">AND ≤ 2 km AND ≤ 30 days → <strong>merge</strong></span></div>
+      <div class="formula-row"><span class="formula-weight" style="font-size:9pt; min-width:60pt;">0.75–0.85</span><span class="formula-label">AND same district → <strong>review</strong> (coordinator decides)</span></div>
+      <div class="formula-title" style="margin-top:10pt;">Lexical fallback (no embedding key)</div>
+      <div class="formula-row"><span class="formula-weight" style="font-size:9pt; min-width:60pt;">same category</span><span class="formula-label">AND ≤ 1 km AND ≤ 7 days → <strong>merge</strong></span></div>
+      <div class="formula-row"><span class="formula-weight" style="font-size:9pt; min-width:60pt;">same category</span><span class="formula-label">AND ≤ 2 km → <strong>review</strong></span></div>
+    </div>
+    <p style="font-size:9pt;">No-GPS report: same district + similarity ≥ 0.90 → merge. A report with no GPS is not automatically a new problem.</p>
+
+    <h3>Formula 4 — Capability Matching (0–100)</h3>
+    <div class="formula">
+      <div class="formula-title">Resource-first: list registry items already in radius BEFORE proposing new builds</div>
+      <div class="formula-row"><span class="formula-weight">40 pts</span><span class="formula-label">Capability fit (embedding similarity; fallback: keyword overlap)</span></div>
+      <div class="formula-row"><span class="formula-weight">20 pts</span><span class="formula-label">Availability (free capacity now)</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Proximity (decay half-life 35 km; unknown = 0.3)</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Resource fit (% of open gap this partner could cover)</span></div>
+      <div class="formula-row"><span class="formula-weight">10 pts</span><span class="formula-label">Partner type: univ (track record + interest) | company (CSR + district) | NGO (local presence + speed)</span></div>
+    </div>
+    <p style="font-size:9pt;">Every recommendation carries its reasons. Coordinator can override the ranking (override written to ledger).</p>
+
+    <h3>Formula 5 — Solution Readiness Score (0–100)</h3>
+    <div class="formula">
+      <div class="formula-title">Each factor rated 1–5 by coordinator or faculty mentor. Cost/time/resources pre-filled from proposal + registry.</div>
+      <div class="formula-row"><span class="formula-weight">20 pts</span><span class="formula-label">Technical feasibility</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Cost feasibility (cost ≤ ₹50k → 5; ≤₹2L → 4; ≤₹7.5L → 3; ≤₹25L → 2; else 1)</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Time to deploy (≤30d → 5; ≤90d → 4; ≤180d → 3; ≤365d → 2; else 1)</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Local resource availability (from registry coverage %)</span></div>
+      <div class="formula-row"><span class="formula-weight">15 pts</span><span class="formula-label">Safety</span></div>
+      <div class="formula-row"><span class="formula-weight">10 pts</span><span class="formula-label">Community acceptance (from community validation signals)</span></div>
+      <div class="formula-row"><span class="formula-weight">10 pts</span><span class="formula-label">Scalability</span></div>
+    </div>
+    <div class="callout moderate">
+      <div class="callout-label">The Demo Beat That Lands Hardest</div>
+      Sensor-AI prediction system: <strong>48 / 100</strong> (impressive but impractical).<br>
+      Low-cost siren relay + shelter mapping: <strong>84 / 100</strong> (cheap + deployable next month). <em>The 84 wins the pilot.</em>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ §8 LIFECYCLE ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§08 · Lifecycle + State Machine</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <h2>Lifecycle + State Machine</h2>
+    </div>
+
+    <h3>Main Path</h3>
+    <div class="lifecycle">
+      <span class="lc-step">REPORTED</span><span class="lc-arrow">→</span>
+      <span class="lc-step">REFINED<br><span style="font-size:7pt; font-weight:400;">AI brief drafted</span></span><span class="lc-arrow">→</span>
+      <span class="lc-step">VERIFIED<br><span style="font-size:7pt; font-weight:400;">coordinator approved</span></span><span class="lc-arrow">→</span>
+      <span class="lc-step">OPEN</span><span class="lc-arrow">→</span>
+      <span class="lc-step">TEAM_FORMED</span><span class="lc-arrow">→</span>
+      <span class="lc-step">SOLUTION_PROPOSED</span><span class="lc-arrow">→</span>
+      <span class="lc-step">PILOT</span><span class="lc-arrow">→</span>
+      <span class="lc-step">DEPLOYED</span><span class="lc-arrow">→</span>
+      <span class="lc-step">IMPACT_VERIFIED</span>
+    </div>
+
+    <h3>Crisis Fast Path (crisisOnly)</h3>
+    <div class="lifecycle">
+      <span class="lc-step">OPEN</span><span class="lc-arrow">→</span>
+      <span class="lc-step lc-side" style="border-color: var(--critical); color: var(--critical-text);">DEPLOYED (crisis)</span>
+      <span style="font-size:9pt; color:#888; margin-left:8pt;">— evidence still required</span>
+    </div>
+
+    <h3>Side Paths (human-only, reason required)</h3>
+    <div class="lifecycle">
+      <span class="lc-step lc-side">DUPLICATE</span>
+      <span class="lc-step lc-side">NEEDS_FOLLOW_UP</span>
+      <span class="lc-step lc-side">CLOSED_NOT_ACTIONABLE</span>
+      <span style="font-size:9pt; color:#888; margin-left:8pt;">— reporter is told why. AI never rejects.</span>
+    </div>
+
+    <h3>Transition Rules (from lifecycle.ts)</h3>
+    <table>
+      <tr><th>From</th><th>To</th><th>Who</th><th>Requirements</th></tr>
+      <tr><td>REPORTED</td><td>REFINED</td><td>coordinator, admin</td><td>brief drafted</td></tr>
+      <tr><td>REFINED</td><td>VERIFIED</td><td>coordinator, admin</td><td>brief drafted</td></tr>
+      <tr><td>VERIFIED</td><td>OPEN</td><td>coordinator, admin</td><td>—</td></tr>
+      <tr><td>OPEN</td><td>TEAM_FORMED</td><td>partner roles</td><td>team formed</td></tr>
+      <tr><td>TEAM_FORMED</td><td>SOLUTION_PROPOSED</td><td>partner roles</td><td>proposal submitted</td></tr>
+      <tr><td>SOLUTION_PROPOSED</td><td>PILOT</td><td>coordinator, admin</td><td>pilot approved</td></tr>
+      <tr><td>PILOT</td><td>DEPLOYED</td><td>coordinator, admin</td><td>evidence + beneficiary count + verifier sign-off</td></tr>
+      <tr><td>DEPLOYED</td><td>IMPACT_VERIFIED</td><td>citizen, volunteer, coordinator, admin</td><td>community confirmation</td></tr>
+      <tr><td>OPEN / TEAM_FORMED</td><td>DEPLOYED</td><td>coordinator (crisis only)</td><td>evidence + count + sign-off</td></tr>
+    </table>
+
+    <h3>Evidence Requirements for Closure</h3>
+    <ul>
+      <li>At least one photo or document as evidence</li>
+      <li>Beneficiary count (number of people actually served)</li>
+      <li>Field volunteer or coordinator verifier sign-off</li>
+      <li>Community confirmation (<code>IMPACT_VERIFIED</code> stage)</li>
+    </ul>
+    <div class="callout critical">
+      <div class="callout-label">Hard Rule</div>
+      <code>POST /api/challenges/:id/deploy</code> returns HTTP 422 with every unmet requirement listed in <code>error.message</code> when any of the above is missing. The UI must render this verbatim.
+    </div>
+
+    <h3>Proposal Competition Window (Decision §9)</h3>
+    <p>First proposal on a verified problem opens a 2–14 day window (by severity). Highest-scoring <em>viable</em> proposal wins when it closes. If none is viable, the window reopens for revision. Admins/coordinators can award early: <code>POST /api/admin/windows/:id/award</code>.</p>
+
+    <h3>Auto-release</h3>
+    <p>Claims are automatically released after 14 days of no progress. Reputation system tracks abandonment.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ §9 SCREENS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§09 · Frontend Screens</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">09</span>
+      <h2>Frontend Screens (8 + sub-pages)</h2>
+    </div>
+    <p class="muted">One primary next-action button per screen. Report works with no photo, no location, no account.</p>
+
+    <table>
+      <tr><th>Screen / Route</th><th>Primary audience</th><th>Key components</th></tr>
+      <tr>
+        <td><strong>Landing</strong> <span class="mono" style="font-size:8pt;">/</span></td>
+        <td>All</td>
+        <td>6-step how-it-works chain, CTA to /report and /login, public catalog links</td>
+      </tr>
+      <tr>
+        <td><strong>Report a Need</strong> <span class="mono" style="font-size:8pt;">/report</span></td>
+        <td>Citizen</td>
+        <td>Voice recorder (Whisper STT), text/photo, district picker, SMS fallback link, offline queue, no account required</td>
+      </tr>
+      <tr>
+        <td><strong>Challenges List</strong> <span class="mono" style="font-size:8pt;">/challenges</span></td>
+        <td>All</td>
+        <td>Filter by band/category/district/status, ChallengeRow with priority band, list+map views</td>
+      </tr>
+      <tr>
+        <td><strong>Challenge Detail</strong> <span class="mono" style="font-size:8pt;">/challenge/:id</span></td>
+        <td>All roles</td>
+        <td>TraceSteps, ScoreFactors, Corroboration, Competition, ProjectWorkspace, Timeline, matches, Resource Swarm gap bar</td>
+      </tr>
+      <tr>
+        <td><strong>Coordinator Dashboard</strong> <span class="mono" style="font-size:8pt;">/queue</span></td>
+        <td>Coordinator, admin</td>
+        <td>Approval queue, verify queue, active challenges, drill button, priority breakdown, one-click approve</td>
+      </tr>
+      <tr>
+        <td><strong>Verify Queue</strong> <span class="mono" style="font-size:8pt;">/verify</span></td>
+        <td>Verifier, volunteer, coordinator</td>
+        <td>AI-corroborated items + manual verification with sources/photos</td>
+      </tr>
+      <tr>
+        <td><strong>Project Workspace</strong> <span class="mono" style="font-size:8pt;">/projects</span></td>
+        <td>University, partner</td>
+        <td>Kanban: Ideas→Under review→Prototype→Field test→Deployed. Milestones, updates, evidence upload.</td>
+      </tr>
+      <tr>
+        <td><strong>Needs Board</strong> <span class="mono" style="font-size:8pt;">/needs</span></td>
+        <td>Industry, NGO</td>
+        <td>Materials vs funding tabs, NeedCard with gap bar, pledge form, message thread</td>
+      </tr>
+      <tr>
+        <td><strong>Silent Zones</strong> <span class="mono" style="font-size:8pt;">/silent-zones</span></td>
+        <td>Coordinator, admin, public</td>
+        <td>Map: high-hazard + real population + almost no reports. The digital divide visualised.</td>
+      </tr>
+      <tr>
+        <td><strong>Crisis Room</strong> (triggered)</td>
+        <td>Coordinator, admin</td>
+        <td>Red top band, affected districts, needs board, gap, SMS reports with pin, tech-squad call-up</td>
+      </tr>
+      <tr>
+        <td><strong>Impact / Overview</strong> <span class="mono" style="font-size:8pt;">/overview</span></td>
+        <td>All</td>
+        <td>KPI funnel, time-to-match, deployment rate, Recharts, region switch, metrics.simulated banner</td>
+      </tr>
+      <tr>
+        <td><strong>Contributions</strong> <span class="mono" style="font-size:8pt;">/contributions</span></td>
+        <td>Industry, NGO</td>
+        <td>My pledges, tracked projects, message threads with college</td>
+      </tr>
+      <tr>
+        <td><strong>My Reports</strong> <span class="mono" style="font-size:8pt;">/my-reports</span></td>
+        <td>Citizen</td>
+        <td>Reports I filed, current status, confirm fix button</td>
+      </tr>
+      <tr>
+        <td><strong>Login / Role Switch</strong> <span class="mono" style="font-size:8pt;">/login</span></td>
+        <td>All</td>
+        <td>One-click demo role switcher. No password typed on stage.</td>
+      </tr>
+      <tr>
+        <td><strong>Admin</strong> <span class="mono" style="font-size:8pt;">/admin</span></td>
+        <td>Admin</td>
+        <td>Org verification, weight editor, metrics, windows, assistant, full history</td>
+      </tr>
+    </table>
+
+    <h3>Design Principle: Single Next-Action Button</h3>
+    <p>Every screen has exactly one primary call-to-action that maps to the next legal lifecycle step for the current role. The button reads its state from <code>GET /api/challenges/:id/actions</code>.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ §10 CONNECTIVITY ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§10 · Connectivity Ladder + SMS</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">10</span>
+      <h2>Connectivity Ladder + SMS</h2>
+    </div>
+
+    <div class="ladder">
+      <div class="ladder-step">
+        <div class="ladder-icon">1</div>
+        <div class="ladder-content">
+          <div class="ladder-label">Internet available</div>
+          <div class="ladder-desc">Normal upload — text + GPS location first, then audio/photo. Full trace panel. Realtime Supabase subscriptions.</div>
+        </div>
+      </div>
+      <div class="ladder-step">
+        <div class="ladder-icon partial">2</div>
+        <div class="ladder-content">
+          <div class="ladder-label">No internet + signal + Critical (sev 4–5 or vulnerable groups)</div>
+          <div class="ladder-desc">Coded SMS via <code>sms:</code> link — one tap, pre-filled. Format: <code>JS1 K7F2 W5 25.2481,87.6412 P200 VCE "pani nahi 2 din"</code></div>
+        </div>
+      </div>
+      <div class="ladder-step">
+        <div class="ladder-icon partial">3</div>
+        <div class="ladder-content">
+          <div class="ladder-label">Basic phone (feature phone)</div>
+          <div class="ladder-desc">Plain Hindi SMS to the JharSetu number. Server parses and files. Confidence starts at bottom of ladder. Reply confirms receipt.</div>
+        </div>
+      </div>
+      <div class="ladder-step">
+        <div class="ladder-icon offline">4</div>
+        <div class="ladder-content">
+          <div class="ladder-label">No signal (offline)</div>
+          <div class="ladder-desc">IndexedDB outbox queue + service worker retry. Idempotent <code>client_id</code> ensures no duplicate once connectivity restores. Volunteer assists on field if available.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Coded SMS Format (≤160 characters)</h3>
+    <pre>JS1 K7F2 W5 25.2481,87.6412 P200 VCE "pani nahi 2 din"
+ │   │    │  └─────────────── GPS coordinates
+ │   │    └─── category + severity (W=water, 5=critical)
+ │   └──────── report ID
+ └──────────── version 1
+
+P200    = 200 people affected
+VCE     = vulnerable: Children, Elderly [C/E/D/P/M/I/N]
+"…"     = brief description in local language</pre>
+
+    <div class="callout teal">
+      <div class="callout-label">SMS Reply</div>
+      "JharSetu: report K7F2 received. For life-threatening emergencies, call 112."
+    </div>
+
+    <h3>Notes</h3>
+    <ul>
+      <li>GPS only <em>receives</em> (incl. NavIC) — cannot transmit from browser; used to embed coordinates in SMS before sending</li>
+      <li>Tower location + auto-SMS = native-app roadmap (browser cannot do this)</li>
+      <li>Coded SMS lands with an exact pin on the crisis room map during the demo drill</li>
+      <li>Production = licensed provider + TRAI DLT registration. Demo = spare Android + SMS Gateway for Android app</li>
+      <li>Full sync later merges via the same report ID (idempotent)</li>
+    </ul>
+
+    <h3>Roadmap (Not Built — Say So)</h3>
+    <ul>
+      <li>Missed call / IVR / USSD</li>
+      <li>WhatsApp / Telegram (needs internet)</li>
+      <li>Bhashini / Sarvam for Santali / Mundari / Ho (tribal languages)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ §11 BUILD TIERS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§11 · Build Tiers</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">11</span>
+      <h2>Build Tiers — Strict Order</h2>
+    </div>
+
+    <div class="callout critical">
+      <div class="callout-label">Rule</div>
+      Golden path before extras. Working before pretty. Pretty before new. H18 = FREEZE (no new features, only fixes).
+    </div>
+
+    <h3>MUST — Golden Path (do first)</h3>
+    <ol>
+      <li>Auth + one-click role switcher</li>
+      <li>Report form (voice + text + photo + SMS link)</li>
+      <li>Challenge Compiler + rule-based fallback (AI_ENABLED=false must work)</li>
+      <li>Dedup (embedding + lexical fallback)</li>
+      <li>Confidence + priority + coordinator approve</li>
+      <li>Org / resource registry + nearby (PostGIS radius)</li>
+      <li>Matching + team builder (skill-gap)</li>
+      <li>Proposals + readiness score + pilot approval</li>
+      <li>Resource Swarm pledges + live gap bar</li>
+      <li>Lifecycle + evidence-gated closure</li>
+      <li>Impact record (beneficiary count + sign-off)</li>
+      <li>Map / list / dashboard</li>
+      <li>Notifications</li>
+      <li>Seed data + <code>POST /api/demo/reset</code> + cached AI responses</li>
+    </ol>
+
+    <h3>WOW — In Priority Order</h3>
+    <ol>
+      <li><strong>Crisis Mode</strong> (red band, drill, fast path)</li>
+      <li><strong>SMS</strong> (live coded SMS with exact pin on stage)</li>
+      <li><strong>Region switch</strong> (Jharkhand → Rajkot in 10s)</li>
+      <li><strong>Silent zones</strong> (hazard map + digital divide)</li>
+      <li><strong>Community checks + ledger + CSR/NAAC PDFs</strong></li>
+      <li><strong>Trace panel</strong> (Transcribe→Translate→Extract→Dedup→Score→Draft with real ms timings)</li>
+      <li><strong>Offline queue</strong> (IndexedDB + service worker)</li>
+      <li><strong>Do-not-duplicate library</strong></li>
+      <li>Solution co-pilot (only if all above are done)</li>
+    </ol>
+
+    <h3>PITCH ONLY — Never Build in 24h</h3>
+    <p class="muted">Always say "roadmap" — never claim as built:</p>
+    <ul>
+      <li>Bhashini tribal language support (Santali/Mundari/Ho)</li>
+      <li>Missed call / IVR / USSD / WhatsApp / Telegram</li>
+      <li>Native iOS/Android app</li>
+      <li>Report helper / ask-data chatbot</li>
+      <li>Alert relay to other systems</li>
+      <li>Weather satellite imagery</li>
+      <li>DigiLocker / APAAR integration</li>
+      <li>State relief portal integration</li>
+    </ul>
+
+    <h3>NEVER Build</h3>
+    <ul>
+      <li>Rescue dispatch (that's 112's job)</li>
+      <li>Disaster prediction</li>
+      <li>Blockchain (hash-chain ledger instead)</li>
+      <li>Payments</li>
+      <li>General chatbot (3 focused assistants: compiler, co-pilot, admin only)</li>
+      <li>Fake metrics or fake live feeds</li>
+      <li>Screens off the golden path</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ §12 DEMO ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§12 · Demo Script (4:35)</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">12</span>
+      <h2>Demo Script (8 Steps · 4:35 Total)</h2>
+    </div>
+    <p class="muted">Skip the landing page. Start at /report. Two people can demo solo. Rehearse with slow-net + AI-down + mid-demo interrupt.</p>
+
+    <div class="demo-steps">
+
+      <div class="demo-step">
+        <div class="demo-num">1</div>
+        <div class="demo-content">
+          <div class="demo-title">Report</div>
+          <div class="demo-time">0:30 — Gumla lightning, Hindi voice note, airplane-mode optional</div>
+          <div class="demo-line">Record a 15-second Hindi voice note about lightning strikes in Gumla. Submit with district, people count, and vulnerable groups. No English. No account.</div>
+          <div class="demo-quote">"No form. No English. Works without network."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">2</div>
+        <div class="demo-content">
+          <div class="demo-title">Compile</div>
+          <div class="demo-time">0:30 — Joins 31-report cluster, confidence rises, uncertainties shown</div>
+          <div class="demo-line">Trace panel shows: Transcribe (Whisper, 1.8s) → Translate → Extract → Dedup (cosine 0.91, 0.4 km from existing) → Score → Draft. Cluster count goes to 32.</div>
+          <div class="demo-quote">"31 voices, one problem."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">3</div>
+        <div class="demo-content">
+          <div class="demo-title">Approve</div>
+          <div class="demo-time">0:30 — Priority 82 breakdown + why critical</div>
+          <div class="demo-line">Coordinator sees: Priority 82 (Critical band), full factor breakdown, AI disclaimer, "AI is unsure about: exact tower count". One-click approve.</div>
+          <div class="demo-quote">"AI prepares, human decides."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">4</div>
+        <div class="demo-content">
+          <div class="demo-title">Match</div>
+          <div class="demo-time">0:30 — Siren stock Ranchi + halls, BIT Mesra ECE demo, fictional NGO + steel CSR</div>
+          <div class="demo-line">Nearby: Ranchi siren stockpile (12 km), community hall (8 km). Recommended: BIT Mesra ECE (score 87), fictional steel company (CSR match), local NGO. Team: 2 ECE + 1 CSE + 1 Civil + mentor.</div>
+          <div class="demo-quote">"What's already nearby."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">5</div>
+        <div class="demo-content">
+          <div class="demo-title">Propose</div>
+          <div class="demo-time">0:45 — 48 vs 84, pilot siren relay, 8+4 pledges close the gap</div>
+          <div class="demo-line">Two proposals: Sensor-AI (readiness 48) vs Siren relay (readiness 84). Pilot approved. College publishes needs: ₹80,000 + 20 siren units. 8 pledges from company (₹40k + 10 units) + 4 from NGO (₹40k). Gap bar closes live.</div>
+          <div class="demo-quote">"Cheap next month beats clever next year."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">6</div>
+        <div class="demo-content">
+          <div class="demo-title">Prove</div>
+          <div class="demo-time">0:35 — Seeded pilot evidence, volunteer check, Hindi notify, Somra confirms, ledger + CSR PDF</div>
+          <div class="demo-line">Seeded: installation photos + 200 beneficiaries. Volunteer sign-off. Reporter Somra Munda receives Hindi notification and confirms fix. Ledger entry verified. CSR PDF auto-generated.</div>
+          <div class="demo-quote">"Closes with evidence."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">7</div>
+        <div class="demo-content">
+          <div class="demo-title">See</div>
+          <div class="demo-time">0:30 — KPIs, funnel, silent zones, switch to Rajkot in 10s</div>
+          <div class="demo-line">Impact dashboard: time-to-match median, % reaching pilot, 150 JH challenges + 15 Rajkot. Silent zones map: Palamu block — high lightning hazard, 45,000 population, 2 reports. Switch region to Rajkot: waterlogging / heat / water / fire-prevention.</div>
+          <div class="demo-quote">"Silence isn't safety."</div>
+        </div>
+      </div>
+
+      <div class="demo-step">
+        <div class="demo-num">8</div>
+        <div class="demo-content">
+          <div class="demo-title">Drill</div>
+          <div class="demo-time">0:45 — Mock IMD heavy-rain Sahebganj, red room, live SMS with data/WiFi off</div>
+          <div class="demo-line">Coordinator starts mock drill: Sahebganj heavy-rain, districts turn red. Turn data + WiFi off on demo phone. Type coded SMS to JharSetu number. Within seconds: exact pin appears on crisis room map with "via-SMS" badge. Env-lab accepts assignment. Buzzes tech-squad.</div>
+          <div class="demo-quote">"Works when everything else fails."</div>
+        </div>
+      </div>
+
+    </div>
+
+    <h3>Seed Data Reference</h3>
+    <table>
+      <tr><th>Scenario</th><th>Data</th></tr>
+      <tr><td>Gumla lightning cluster</td><td>31 reports, 2 proposals (readiness 48 vs 84), 1 evidence-stage pilot, 200 beneficiaries</td></tr>
+      <tr><td>Sahebganj flood</td><td>1,250 people, 4 needs (water/200, medicine-route/350, connectivity, shelter), 2 SMS seeds, ledger entry</td></tr>
+      <tr><td>JH background</td><td>150 reports across 24 districts</td></tr>
+      <tr><td>Rajkot</td><td>15 reports (waterlogging/heat/water/fire-prevention — never use 2024 game-zone fire)</td></tr>
+      <tr><td>Orgs</td><td>10 universities (IIT-ISM/BIT/NIT/CUJ/BAU/Ranchi/RIMS — labeled "demo data, potential partner"), fictional companies/NGOs</td></tr>
+      <tr><td>Resources</td><td>40 resources in registry, 20 solved challenges</td></tr>
+    </table>
+
+    <h3>Non-Negotiables Before Stage</h3>
+    <ul>
+      <li>Demo reset script works: <code>npm run db:reset</code> or <code>POST /api/demo/reset</code></li>
+      <li>Cached AI responses ready (network might fail)</li>
+      <li>Backup SMS phone charged + connected to venue hotspot</li>
+      <li>Screen recording of full 4:35 demo ready as backup</li>
+      <li>2 people can run the full demo solo if one has a problem</li>
+      <li>Rehearse: slow-net mode + AI-down mode + mid-demo interrupt</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §13 CHECKPOINTS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§13 · Execution Checkpoints</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">13</span>
+      <h2>Execution Checkpoints (24h Build)</h2>
+    </div>
+
+    <table>
+      <tr><th>Hour</th><th>Milestone</th></tr>
+      <tr><td><strong>H0–1</strong></td><td>Lock scope. Schema + region_id + client_id locked. API contracts agreed. Mock service stubs. Color tokens and SMS format defined.</td></tr>
+      <tr><td><strong>H1–2</strong></td><td>Design contract: wireframes for 8 screens. Supabase project created (Mumbai region). First migration applied.</td></tr>
+      <tr><td><strong>H2–6</strong></td><td>Foundation: all 14 migrations, seed data, report endpoint, compiler (rule-based fallback), dedup, priority. <strong>H6 checkpoint: report lands in deployed site feed. Auto-deploy working.</strong></td></tr>
+      <tr><td><strong>H6–12</strong></td><td>Core path: matching, team builder, proposals, readiness, pledges, lifecycle, evidence-gated closure, impact record. <strong>H9: full golden path runs on fallback (no AI keys). H12: real AI integrated. Incognito run test.</strong></td></tr>
+      <tr><td><strong>H12–18</strong></td><td>WOW features in order: Crisis Mode → SMS → Region switch → Silent zones → Ledger + PDFs → Trace panel. <strong>H18: FREEZE. No new features, only fixes.</strong></td></tr>
+      <tr><td><strong>H18–20</strong></td><td>Test on production URL. Fix bugs found. Run smoke test: <code>npm run smoke</code></td></tr>
+      <tr><td><strong>H20–22</strong></td><td>Deck finalized. Backup video recorded. Q&A drill with full team.</td></tr>
+      <tr><td><strong>H22–24</strong></td><td>Timed rehearsals. Submit. Rest the presenter.</td></tr>
+    </table>
+
+    <h3>Standup Cadence</h3>
+    <p>Every 3 hours: What did I ship? What's blocking? Am I on the golden path? Stuck &gt;30 min → say so immediately.</p>
+
+    <h3>Lead Veto</h3>
+    <p>Lead has scope veto at any checkpoint. If an extra feature risks the golden path, it gets cut. Small PRs, merge every 2–3h, one owner per task.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ §14 SCORING ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§14 · Scoring &amp; KPIs</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">14</span>
+      <h2>Scoring Rubric (100 Marks) + KPIs</h2>
+    </div>
+
+    <div class="score-grid">
+      <div class="score-row score-row-header">
+        <div class="score-pts header">Pts</div>
+        <div class="score-name">Category</div>
+        <div class="score-note">How to win it</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">10</div>
+        <div class="score-name"><strong>Problem Statement</strong></div>
+        <div class="score-note">7-of-7 slide, Somra's story, lightning → 2,400 deaths over 10 years (2014–24)</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">15</div>
+        <div class="score-name"><strong>Innovation</strong></div>
+        <div class="score-note">Comparison table, 48 vs 84 beat, live gap bar, mock drill</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">25</div>
+        <div class="score-name"><strong>Technical Excellence</strong></div>
+        <div class="score-note">Trace timings shown live, architecture diagram, accuracy on 40 hand-labeled reports, live SMS with exact pin, AI kill-switch demo</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">10</div>
+        <div class="score-name"><strong>UX / Usability</strong></div>
+        <div class="score-note">Phone report flow &lt;1 min, 1-click approve for coordinator, Mukta font ≥16px</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">15</div>
+        <div class="score-name"><strong>Feasibility / Impact / Scale</strong></div>
+        <div class="score-note">Rajkot region switch live, roadmap slide, CSR PDF shown, Sendai + NEP 2020 citations</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">5</div>
+        <div class="score-name"><strong>Security / Privacy</strong></div>
+        <div class="score-note">Role switch hides PII (show RLS proof), fuzzed coordinates, SMS hash, DPDP mention</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">15</div>
+        <div class="score-name"><strong>Presentation</strong></div>
+        <div class="score-note">Skip landing, finish 30s under time, confident Q&A</div>
+      </div>
+      <div class="score-row">
+        <div class="score-pts">5</div>
+        <div class="score-name"><strong>Teamwork</strong></div>
+        <div class="score-note">Clear roles shown, commit history, task board visible</div>
+      </div>
+    </div>
+
+    <h3>Headline KPIs (show live on Impact dashboard)</h3>
+    <ul>
+      <li><strong>Time: report → team formed</strong> (median, hours)</li>
+      <li><strong>% of challenges reaching pilot/deployment</strong></li>
+      <li><strong>University–industry collaborations formed</strong></li>
+    </ul>
+    <p class="muted">Speed / quality / outcome funnel. All seeded = simulated. Say so. Never claim cost-saved.</p>
+
+    <h3>Key Phrases for Q&A</h3>
+    <table>
+      <tr><th>Question</th><th>One-line answer</th></tr>
+      <tr><td>Diff from grievance portal?</td><td>Continuous citizen sourcing + pilot to verified impact, not one-and-done complaint</td></tr>
+      <tr><td>Diff from 112?</td><td>We do hours-to-months: knowledge, equipment, funding. Never dispatch.</td></tr>
+      <tr><td>Why AI?</td><td>Seconds vs days for compile/dedup/match. Human decides. AI never rejects.</td></tr>
+      <tr><td>AI wrong or down?</td><td>Uncertainty shown + editable + % measured. Kill switch: AI_ENABLED=false. Rule-based fallback always runs.</td></tr>
+      <tr><td>Spam?</td><td>Confidence ladder + flags + dedup + EXIF strip + rate limits + human gate</td></tr>
+      <tr><td>No smartphone?</td><td>Plain SMS + volunteer assist + silent-zone surveys</td></tr>
+      <tr><td>Offline/GPS?</td><td>GPS receives only. SMS = low-bandwidth store-forward (Haiti 4636 precedent). IndexedDB queue.</td></tr>
+      <tr><td>Why Jharkhand from Rajkot?</td><td>Sponsor = Jharkhand. Region switch proves cross-state scalability in 10 seconds.</td></tr>
+      <tr><td>After hackathon?</td><td>1 district × 1 monsoon pilot. Measure the KPIs. CSR/grants fund it. State owns as infra.</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ §15 JHARKHAND CONTEXT ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§15 · Jharkhand Context &amp; Policy</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">15</span>
+      <h2>Jharkhand Context &amp; Policy Hooks</h2>
+    </div>
+
+    <div class="callout teal">
+      <div class="callout-label">Opening Greeting</div>
+      "Johar!" — traditional greeting of the tribal communities of Jharkhand.
+    </div>
+
+    <h3>Why Jharkhand — The Numbers</h3>
+    <ul>
+      <li><strong>Lightning: top killer</strong> — &gt;2,400 deaths over 10 years (2014–24), predominantly farmers in the open</li>
+      <li>Jharia coal-seam fires: IIT-ISM Dhanbad nearest-capable university (demo example)</li>
+      <li>Sahebganj Ganga floods: annual, affects riverside communities heavily</li>
+      <li>Palamu / Garhwa drought and heat stress: increasing severity</li>
+      <li>Elephant conflict: Singhbhum and Seraikela corridors</li>
+    </ul>
+
+    <h3>Tribal Languages (Roadmap)</h3>
+    <p>Major languages beyond Hindi: <strong>Santali, Mundari, Ho, Kurukh, Nagpuri, Khortha</strong>. Voice + SMS + Bhashini integration = roadmap. Current: Hindi + English only. Say "roadmap".</p>
+
+    <h3>Policy Alignment</h3>
+    <table>
+      <tr><th>Policy / Scheme</th><th>How JharSetu aligns</th></tr>
+      <tr><td>PM Disaster Risk Reduction 10-Point Agenda, Point 6</td><td>University network for local disaster solutions</td></tr>
+      <tr><td>Sendai Framework 4 Priorities</td><td>Mitigation, preparedness, response, recovery — all DM phases tagged</td></tr>
+      <tr><td>NEP 2020 Experiential Learning</td><td>Faculty mentor required for credit-bearing project work</td></tr>
+      <tr><td>UBA / NSS / Aapda Mitra</td><td>Verifier and volunteer roles in the platform</td></tr>
+      <tr><td>CSR Section 135 + Schedule VII</td><td>Disaster relief is explicitly listed. Auto-CSR PDFs.</td></tr>
+      <tr><td>DPDP 2023</td><td>Phone hash, location fuzz, consent, data minimisation, EXIF strip</td></tr>
+      <tr><td>Jharia Relief Portal (Dhanbad/Bokaro)</td><td>We complement, not replace. Different scope.</td></tr>
+    </table>
+
+    <h3>Authorities</h3>
+    <p>NDMA → JSDMA (Jharkhand State Disaster Management Authority) → District DM authority. JharSetu works under district authority during crisis; never dispatches independently.</p>
+
+    <h3>University Partners (Demo Data Only — Label "potential partner")</h3>
+    <p>IIT-ISM Dhanbad, BIT Mesra, NIT Jamshedpur, Central University of Jharkhand, BAU Ranchi, Ranchi University, RIMS. All labeled "demo data, potential partner" in seed.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ §16 DESIGN TOKENS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§16 · Design Tokens &amp; Color System</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">16</span>
+      <h2>Design Tokens &amp; Color System</h2>
+    </div>
+
+    <h3>Color Palette</h3>
+    <table>
+      <tr><th>Token</th><th>Hex</th><th>Use</th></tr>
+      <tr><td><strong>Ink</strong></td><td><code>#102027</code></td><td>Primary text, dark backgrounds</td></tr>
+      <tr><td><strong>Ground</strong></td><td><code>#F4F6F5</code></td><td>Page/card background</td></tr>
+      <tr><td><strong>Line</strong></td><td><code>#CCD1C7</code></td><td>Borders, dividers</td></tr>
+      <tr><td><strong>Teal</strong></td><td><code>#2E7180</code></td><td>Actions, links, primary buttons. ONLY for actionable items.</td></tr>
+      <tr><td><strong>Critical</strong></td><td><code>#D94F45</code> / text <code>#A8332A</code></td><td>Priority ≥75. Urgency ONLY. Never decorative.</td></tr>
+      <tr><td><strong>High</strong></td><td><code>#E07B2E</code> / text <code>#9A4A12</code></td><td>Priority 50–74. Urgency ONLY.</td></tr>
+      <tr><td><strong>Moderate</strong></td><td><code>#E5A83B</code> / text <code>#8A5A00</code></td><td>Priority 25–49. Urgency ONLY.</td></tr>
+      <tr><td><strong>Long-term</strong></td><td><code>#3867A6</code></td><td>Priority &lt;25.</td></tr>
+      <tr><td><strong>Resolved</strong></td><td><code>#3E8064</code> / text <code>#2F6B52</code></td><td>Verified/resolved status ONLY.</td></tr>
+    </table>
+
+    <h3>Color Rules</h3>
+    <ul>
+      <li><strong>Never color-alone</strong> — always pair with an icon + word for accessibility</li>
+      <li>Red/orange/amber = urgency/severity bands ONLY</li>
+      <li>Teal = actionable items (buttons, links) ONLY</li>
+      <li>Green = verified or resolved status ONLY</li>
+      <li>Crisis Mode = red top band across the entire application</li>
+    </ul>
+
+    <h3>Typography</h3>
+    <table>
+      <tr><th>Font</th><th>Use</th><th>Notes</th></tr>
+      <tr>
+        <td><strong>Mukta</strong></td>
+        <td>All body and UI text</td>
+        <td>Supports Latin + Devanagari. Minimum 16px. Line height 1.6. Touch targets 48px.</td>
+      </tr>
+      <tr>
+        <td><strong>IBM Plex Mono</strong></td>
+        <td>IDs, coordinates, timings, code, status chips</td>
+        <td>Used in trace panel, challenge refs (C-104), GPS coords, millisecond timings</td>
+      </tr>
+    </table>
+
+    <h3>AI Disclaimer — Show Verbatim</h3>
+    <div class="callout moderate">
+      <div class="callout-label">Required on every AI-assisted output</div>
+      "AI-assisted recommendation. Final validation required from authorised coordinator."
+      <br><br>Show why / data / uncertainty / verifier / next action. AI never dispatches, never rejects, never writes safety or medical advice (only verbatim NDMA/IMD cards + "Call 112").
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ §17 ARCH DECISIONS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§17 · Key Architectural Decisions</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">17</span>
+      <h2>Key Architectural Decisions (docs/DECISIONS.md)</h2>
+    </div>
+
+    <h3>Decision 1 — Backend is Source of Truth</h3>
+    <p>The <code>backend/</code> app holds the intake pipeline, Challenge Compiler, dedup, priority, matching, readiness, lifecycle, ledger, RLS, and migrations. Frontend's <code>app/api/*</code> routes were a demo stand-in from hour 1 and are superseded. <code>backend/lib/seed/*</code> and <code>backend/scripts/seed-demo.ts</code> are canonical seed.</p>
+
+    <h3>Decision 2 — One Origin, Not Two (Same-Origin Cookie)</h3>
+    <p><code>frontend/next.config.ts</code> rewrites <code>/api/*</code> to <code>BACKEND_ORIGIN</code>. The browser only ever talks to the frontend's own origin. Eliminates cross-origin cookie issues (Safari third-party cookie blocking, Chrome phase-out). CORS removed entirely for browser calls.</p>
+    <pre>BACKEND_ORIGIN unset → demo routes answer (seeded data)
+BACKEND_ORIGIN set   → real backend answers (no page changes)</pre>
+
+    <h3>Decision 3 — Reads via Service-Role Client</h3>
+    <p>All reads go through <code>supabaseAdmin ?? supabase</code> (service-role). The <code>SUPABASE_SERVICE_ROLE_KEY</code> has no <code>NEXT_PUBLIC_</code> prefix and is only imported in <code>app/api/*</code> — never sent to browser. Anonymous <code>GET</code> on <code>challenges</code> would return empty (RLS blocks anon selects).</p>
+
+    <h3>Decision 4 — Matches Table as Write-Through Cache</h3>
+    <p>The <code>matches</code> table is a write-through cache. First call (or <code>?refresh=true</code>) invokes <code>computeMatches</code> and upserts results. Subsequent calls return instantly. Seed does NOT pre-populate: matches are computed against live database state, not seed time state.</p>
+
+    <h3>Decision 5 — NGO as Separate Role</h3>
+    <p>Migration <code>0013_ngo_role.sql</code>. Companies give materials; NGOs give money. Different default boards, different RLS policies (<code>0014_ngo_rls_parity.sql</code>).</p>
+
+    <h3>Decision 6 — Proposal Competition Window</h3>
+    <p>First proposal on a verified problem opens a 2–14 day window (by severity). Highest-scoring viable proposal wins. Reviewer marks not-viable with required changes. Window reopens if no viable proposal at close. Early award: <code>POST /api/admin/windows/:id/award</code>. Rule-based scoring if no AI key.</p>
+
+    <h3>Decision 7 — Dedup Without Semantic Embeddings</h3>
+    <p>With no embedding key, local hashing vectoriser scores differently-worded reports of the same flood around 0.4 (below 0.85/0.75 thresholds). Fallback: same category within 1 km in 7 days = merge. Within 2 km = review. Semantic embeddings keep the original bars.</p>
+
+    <h3>Decision 8 — Progress Updates Belong to a Stage</h3>
+    <p><code>progress_updates.stage_id</code> is NOT NULL. General update with no stage → filed against the in-progress stage, else next undone stage, else last stage.</p>
+
+    <h3>Decision 9 — End-to-End Test Script</h3>
+    <p><code>backend/scripts/e2e-flow.ts</code>: report → AI check → verifier → PDF proposal → award → requirements → 5kg + 5kg + money pledges → sent/received → messages → stage + update → admin record, metrics, assistant → public tracking, with role-wall checks. Rows titled <code>[E2E TEST]</code>. <code>--cleanup</code> deletes them. Ledger rows stay (append-only).</p>
+
+    <h3>Decision 10 — We Train Our Own Models (reverses earlier "APIs only" stance)</h3>
+    <p>An earlier objections-handling answer said "use APIs and embeddings, don't train our own ML models." <strong>That is superseded.</strong> Faculty evaluation requires original trained work, so we now train our own models on top of — not instead of — the existing rule-based/API fallback chain (<code>AI_ENABLED=false</code> must still work).</p>
+    <p>Approved targets, in order: (1) <strong>report classifier</strong> — category + hazard + severity, fine-tuned MuRIL/IndicBERT or a TF-IDF+logreg baseline, trained on the 40 hand-labeled reports + seed data + public disaster-tweet corpora (HumAID/CrisisNLP); augments <code>backend/lib/ai/fallback.ts</code>. (2) <strong>dedup embeddings</strong> — contrastive-fine-tuned multilingual MiniLM, augmenting the hashing vectoriser in <code>backend/lib/ai/local-embed.ts</code>. Report accuracy/precision/recall against the rule-based baseline and the LLM on the same held-out set. Stretch: vulnerability-tag extraction, silent-zone report-expectation model, evidence-photo plausibility check.</p>
+    <p>Unchanged: still no disaster prediction, still no general chatbot, still AI-assisted-recommendation-only (human approves), still must degrade cleanly with AI keys removed.</p>
+
+    <h3>Vercel Deployment</h3>
+    <ul>
+      <li>Frontend: root dir = <code>frontend/</code>, production branch = <code>main</code>, alias = <code>jharsetu-lilac.vercel.app</code></li>
+      <li>Backend: separate Vercel project, root dir = <code>backend/</code></li>
+      <li>Until GitHub auto-deploy is wired: <code>cd frontend && npx vercel --prod --yes</code></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ §18 WORKING AGREEMENTS ═══ -->
+<div class="page">
+  <div class="page-header">
+    <span class="page-header-title">JharSetu — SIH26043</span>
+    <span>§18 · Working Agreements</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">18</span>
+      <h2>Working Agreements for the Team</h2>
+    </div>
+
+    <h3>Core Rules</h3>
+    <ol>
+      <li><strong>Golden path before extras.</strong> Working before pretty. Pretty before new. Freeze = no new features, only fixes.</li>
+      <li><strong>Never claim unbuilt as built</strong> — use "roadmap". Every slide number needs a source or own measurement.</li>
+      <li><strong>Small PRs.</strong> Merge every 2–3 hours. One owner per task. Don't edit others' files unasked.</li>
+      <li><strong>Stuck &gt;30 minutes?</strong> Say so immediately. Don't solo for 2h on a blocker.</li>
+      <li><strong><code>.env</code> never committed.</strong> All secrets in <code>.env.local</code>. See <code>.env.example</code>.</li>
+      <li><strong>All seeded numbers labeled "Simulated scenario".</strong> Never display fake data without this label.</li>
+    </ol>
+
+    <h3>Locked Decisions — Don't Re-argue at Hour 14</h3>
+    <table>
+      <tr><th>Decision</th><th>What's locked</th></tr>
+      <tr><td>Name</td><td>JharSetu (not ResQGrid / AegisGrid / anything else)</td></tr>
+      <tr><td>Main problem</td><td>Lightning is the main killer demo (not flood, not drone delivery)</td></tr>
+      <tr><td>SMS vs messaging apps</td><td>SMS for offline/basic phone. No Telegram/WhatsApp.</td></tr>
+      <tr><td>AI chatbot</td><td>No general chatbot. Three focused assistants only (compiler, co-pilot, admin). Never built.</td></tr>
+      <tr><td>Region</td><td>Rajkot switch (not Jharkhand-only). Proves multi-region.</td></tr>
+      <tr><td>Stack</td><td>Next.js + Supabase + Gemini. No debate on switching frameworks.</td></tr>
+    </table>
+
+    <h3>Security Rules (enforced by RLS, not hidden buttons)</h3>
+    <ul>
+      <li>Public map fuzz ~500m, strip photo EXIF publicly, hash SMS numbers</li>
+      <li>Consent + anonymous option on every report</li>
+      <li>DPDP 2023: minimise, purpose-limit, delete on request</li>
+      <li>Zod + upload limits + rate limit (per SMS number)</li>
+      <li>Orgs cannot adopt or pledge until admin-verified</li>
+      <li>AI never dispatches, never rejects, never writes safety/medical advice</li>
+    </ul>
+
+    <h3>Dev Commands Quick Reference</h3>
+    <pre>
+# Backend (port 3001)
+cd backend
+npm install
+npm run db:push          # apply all migrations
+npm run db:seed          # seed both scenarios
+npm run db:reset         # reset + seed (before each rehearsal)
+npm run smoke            # judge's journey end-to-end test
+AI_ENABLED=false npm run dev   # force rule-based fallback
+
+# Frontend (port 3000)
+cd frontend
+npm install
+npm run dev
+
+# Full reset
+npm run db:reset   # from repo root (runs backend scripts)</pre>
+
+    <h3>File Map</h3>
+    <pre>
+JharSetu/
+  backend/
+    app/api/**          23 route-group directories
+    lib/ai/**           compiler, llm, fallback, corroborate, embeddings, stt
+    lib/domain/**       priority, matching, dedup, confidence, readiness, lifecycle
+    lib/services/**     intake, matching, swarm, crisis, ledger, notify, proposals
+    lib/seed/**         data.ts + run.ts (Jharkhand + Rajkot scenarios)
+    supabase/migrations/0001–0014 (extensions→ngo_rls_parity)
+    scripts/            db-push, seed-demo, smoke, e2e-flow
+
+  frontend/
+    app/                All Next.js pages (15 screens)
+    components/domain/  ChallengeRow, Competition, Corroboration, ProjectWorkspace…
+    components/shell/   GovStrip, Logo
+    components/ui/      Button, Card, Icon, States, Surface
+
+  docs/
+    API.md              Full endpoint reference
+    BACKEND-SETUP.md    Setup guide for new contributors
+    DECISIONS.md        Architecture decision record (9 decisions)
+
+  AGENTS.md             AI agent rules (source of truth for agents)
+  context.pdf           This document
+  README.md             Quick-start guide</pre>
+  </div>
+</div>
+
+</body>
+</html>

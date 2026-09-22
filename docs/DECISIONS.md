@@ -179,3 +179,35 @@ proposal -> award -> requirements -> 5 kg + 5 kg and money pledges -> sent /
 received -> messages -> stage + update -> admin record, metrics, assistant ->
 public tracking, with role-wall checks. Rows are titled `[E2E TEST]`;
 `--cleanup` deletes them and their files. Ledger rows stay (append-only).
+
+## 13. We now train our own models (2026-09-22) — reverses "APIs only"
+
+An earlier objections-handling answer in `context.pdf`'s deck material said
+"use APIs and embeddings, measure accuracy on a small labelled set — don't
+train our own ML models." **That line is superseded.** Faculty evaluation for
+SIH requires original trained work, so we train models on top of — not instead
+of — the existing rule-based/API fallback chain. `AI_ENABLED=false` must keep
+working exactly as before; a trained model is one more tier in that chain, not
+a replacement for it.
+
+Approved, in build order:
+
+1. **Report classifier** (category + hazard + severity) — fine-tuned
+   MuRIL/IndicBERT/xlm-roberta, or a TF-IDF + logistic-regression baseline if
+   time is short. Trained on the 40 hand-labeled reports + seed data + public
+   disaster-tweet corpora (HumAID/CrisisNLP). Slots in alongside the keyword
+   rules in `backend/lib/ai/fallback.ts` — report its accuracy against the
+   rules and against the LLM on the same held-out set.
+2. **Dedup embeddings** — contrastive-fine-tuned multilingual MiniLM
+   (`paraphrase-multilingual-MiniLM-L12-v2`), slotting in alongside the hashing
+   vectoriser in `backend/lib/ai/local-embed.ts`. Report dedup precision/recall
+   at the 0.85 and 0.75 thresholds from Decision 10 above.
+3. Stretch, only after 1–2 are done and measured: vulnerability-tag
+   extraction, a silent-zone report-expectation model, an evidence-photo
+   plausibility check.
+
+Unchanged: still no disaster prediction, still no general chatbot, still
+AI-assisted-recommendation-only (human approves, AI never rejects), still must
+degrade cleanly with AI keys removed. See `AGENTS.md` §17a for the full note.
+`context.pdf` itself still has the old line — it's a compiled export with no
+editable source in this repo, so fix it at whatever tool produced it.

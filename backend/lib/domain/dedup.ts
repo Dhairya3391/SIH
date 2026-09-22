@@ -16,6 +16,17 @@ export const DEDUP_THRESHOLDS = {
   maxAgeDays: 30,
 } as const;
 
+/**
+ * Bars for JharSetu's own dedup model (ml/dedup), which lives in its own vector
+ * space and scores lower than Gemini for the same pair. Calibrated on
+ * hand-written pairs that are not the test set; measured on the frozen test set
+ * at 85% precision and 73% recall. See ml/RESULTS.md.
+ */
+export const TRAINED_DEDUP = {
+  merge: 0.47,
+  review: 0.4,
+} as const;
+
 export type DedupDecision = "merge" | "review" | "new";
 
 export interface DedupCandidate {

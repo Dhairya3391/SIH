@@ -1,0 +1,30 @@
+{"group": 1, "category": "disaster_safety", "a": "kal khet me kaam karte waqt bijli giri, do aadmi jal gaye", "b": "yesterday lightning hit two farmers working in the paddy field, both burnt"}
+{"group": 2, "category": "disaster_safety", "a": "गंगा का पानी टोला में घुस गया, लोग छत पर हैं", "b": "ganga ka pani basti me aa gaya, sab chhat pe chadhe hai"}
+{"group": 3, "category": "disaster_safety", "a": "raat ko haathi aaye aur 3 kachche ghar tod diye", "b": "elephants broke three mud houses in our tola last night"}
+{"group": 4, "category": "disaster_safety", "a": "baadal garajne pe koi alert nahi aata, siren lagwa do", "b": "हमें वज्रपात की चेतावनी नहीं मिलती, गांव में सायरन चाहिए"}
+{"group": 5, "category": "water", "a": "tola ka chapakal 10 din se kharab hai", "b": "handpump in our hamlet broken for ten days, nobody repaired"}
+{"group": 6, "category": "water", "a": "कुएं का पानी पीला और बदबूदार हो गया", "b": "kuan ka pani peela aur smell kar raha, pee nahi sakte"}
+{"group": 7, "category": "water", "a": "tanker 4 din se nahi aaya, pani khatam", "b": "the water tanker has not come for four days and we have no water left"}
+{"group": 8, "category": "water", "a": "nal jal ka pipe bicha par pani kabhi nahi aaya", "b": "पाइपलाइन बिछी है पर नल में आज तक पानी नहीं आया"}
+{"group": 9, "category": "health", "a": "anganwadi ke bachcho ko ulti dast ho rahe", "b": "children at the anganwadi have vomiting and loose motions"}
+{"group": 10, "category": "health", "a": "गांव में पीलिया फैल रहा है, 6 लोग बीमार", "b": "peelia ho gaya 6 logo ko, sab ek hi kuan ka pani peete"}
+{"group": 11, "category": "health", "a": "PHC me doctor nahi aate, dawai bhi nahi", "b": "no doctor and no medicines at the primary health centre"}
+{"group": 12, "category": "health", "a": "sanp kata hai, hospital 30 km door, gaadi nahi", "b": "snake bite victim, no vehicle to take him to the hospital 30 km away"}
+{"group": 13, "category": "education", "a": "school me ek hi master hai paanch class ke liye", "b": "only one teacher for five classes in our school"}
+{"group": 14, "category": "education", "a": "स्कूल की छत टपकती है, बरसात में बच्चे भीगते हैं", "b": "school ki chhat se pani girta hai, barish me bache geele"}
+{"group": 15, "category": "education", "a": "ladkiyon ke liye school me toilet nahi", "b": "there is no girls toilet at the school so girls stop coming"}
+{"group": 16, "category": "agriculture", "a": "barish nahi hui, dhaan ka bichda sookh gaya", "b": "no rain this month, paddy seedlings dried up"}
+{"group": 17, "category": "agriculture", "a": "ओले गिरने से गेहूं की फसल बर्बाद", "b": "hailstorm destroyed the wheat crop"}
+{"group": 18, "category": "agriculture", "a": "bakriyo me bimari, 20 mar gayi", "b": "goats are dying of some disease, twenty dead already"}
+{"group": 19, "category": "roads_infra", "a": "nadi par pul nahi, barsat me gaon kat jata", "b": "no bridge on the river, the village is cut off every monsoon"}
+{"group": 20, "category": "roads_infra", "a": "पुलिया बह गई, रास्ता बंद", "b": "puliya toot ke beh gayi, koi gaadi nahi aa sakti"}
+{"group": 21, "category": "roads_infra", "a": "kachchi sadak keechad ban gayi, mareez ko khaat pe le jaate", "b": "the mud road is impassable so we carry patients on a cot"}
+{"group": 22, "category": "energy_connectivity", "a": "transformer jal gaya, ek mahine se light nahi", "b": "ट्रांसफार्मर फुंक गया, महीने भर से बिजली नहीं"}
+{"group": 23, "category": "energy_connectivity", "a": "gaon me network nahi, call ke liye pahad pe jana padta", "b": "no mobile signal in the village, we climb the hill to make calls"}
+{"group": 24, "category": "energy_connectivity", "a": "bijli ka taar toot ke sadak pe pada hai, current hai", "b": "a live electric wire has fallen on the road"}
+{"group": 25, "category": "environment", "a": "koyla khadan ka kaala pani khet me aa raha", "b": "black water from the coal mine is flowing into our fields"}
+{"group": 26, "category": "environment", "a": "ईंट भट्ठे के धुएं से बच्चों को खांसी", "b": "bhatta ka dhuan, bachcho ko khansi rehti hai"}
+{"group": 27, "category": "environment", "a": "nadi se raat bhar balu nikal rahe, kinara gir raha", "b": "illegal sand mining in the river at night, the bank is collapsing"}
+{"group": 28, "category": "disaster_safety", "a": "jungle ki aag gaon ki taraf badh rahi", "b": "forest fire is moving towards the village"}
+{"group": 29, "category": "water", "a": "talab sookh gaya, pashu ke liye bhi pani nahi", "b": "the pond has dried up, no water even for cattle"}
+{"group": 30, "category": "health", "a": "गर्भवती महिलाओं को आयरन की गोली नहीं मिली", "b": "pregnant women have not received iron tablets"}

@@ -1,0 +1,50 @@
+{"text":"Bijli girne se hamare khet me do kisan mar gaye. Sisai block me koi storm shelter nahi hai.","category":"disaster_safety","severity":5,"vulnerable":["elderly"]}
+{"text":"Lightning struck an open paddy field killing 2 workers. Need a siren warning relay.","category":"disaster_safety","severity":5,"vulnerable":["elderly"]}
+{"text":"Ganga nadi ka paani badh raha hai. Diwani ghat ke 3 gaon doob chuke hain. 200 parivaar phas gaye hain.","category":"disaster_safety","severity":5,"vulnerable":["children","elderly"]}
+{"text":"Jharia coal mines underground fire reached near main market houses. Ground cracking rapidly.","category":"disaster_safety","severity":5,"vulnerable":["elderly"]}
+{"text":"Haathi ka jhund gaon me ghus gaya aur khet aur kachhe ghar tod diye. Log jungle ke kinare dare hue hain.","category":"disaster_safety","severity":4,"vulnerable":["children"]}
+{"text":"Severe thunderstorm destroyed transmission poles and blocked the main bypass road.","category":"disaster_safety","severity":4,"vulnerable":[]}
+{"text":"Bokaro thermal plant area toxic gas leak odor making school students dizzy and sick.","category":"disaster_safety","severity":5,"vulnerable":["children","medical_dependency"]}
+{"text":"Forest fire spreading rapidly across Dalma mountain reserve toward nearby residential hamlets.","category":"disaster_safety","severity":4,"vulnerable":[]}
+{"text":"Flash flood submerged the low bridge connecting Karra to district hospital.","category":"disaster_safety","severity":5,"vulnerable":["medical_dependency"]}
+{"text":"Unregulated quarry blast shattered roof tiles of 15 village huts causing panicky evacuation.","category":"disaster_safety","severity":4,"vulnerable":["elderly"]}
+{"text":"Handpump has been broken for three weeks. Women walk three kilometres to dry riverbed for muddy water.","category":"water","severity":4,"vulnerable":["pregnancy","elderly"]}
+{"text":"Gaon ka ekmatra chaapakal 1 mahine se kharab hai. Peene ke paani ka bhishan sankat hai.","category":"water","severity":4,"vulnerable":["pregnancy"]}
+{"text":"Arsenic contamination detected in municipal borewell water. Yellow residue and stomach infections.","category":"water","severity":4,"vulnerable":["children"]}
+{"text":"Primary health centre water supply pipeline punctured. No clean water for delivery room.","category":"water","severity":5,"vulnerable":["pregnancy","medical_dependency"]}
+{"text":"Check dam sluice gate broken, entire monsoon runoff drained away leaving reservoir dry.","category":"water","severity":3,"vulnerable":[]}
+{"text":"Kuan me kachra girne se paani sad gaya hai. 50 ghara roz nikalta tha ab band hai.","category":"water","severity":3,"vulnerable":[]}
+{"text":"Fluoride levels in drinking water causing joint deformation among school youth.","category":"water","severity":4,"vulnerable":["children","disability"]}
+{"text":"Water tanker has not visited this hilltop tribal tola for ten days in scorching heat.","category":"water","severity":4,"vulnerable":["elderly","children"]}
+{"text":"Borewell motor burnt after power surge. High school without drinking water facility.","category":"water","severity":3,"vulnerable":["children"]}
+{"text":"Drainage backflow contaminating groundwater near community tap stand.","category":"water","severity":3,"vulnerable":[]}
+{"text":"Snakebite cases rising during harvest but sub-centre has zero anti-venom vials. One victim died.","category":"health","severity":5,"vulnerable":["medical_dependency"]}
+{"text":"Kala-azar fever spreading across tribal hamlet with no testing kits available.","category":"health","severity":4,"vulnerable":["children","medical_dependency"]}
+{"text":"Dialysis patient cut off because ambulance cannot cross mudlogged link road.","category":"health","severity":5,"vulnerable":["medical_dependency","elderly"]}
+{"text":"Severe malnutrition observed in 20 children after anganwadi supply delivery stopped.","category":"health","severity":4,"vulnerable":["children"]}
+{"text":"Maternity sub-centre solar refrigerator battery failed, vaccines spoiled.","category":"health","severity":4,"vulnerable":["pregnancy","children"]}
+{"text":"Oxygen concentrator at rural health outpost malfunctioning during respiratory season.","category":"health","severity":5,"vulnerable":["medical_dependency","elderly"]}
+{"text":"Diarrhea outbreak after pond overflowed into surrounding domestic wells.","category":"health","severity":4,"vulnerable":["children"]}
+{"text":"Culvert collapsed during torrential rain cutting off three panchayats from market town.","category":"roads_infra","severity":4,"vulnerable":[]}
+{"text":"Pulliya toot gayi hai, gaadi aur ambulance nahi aa pa rahi hai bilkul.","category":"roads_infra","severity":4,"vulnerable":["medical_dependency"]}
+{"text":"Paved road washed away leaving a 10-foot deep trench across the school route.","category":"roads_infra","severity":3,"vulnerable":["children"]}
+{"text":"Wooden suspension footbridge over river has decayed planks, children risk falling.","category":"roads_infra","severity":4,"vulnerable":["children"]}
+{"text":"Landslide debris blocking ghat road between Patratu and valley settlements.","category":"roads_infra","severity":4,"vulnerable":[]}
+{"text":"Submerged causeway prevents milk and crop produce vans from reaching railway siding.","category":"roads_infra","severity":3,"vulnerable":[]}
+{"text":"Village access path severely eroded by river bank cutting during high flow.","category":"roads_infra","severity":3,"vulnerable":[]}
+{"text":"Paddy crops drying up completely due to 45-day rain deficit. Need emergency diesel pumps.","category":"agriculture","severity":4,"vulnerable":[]}
+{"text":"Brown plant hopper pest attack destroying 200 acres of paddy fields in block.","category":"agriculture","severity":4,"vulnerable":[]}
+{"text":"Lift irrigation canal silted and blocked with mud, tail-end farmers getting no water.","category":"agriculture","severity":3,"vulnerable":[]}
+{"text":"Cold wave destroyed vegetable potato seedlings across 50 smallholder tribal farms.","category":"agriculture","severity":3,"vulnerable":[]}
+{"text":"Cattle disease foot-and-mouth outbreak reported, no veterinary medicines available in panchayat.","category":"agriculture","severity":4,"vulnerable":[]}
+{"text":"Grain warehouse roof leaking, stored harvested paddy rotting under moisture.","category":"agriculture","severity":3,"vulnerable":[]}
+{"text":"Government primary school asbestos roof blown away by storm. Classes running under tree.","category":"education","severity":3,"vulnerable":["children"]}
+{"text":"Middle school compound flooded with knee-deep stagnant water breeding mosquitoes.","category":"education","severity":3,"vulnerable":["children"]}
+{"text":"School boundary wall collapsed next to deep mining pit, extreme hazard for small children.","category":"education","severity":4,"vulnerable":["children"]}
+{"text":"Solar panel inverter stolen from digital literacy lab, all educational computers dead.","category":"education","severity":2,"vulnerable":["children"]}
+{"text":"Girls toilet in secondary school without running water or doors causing high dropout.","category":"education","severity":3,"vulnerable":["children"]}
+{"text":"100 kVA distribution transformer burnt 20 days ago. Whole village in total blackout.","category":"energy_connectivity","severity":3,"vulnerable":[]}
+{"text":"Cellular tower generator battery dead, zero mobile network coverage for 15 km radius.","category":"energy_connectivity","severity":4,"vulnerable":[]}
+{"text":"High voltage transmission cable sagging within 5 feet of ground over village path.","category":"energy_connectivity","severity":5,"vulnerable":["children","elderly"]}
+{"text":"Primary health clinic generator has no fuel, dark during emergency night deliveries.","category":"energy_connectivity","severity":4,"vulnerable":["pregnancy","medical_dependency"]}
+{"text":"Gram panchayat optical fiber line severed during ditch digging, internet disconnected.","category":"energy_connectivity","severity":2,"vulnerable":[]}

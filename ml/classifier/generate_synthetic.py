@@ -12,6 +12,7 @@ like a real SMS (dropped vowels, abbreviations, no punctuation, typos).
 import argparse
 import json
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -175,6 +176,70 @@ PROBLEMS += [
     ("environment", "preparedness", 3, ["लू में मजदूरों के लिए छाया पानी नहीं"], ["loo me majdooron ke liye chhaya nahi", "paara 45 paar", "tapti garmi"], ["no shade or water for labourers in the heat"]),
 ]
 
+
+# ---------------------------------------------------------------------------
+# Synonym layer. Real reporters use many words for the same thing, and a model
+# only knows what it has seen. Swapping words at render time multiplies the
+# vocabulary the classifier meets without writing hundreds more templates.
+# ---------------------------------------------------------------------------
+SYNONYMS: dict[str, list[str]] = {
+    # water
+    "chapakal": ["chapakal", "handpump", "hand pump", "nalka", "nal", "boring", "chuan", "chapa kal"],
+    "pani": ["pani", "paani", "panee", "jal", "water"],
+    "kuan": ["kuan", "kuaan", "well", "kuwan", "inaar"],
+    "talab": ["talab", "pokhar", "pond", "tank", "aahar"],
+    # health
+    "doctor": ["doctor", "daktar", "doctor babu", "chikitsak", "MO sahab"],
+    "dawai": ["dawai", "dawa", "medicine", "goli", "davai"],
+    "mareez": ["mareez", "marij", "patient", "bimar aadmi", "rogi"],
+    "hospital": ["hospital", "aspatal", "PHC", "CHC", "health centre", "swasthya kendra", "dawakhana", "sadar aspatal"],
+    "bimari": ["bimari", "bimaari", "rog", "disease", "sankraman"],
+    # education
+    "school": ["school", "skool", "vidyalaya", "pathshala", "madhyamik school", "primary school"],
+    "teacher": ["teacher", "master", "master ji", "shikshak", "guruji", "sir"],
+    "bachche": ["bachche", "bacche", "bachhe", "bachcho", "children", "ladke ladkiyan", "chhatra", "students"],
+    # agriculture
+    "fasal": ["fasal", "crop", "kheti", "upaj", "paidawar"],
+    "khet": ["khet", "field", "kheti ki zameen", "bakhar"],
+    "kisan": ["kisan", "farmer", "krishak", "kheti karne wale"],
+    # roads
+    "sadak": ["sadak", "road", "rasta", "path", "marg", "gali"],
+    "pul": ["pul", "bridge", "puliya", "culvert", "chachri pul"],
+    # energy
+    "bijli": ["bijli", "light", "current", "power", "vidyut", "bijali"],
+    "transformer": ["transformer", "transformar", "TC", "trasformer"],
+    "network": ["network", "signal", "tower", "mobile network", "range"],
+    # generic verbs and states
+    "kharab": ["kharab", "toota", "toot gaya", "band", "bekar", "jawab de gaya", "fail", "thap", "nakara"],
+    "nahi": ["nahi", "nhi", "nai", "ni", "nahin", "na"],
+    "bahut": ["bahut", "bht", "bohot", "kaafi", "jyada", "bhot"],
+    "gaon": ["gaon", "gav", "gaw", "village", "tola", "basti", "mohalla", "tola gaon"],
+    "log": ["log", "logo", "people", "aadmi", "parivar", "gramin"],
+    "problem": ["problem", "dikkat", "samasya", "pareshani", "takleef"],
+    "jaldi": ["jaldi", "jldi", "turant", "shighra", "abhi"],
+    "madad": ["madad", "madat", "help", "sahayata", "sahyog"],
+}
+# Longest first, so "hand pump" wins over "pump".
+_SYN_KEYS = sorted({k for k in SYNONYMS}, key=len, reverse=True)
+
+
+def synonymise(s: str, rng: random.Random) -> str:
+    """Swap known words for a random real-world variant."""
+    out = s
+    for key in _SYN_KEYS:
+        if key in out.lower() and rng.random() < 0.75:
+            variants = SYNONYMS[key]
+            pattern = re.compile(re.escape(key), re.IGNORECASE)
+            out = pattern.sub(lambda _m: rng.choice(variants), out, count=1)
+    return out
+
+
+# Openers and closers a real message carries around the actual problem.
+OPENERS = ["", "", "", "sir ", "namaskar sir ", "johar sir ", "sir ji ", "hello ", "gaon walon ki taraf se ",
+           "mai ", "hamare yahan ", "hamare tola me ", "sir hamare gaon me ", "request hai ki "]
+CLOSERS = ["", "", "", " kripya dhyan dijiye", " please dekhiye", " jaldi karwa dijiye", " koi sunta nahi",
+           " kai baar bol chuke hai", " dhanyawad", " sir help kijiye", " report kar raha hu", " sudhar karwaye"]
+
 ESCALATE = [  # (+severity, dev, roman, english)
     (1, ["दो लोगों की मौत हो गई", "एक आदमी मर गया"], ["do logo ki maut ho gayi", "ek aadmi mar gaya", "2 log mare"], ["two people died", "one man died"]),
     (1, ["कई लोग घायल हैं"], ["kai log ghayal hai"], ["many people injured"]),
@@ -267,6 +332,10 @@ def make(rng: random.Random) -> dict:
         parts[1:] = tail
     sep = rng.choice([" ", ". ", ", ", " - ", " "])
     text = sep.join(parts)
+    if script in ("rom", "mix") or rng.random() < 0.4:
+        text = synonymise(text, rng)
+    if rng.random() < 0.45:
+        text = rng.choice(OPENERS) + text + rng.choice(CLOSERS)
     text = roughen(text, rng) if script != "en" or rng.random() < 0.3 else text
     return {"text": text, "category": cat, "dm_phase": phase,
             "severity": max(1, min(5, sev)), "vulnerable": vul, "script": script, "problem_id": pid}

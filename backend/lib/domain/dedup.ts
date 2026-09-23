@@ -23,8 +23,8 @@ export const DEDUP_THRESHOLDS = {
  * at 85% precision and 73% recall. See ml/RESULTS.md.
  */
 export const TRAINED_DEDUP = {
-  merge: 0.47,
-  review: 0.4,
+  merge: 0.45,
+  review: 0.38,
 } as const;
 
 export type DedupDecision = "merge" | "review" | "new";

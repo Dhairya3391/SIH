@@ -35,11 +35,19 @@ def load():
     from classifier.train_classifier import CATS, PHASES, SEVS, VULN
     from classifier.train_transformer import BASE as CLS_BASE, MultiHead
 
-    p = CKPT / "report-classifier-v2-minilm"
-    if (p / "model.pt").exists():
-        m = MultiHead(CLS_BASE)
+    # Prefer the MuRIL classifier (v3) when it is present: MuRIL is built for
+    # Indian languages including Roman-Hindi, and measures better on every
+    # held-out set. Falls back to the MiniLM checkpoint (v2).
+    for name in ("report-classifier-v3-muril", "report-classifier-v2-minilm"):
+        p = CKPT / name
+        if not (p / "model.pt").exists():
+            continue
+        base = json.loads((p / "base.json").read_text())["base"] if (p / "base.json").exists() else CLS_BASE
+        m = MultiHead(base)
         m.load_state_dict(torch.load(p / "model.pt", map_location=DEV))
         state["cls"] = (m.to(DEV).eval(), AutoTokenizer.from_pretrained(p), (CATS, SEVS, PHASES, VULN))
+        state["cls_name"] = name
+        break
 
     d = CKPT / "dedup-minilm"
     if (d / "config.json").exists():
@@ -73,7 +81,7 @@ def _startup():
 @app.get("/health")
 def health():
     return {"ok": True, "device": DEV, "models": sorted(state),
-            "classifier": "report-classifier-v2-minilm", "dedup": "dedup-minilm",
+            "classifier": state.get("cls_name", "none"), "dedup": "dedup-minilm",
             "asr": "whisper-small-gramvaani-lora"}
 
 
@@ -86,11 +94,18 @@ def classify(body: TextIn):
     with torch.no_grad():
         out = model(enc["input_ids"], enc["attention_mask"])
     cat = out["category"].float().softmax(-1)[0].cpu().numpy()
+    # Average with the TF-IDF model that ships in the backend: the ensemble
+    # measured better than either alone (see ml/RESULTS.md).
+    try:
+        from classifier.eval_transformer import tfidf_probs
+        cat = 0.5 * cat + 0.5 * tfidf_probs([body.text])[0]
+    except Exception:  # noqa: BLE001 - the transformer alone is still fine
+        pass
     sev = out["severity"].float().softmax(-1)[0].cpu().numpy()
     ph = out["dm_phase"].float().softmax(-1)[0].cpu().numpy()
     vul = out["vulnerable"].float().sigmoid()[0].cpu().numpy()
     order = cat.argsort()[::-1]
-    return {"ok": True, "model": "report-classifier-v2-minilm",
+    return {"ok": True, "model": f"{state.get('cls_name', 'report-classifier')} + tfidf ensemble",
             "category": CATS[order[0]], "category_confidence": float(cat[order[0]]),
             "category_runner_up": {"label": CATS[order[1]], "prob": float(cat[order[1]])},
             "severity": int(SEVS[sev.argmax()]), "severity_confidence": float(sev.max()),

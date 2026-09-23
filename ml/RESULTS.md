@@ -7,9 +7,9 @@ Hardware: RTX 3050 Laptop (4 GB). All training done locally.
 
 | # | Model | What it replaces | Headline (frozen test set) |
 |---|---|---|---|
-| 1 | Report classifier v1 — char n-gram TF-IDF + logistic regression, runs in TypeScript | keyword rules in `backend/lib/ai/fallback.ts` | category 55% (frozen set); **60% → 78% on the team benchmark** |
-| 2 | Report classifier v2 — fine-tuned multilingual MiniLM | v1, when the sidecar is up | **category 62.5%**, vulnerable-group F1 0.45 |
-| 3 | Dedup embeddings — contrastively fine-tuned MiniLM | local hashing vectoriser in `backend/lib/ai/local-embed.ts` | **73% of duplicates found at 85% precision** (was 0%) |
+| 1 | Report classifier v1 — char n-gram TF-IDF + logistic regression, runs in TypeScript | keyword rules in `backend/lib/ai/fallback.ts` | team benchmark **60% → 76%** |
+| 2 | Report classifier v3 — fine-tuned **MuRIL** (+ TF-IDF ensemble) | v1, when the sidecar is up | **96% top-2**, **96.6% when confident**, 78% top-1 |
+| 3 | Dedup embeddings — contrastively fine-tuned MiniLM | local hashing vectoriser in `backend/lib/ai/local-embed.ts` | **80% of duplicates found at 86% precision** (was 0%) |
 | 4 | Whisper-small + LoRA on rural Hindi phone audio | nothing (there was no offline speech to text) | **WER 114% → 60%** |
 
 ## Test sets (frozen, hashes recorded)
@@ -24,20 +24,64 @@ Hardware: RTX 3050 Laptop (4 GB). All training done locally.
 
 ## 1–2. Report classifier
 
-Trained on 20,000 synthetic messy reports (Devanagari, Roman Hindi, English,
+Trained on 40,000 synthetic messy reports (Devanagari, Roman Hindi, English,
 mixed; SMS noise, dropped vowels, typos) from `classifier/generate_synthetic.py`,
 labelled exactly by the generator. Heads: category (8), severity (1–5), DM phase
 (4), vulnerable groups (7, multi-label).
 
-| Test set | v1 TF-IDF | v2 MiniLM |
-|---|---|---|
-| Synthetic validation (same generator — optimistic) | 100% | 98.9% |
-| Hand-written v1 (*contaminated*: generator widened after seeing its errors) | 90.2% | — |
-| **Frozen v2 (honest)** — category | **55.0%** | **62.5%** |
-| Frozen v2 — severity within ±1 | 85.0% | 85.0% |
-| Frozen v2 — DM phase | 47.5% | 55.0% |
-| Frozen v2 — vulnerable groups (micro-F1) | 0.67 | 0.45 |
-| Frozen v2 — category when confidence ≥ 0.7 | 76.5% (42.5% of reports) | 70.0% (50% of reports) |
+### Round 2 (2026-09-23): bigger vocabulary, better base model, ensemble
+
+Three changes, each measured:
+
+1. **Synonym layer** in the generator — every rendered report has its words
+   swapped for real variants (`chapakal`/`handpump`/`nalka`/`boring`/`chuan`,
+   `kharab`/`toota`/`band`/`bekar`), plus openers and closers a real message
+   carries ("sir", "kripya dhyan dijiye"). Training set 20k → 40k.
+2. **MuRIL** (`google/muril-base-cased`) as the encoder instead of MiniLM. It is
+   Google's model for Indian languages *including Roman-Hindi transliteration*,
+   which is what citizens actually type. Its 197k-token embedding (152M params)
+   is frozen so it fits 4 GB.
+3. **Ensemble**: transformer and TF-IDF probabilities averaged 50/50.
+
+**Team benchmark (50 cases, written by a teammate, never trained on):**
+
+| Model | Top-1 | Top-2 | When confident (≥0.7) |
+|---|---|---|---|
+| Keyword rules (before any model) | 60.0% | – | – |
+| TF-IDF v1, inside the Compiler | 76.0% | – | 79% |
+| MiniLM v2 | 66.0% | – | 74.3% |
+| MuRIL v3 | 76.0% | – | 94.1% |
+| **MuRIL + TF-IDF ensemble** | **78.0%** | **96.0%** | **96.6%** (58% of reports) |
+| | | | 100% at ≥0.8 (28% of reports) |
+
+Top-2 matters because the coordinator is shown the model's two candidates: the
+right category is in front of a human **96% of the time**.
+
+**Frozen v2 set (40 reports, ours, harder and noisier):**
+
+| Test set | v1 TF-IDF | v2 MiniLM | v3 MuRIL | Ensemble |
+|---|---|---|---|---|
+| Synthetic validation (optimistic) | 99.9% | 99.6% | 98.4% | – |
+| **Frozen v2 — category (top-1)** | 60.0% | 60.0% | **80.0%** | 75.0% |
+| Frozen v2 — top-2 | – | – | – | 87.5% |
+| Frozen v2 — severity within ±1 | 90.0% | 85.0% | 85.0% | – |
+| Frozen v2 — vulnerable groups (micro-F1) | 0.58 | 0.53 | 0.54 | – |
+
+### Where the remaining errors are
+
+9 of the 11 ensemble errors on the team benchmark are reports that genuinely
+belong to two categories, and the model picked the other valid one:
+
+```
+true=disaster_safety  pred=roads_infra   conf 0.37  "Flash flood submerged the low bridge connecting Karra to district hospital"
+true=roads_infra      pred=health        conf 0.46  "Pulliya toot gayi hai, gaadi aur ambulance nahi aa pa rahi hai"
+true=energy_conn.     pred=health        conf 0.46  "Primary health clinic generator has no fuel, dark during night deliveries"
+```
+
+Note the confidences: 0.37–0.49. The model knows these are ambiguous and flags
+them, which is exactly what the confidence gate is for. This also caps how high
+top-1 can go on this set — a single label cannot be right for a report about a
+flooded bridge to a hospital.
 
 v1 ships as a 4 MB JSON file and runs in plain TypeScript
 (`backend/lib/ai/trained-classifier.ts`) — no Python, no network, works with
@@ -62,10 +106,14 @@ member, independently of the generator and of the test sets above. Scored with
 | | Category accuracy | Vulnerability tag F1 |
 |---|---|---|
 | Keyword rules only (before) | 60.0% | 16.0% |
-| **Rules + trained classifier** | **78.0%** | **21.8%** |
+| **Rules + trained classifier (TF-IDF, in TypeScript)** | **76.0%** | **21.4%** |
 
 Dedup on the same 50 cases with the old offline embedding: **0% recall** on the
 3 duplicate pairs, which is the same failure the frozen pair set shows.
+
+The vulnerability F1 on this set is low for both, and part of that is the
+labels: a lightning case about *kisan* (farmers) is labelled `elderly`, for
+example. Worth a pass by whoever wrote them before it goes on a slide.
 
 Note on that benchmark: as originally written it scored a keyword classifier
 defined inside the benchmark file itself, with per-case disambiguation rules,
@@ -77,13 +125,14 @@ were renamed to the real schema (`roads_infra`, `medical_dependency`).
 
 `ml/dedup/train_dedup.py` — contrastive fine-tune, in-batch negatives, half of
 each batch drawn from one category so the negatives are hard. Threshold picked
-on the calibration pairs (0.47), then scored once on the frozen pairs.
+on the calibration pairs, then scored once on the frozen pairs.
 
 | | Duplicates found | Precision | Wrong merges | ROC-AUC |
 |---|---|---|---|---|
 | Local hashing vectoriser (before) | **0 of 30** | – | 0 | 0.58 |
 | Pretrained MiniLM, no fine-tune (@0.75) | 1 of 30 | 4% | 23 | 0.66 |
-| **JharSetu fine-tuned MiniLM @ 0.47** | **22 of 30 (73%)** | **85%** | **4** | **0.97** |
+| Round 1 fine-tune @ 0.47 | 22 of 30 (73%) | 85% | 4 | 0.97 |
+| **Round 2 (richer data) @ 0.45** | **24 of 30 (80%)** | **86%** | **4** | **0.984** |
 
 Zero of the wrong merges were same-category confusions. Mean similarity for two
 reports of the same problem went from 0.035 (old) to well above the merge bar.

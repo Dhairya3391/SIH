@@ -78,6 +78,10 @@ def main():
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--bs", type=int, default=32)
     ap.add_argument("--lr", type=float, default=3e-5)
+    ap.add_argument("--base", default=None, help="override the encoder (e.g. the local MuRIL path)")
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--freeze-embeddings", action="store_true",
+                    help="MuRIL's 197k-token embedding is 151M params; freezing it fits 4 GB")
     a = ap.parse_args()
     torch.manual_seed(0)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -89,9 +93,15 @@ def main():
     test_v1 = load(REPO_ML / "classifier" / "testset_handwritten.jsonl")
     frozen = load(REPO_ML / "classifier" / "testset_v2_frozen.jsonl")
 
-    tok = AutoTokenizer.from_pretrained(BASE)
-    model = MultiHead(BASE).to(dev)
-    opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0.01)
+    base = a.base or BASE
+    out_dir = Path(a.out) if a.out else OUT
+    tok = AutoTokenizer.from_pretrained(base)
+    model = MultiHead(base).to(dev)
+    if a.freeze_embeddings:
+        emb = model.enc.get_input_embeddings()
+        emb.weight.requires_grad_(False)
+        print(f"froze {emb.weight.numel() / 1e6:.0f}M embedding params", flush=True)
+    opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=a.lr, weight_decay=0.01)
     steps = a.epochs * (len(train) // a.bs)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=a.lr, total_steps=steps, pct_start=0.1)
     scaler = torch.amp.GradScaler(dev, enabled=dev == "cuda")
@@ -138,12 +148,13 @@ def main():
         results.append(res)
         print(json.dumps(res, indent=1, ensure_ascii=False))
 
-    OUT.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), OUT / "model.pt")
-    tok.save_pretrained(OUT)
-    (OUT / "labels.json").write_text(json.dumps({"category": CATS, "severity": SEVS, "dm_phase": PHASES, "vulnerable": VULN}))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), out_dir / "model.pt")
+    tok.save_pretrained(out_dir)
+    (out_dir / "base.json").write_text(json.dumps({"base": base}))
+    (out_dir / "labels.json").write_text(json.dumps({"category": CATS, "severity": SEVS, "dm_phase": PHASES, "vulnerable": VULN}))
     (CKPT / "classifier_v2_results.json").write_text(json.dumps(results, indent=1, ensure_ascii=False), encoding="utf-8")
-    print("saved", OUT)
+    print("saved", out_dir)
 
 
 if __name__ == "__main__":

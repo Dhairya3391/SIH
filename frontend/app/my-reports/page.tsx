@@ -11,6 +11,7 @@ import { Empty, ErrorNote, SkeletonRows } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import * as apiClient from "@/lib/api";
 import { useResource } from "@/lib/useResource";
+import { useAuth } from "@/lib/auth";
 import { listLocalReports, type LocalReport } from "@/lib/localReports";
 import { CHANNEL_LABEL, bandOf, dateTime, num, relative, truncate } from "@/lib/format";
 import type { MyReport } from "@/types/database";
@@ -26,14 +27,18 @@ import type { MyReport } from "@/types/database";
  */
 export default function MyReportsPage() {
   return (
-    <RouteGuard>
+    <RouteGuard allowAnonymous>
       <MyReportsConsole />
     </RouteGuard>
   );
 }
 
 function MyReportsConsole() {
-  const mine = useResource(() => apiClient.fetchMyReports(), []);
+  const { isAuthenticated } = useAuth();
+  const mine = useResource(
+    () => (isAuthenticated ? apiClient.fetchMyReports() : Promise.resolve({ reports: [] })),
+    [isAuthenticated],
+  );
   const [local, setLocal] = useState<LocalReport[]>([]);
 
   // Read once, after the commit. localStorage is a browser store, not React
@@ -74,11 +79,30 @@ function MyReportsConsole() {
           <SkeletonRows rows={3} height={120} />
         ) : mine.error ? (
           <>
-            <ErrorNote
-              message={mine.error}
-              code={mine.code}
-              onRetry={mine.reload}
-            />
+            <ErrorNote message={mine.error} code={mine.code} onRetry={mine.reload} />
+            {localOnly.length > 0 && <LocalList rows={localOnly} />}
+          </>
+        ) : !isAuthenticated ? (
+          <>
+            <div className="in flex items-start gap-3 p-5 sm:p-6">
+              <span className="mt-1 text-moderate">
+                <Icon name="info" size={18} />
+              </span>
+              <div>
+                <h3 className="text-[15px] font-bold text-navy-dark">
+                  Sign in to see the reports filed from your account
+                </h3>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-body">
+                  A report filed without an account can still be followed through the
+                  reference number you were given.
+                </p>
+                <div className="mt-4">
+                  <ButtonLink href="/login" variant="secondary" size="sm" icon="login">
+                    Sign in
+                  </ButtonLink>
+                </div>
+              </div>
+            </div>
             {localOnly.length > 0 && <LocalList rows={localOnly} />}
           </>
         ) : reports.length === 0 && localOnly.length === 0 ? (

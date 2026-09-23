@@ -27,6 +27,14 @@ export function looksLikePdf(bytes: Uint8Array): boolean {
 export async function extractPdfText(bytes: Uint8Array): Promise<ExtractedDocument> {
   // Lazy: see the module note above. A static import would crash every route
   // that imports this file, even ones that never read a PDF.
+  if (typeof globalThis.DOMMatrix === "undefined") {
+    // @ts-ignore - pdf-parse expects this to exist but does not actually use it for simple text extraction
+    globalThis.DOMMatrix = class DOMMatrix {};
+  }
+  if (typeof globalThis.Path2D === "undefined") {
+    // @ts-ignore
+    globalThis.Path2D = class Path2D {};
+  }
   const { PDFParse } = await import("pdf-parse");
   // pdf.js may transfer the buffer it is given; hand it a copy so the caller's
   // bytes survive for the storage upload.

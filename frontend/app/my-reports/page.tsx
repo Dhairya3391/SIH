@@ -36,7 +36,7 @@ export default function MyReportsPage() {
 function MyReportsConsole() {
   const { isAuthenticated } = useAuth();
   const mine = useResource(
-    () => (isAuthenticated ? apiClient.fetchMyReports() : Promise.resolve({ reports: [] })),
+    () => (isAuthenticated ? apiClient.fetchMyReports() : Promise.resolve({ reports: [], count: 0 })),
     [isAuthenticated],
   );
   const [local, setLocal] = useState<LocalReport[]>([]);

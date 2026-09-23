@@ -48,22 +48,24 @@ export function getGeminiApiKeys(): string[] {
 }
 
 /**
- * Model cascade: 3.8 flash -> 3.7 flash -> 3.6 flash -> 3.5 flash -> 3.5 flash lite.
+ * Model cascade: 3.5 flash -> 3.6 flash -> 3.5 flash lite -> 3.8 flash -> 2.5 flash.
  */
 export const GEMINI_MODEL_CASCADE = process.env.GEMINI_MODELS
   ? process.env.GEMINI_MODELS.split(",").map((m) => m.trim()).filter(Boolean)
   : [
+      "gemini-3.5-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.8-flash",
       "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-1.5-flash",
     ];
 
 // These two labels are what the pipeline trace shows a coordinator, so they
 // must name the model that actually ran.
 export const MODEL_FAST =
-  process.env.LLM_MODEL_FAST || GEMINI_MODEL_CASCADE[0] || "gemini-2.5-flash";
+  process.env.LLM_MODEL_FAST || GEMINI_MODEL_CASCADE[0] || "gemini-3.5-flash";
 export const MODEL_DRAFT =
-  process.env.LLM_MODEL_DRAFT || GEMINI_MODEL_CASCADE[0] || "gemini-2.5-flash";
+  process.env.LLM_MODEL_DRAFT || GEMINI_MODEL_CASCADE[0] || "gemini-3.5-flash";
 
 /**
  * The kill switch. Setting AI_ENABLED=false makes every call throw
@@ -190,6 +192,13 @@ async function callGeminiJson<T>(opts: LlmJsonOptions<T>, started: number): Prom
           continue;
         }
 
+        if (res.status === 404) {
+          console.warn(`[gemini] model ${model} not found (404), cascading to next model`);
+          const errBody = await res.text().catch(() => "");
+          lastError = new AiUnavailableError(`Gemini model ${model} error 404: ${errBody.slice(0, 100)}`);
+          break; // break key loop and try next model in cascade
+        }
+
         if (res.status === 503) {
           console.warn(`[gemini] model ${model} experiencing high demand (503), cascading to next model`);
           lastError = new AiUnavailableError(`Gemini model ${model} experiencing high demand (503)`);
@@ -246,9 +255,9 @@ async function callGeminiText(
   opts: { system: string; prompt: string; maxTokens?: number },
   started: number,
 ): Promise<{ text: string; ms: number; model: string }> {
-  const apiKeys = getGeminiApiKeys();
+  const apiKeys = getGeminiApiKeys().filter((k) => !suspendedKeys.has(k));
   if (!apiKeys.length) {
-    throw new AiUnavailableError("No Gemini API keys configured.");
+    throw new AiUnavailableError("No active Gemini API keys configured.");
   }
 
   const models = GEMINI_MODEL_CASCADE;
@@ -256,6 +265,8 @@ async function callGeminiText(
 
   for (const model of models) {
     for (const key of apiKeys) {
+      if (suspendedKeys.has(key)) continue;
+
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
         const res = await fetch(url, {
@@ -274,8 +285,27 @@ async function callGeminiText(
           }),
         });
 
-        if (res.status === 429 || res.status === 403 || res.status === 503) {
-          lastError = new AiUnavailableError(`Gemini model ${model} returned ${res.status}`);
+        if (res.status === 403) {
+          console.warn(`[gemini] key ${key.slice(0, 8)}... suspended (403), marking inactive`);
+          suspendedKeys.add(key);
+          continue;
+        }
+
+        if (res.status === 404) {
+          console.warn(`[gemini] model ${model} not found (404), cascading to next model`);
+          lastError = new AiUnavailableError(`Gemini model ${model} returned 404`);
+          break; // break key loop and try next model
+        }
+
+        if (res.status === 503) {
+          console.warn(`[gemini] model ${model} experiencing high demand (503), cascading to next model`);
+          lastError = new AiUnavailableError(`Gemini model ${model} returned 503`);
+          break; // break key loop and try next model
+        }
+
+        if (res.status === 429) {
+          console.warn(`[gemini] key ${key.slice(0, 8)}... rate limited (429) on ${model}, trying next key`);
+          lastError = new AiUnavailableError(`Gemini key rate limited on ${model}`);
           continue;
         }
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { EMBEDDING_DIM, localEmbed, l2Normalise, toPgVector } from "./local-embed";
 import { embedWithService, isModelServiceEnabled } from "./model-service";
+import { getGeminiApiKeys } from "./llm";
 
 /**
  * Embeddings, used for deduplication, the do-not-duplicate library, and the
@@ -43,7 +44,7 @@ export interface EmbeddingResult {
 }
 
 export function isRemoteEmbeddingEnabled(): boolean {
-  return process.env.AI_ENABLED !== "false" && Boolean(process.env.GEMINI_API_KEY);
+  return process.env.AI_ENABLED !== "false" && (Boolean(process.env.GEMINI_API_KEY) || getGeminiApiKeys().length > 0);
 }
 
 export async function embed(text: string): Promise<EmbeddingResult> {
@@ -84,7 +85,8 @@ export async function embedMany(texts: string[]): Promise<EmbeddingResult[]> {
 }
 
 async function geminiEmbed(text: string): Promise<number[]> {
-  const key = process.env.GEMINI_API_KEY!;
+  const key = process.env.GEMINI_API_KEY || getGeminiApiKeys()[0];
+  if (!key) throw new Error("No Gemini API key configured for embeddings.");
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${key}`,
     {

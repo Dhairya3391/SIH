@@ -140,15 +140,26 @@ reports of the same problem went from 0.035 (old) to well above the merge bar.
 ## 4. Whisper-small LoRA on rural Hindi
 
 Data: Gram Vaani (community-radio phone recordings from rural India — noisy,
-8 kHz-band, spontaneous speech). 2,683 training clips (~7.5 h), 317 held-out
-test clips. LoRA on attention projections, 7.1M trainable of 248M, fp16,
-gradient checkpointing, ~22 min on the 3050.
+8 kHz-band, spontaneous speech). 317 held-out test clips (shared across v1 and v2).
+LoRA on attention projections, 7.1M trainable of 248M, fp16, gradient checkpointing.
+
+### Round 1 (v1): 2,683 training clips, ~22 min
 
 | | WER | CER |
 |---|---|---|
 | whisper-small, no fine-tune | 114.2% | 81.8% |
-| **whisper-small + our LoRA** | **59.6%** | **32.1%** |
+| **whisper-small + LoRA v1** | **59.6%** | **32.1%** |
 | improvement | **−54.6 points (48% relative)** | −49.7 points (61% relative) |
+
+### Round 2 (v2, 2026-09-23): 6,120 training clips (3 epochs), ~93 min
+
+Expanded dataset: Gram Vaani + additional recordings. Trained on RTX 3050.
+
+| | WER | CER |
+|---|---|---|
+| **whisper-small + LoRA v2** | **50.48%** | **27.12%** |
+| vs v1 | **−9.1 points (15% rel)** | **−4.98 points (15% rel)** |
+| vs baseline | **−63.7 points (56% relative)** | **−54.7 points (67% relative)** |
 
 Same 317 clips, same greedy decoding, both runs. Example:
 

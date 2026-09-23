@@ -54,14 +54,18 @@ def load():
         state["dedup"] = (AutoModel.from_pretrained(d).to(DEV).eval(), AutoTokenizer.from_pretrained(d),
                           json.loads((d / "threshold.json").read_text())["merge"])
 
-    a = CKPT / "whisper-small-gramvaani-lora"
-    if (a / "adapter_config.json").exists():
-        from peft import PeftModel
-        from transformers import WhisperForConditionalGeneration, WhisperProcessor
-        base = str(HOME / "models" / "whisper-small")
-        w = WhisperForConditionalGeneration.from_pretrained(base, dtype=torch.float16 if DEV == "cuda" else torch.float32)
-        w = PeftModel.from_pretrained(w, a).merge_and_unload().to(DEV).eval()
-        state["asr"] = (w, WhisperProcessor.from_pretrained(base, language="hindi", task="transcribe"))
+    # Prefer v2 when present (larger dataset, better WER), falls back to v1
+    for asr_name in ("whisper-small-gramvaani-lora-v2", "whisper-small-gramvaani-lora"):
+        a = CKPT / asr_name
+        if (a / "adapter_config.json").exists():
+            from peft import PeftModel
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor
+            base = str(HOME / "models" / "whisper-small")
+            w = WhisperForConditionalGeneration.from_pretrained(base, dtype=torch.float16 if DEV == "cuda" else torch.float32)
+            w = PeftModel.from_pretrained(w, a).merge_and_unload().to(DEV).eval()
+            state["asr"] = (w, WhisperProcessor.from_pretrained(base, language="hindi", task="transcribe"))
+            state["asr_name"] = asr_name
+            break
 
 
 class TextIn(BaseModel):
@@ -82,7 +86,7 @@ def _startup():
 def health():
     return {"ok": True, "device": DEV, "models": sorted(state),
             "classifier": state.get("cls_name", "none"), "dedup": "dedup-minilm",
-            "asr": "whisper-small-gramvaani-lora"}
+            "asr": state.get("asr_name", "none")}
 
 
 @app.post("/classify")
